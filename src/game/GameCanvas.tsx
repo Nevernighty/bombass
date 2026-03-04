@@ -275,8 +275,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-3 pointer-events-none">
             <div className="glass-panel px-4 py-2 rounded-xl pointer-events-auto">
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-game-text font-bold text-lg">{state.score}</span>
-                <span className="text-game-muted">x{state.combo.toFixed(1)}</span>
+                <span className="text-game-text font-bold text-lg">{Math.round(state.score)}</span>
+                <span className="text-game-muted">x{Math.round(state.combo * 10) / 10}</span>
                 <span className="text-game-muted">
                   {'❤️'.repeat(state.lives)}{'🖤'.repeat(Math.max(0, 3 - state.lives))}
                 </span>

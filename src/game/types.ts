@@ -9,6 +9,7 @@ export interface GameStation {
   line: 'red' | 'blue' | 'green';
   isTransfer: boolean;
   depth: 'shallow' | 'deep';
+  shape: PassengerShape;
   passengers: Passenger[];
   hp: number; // 0-100
   maxHp: number;
@@ -41,6 +42,8 @@ export interface Train {
   capacity: number;
   x: number;
   y: number;
+  dwellTimer: number;
+  isDwelling: boolean;
 }
 
 export interface Drone {
@@ -126,6 +129,8 @@ export interface GameState {
   unlockedRoutes: string[];
   selectedTrain: string | null;
   hoveredStation: string | null;
+  activeStationIds: string[];
+  nextStationUnlockTime: number;
   qteActive: boolean;
   qteDroneId: string | null;
   qteKey: string;
