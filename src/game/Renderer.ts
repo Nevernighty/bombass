@@ -26,8 +26,8 @@ export class GameRenderer {
   }
 
   private toScreen(nx: number, ny: number, cam: GameState['camera']): [number, number] {
-    const sx = (nx * this.width - cam.x) * cam.zoom + this.width / 2;
-    const sy = (ny * this.height - cam.y) * cam.zoom + this.height / 2;
+    const sx = ((nx - 0.5) * this.width - cam.x) * cam.zoom + this.width / 2;
+    const sy = ((ny - 0.5) * this.height - cam.y) * cam.zoom + this.height / 2;
     return [sx, sy];
   }
 
@@ -77,8 +77,9 @@ export class GameRenderer {
     // Draw metro lines
     this.drawMetroLines(state, cam, nightAmount);
 
-    // Draw stations
-    state.stations.forEach(station => {
+    // Draw stations (only active ones)
+    const activeIds = state.activeStationIds;
+    state.stations.filter(s => activeIds.includes(s.id)).forEach(station => {
       this.drawStation(station, state, cam, nightAmount);
     });
 
@@ -195,7 +196,8 @@ export class GameRenderer {
     const lines = ['red', 'blue', 'green'] as const;
 
     lines.forEach(line => {
-      const lineStations = state.stations.filter(s => s.line === line);
+      const activeIds = state.activeStationIds;
+      const lineStations = state.stations.filter(s => s.line === line && activeIds.includes(s.id));
       if (lineStations.length < 2) return;
 
       const { color, glowColor } = METRO_LINES[line];
@@ -259,31 +261,64 @@ export class GameRenderer {
       ctx.globalAlpha = 1;
     }
 
-    // Station circle
+    // Station shape
     const lineColor = METRO_LINES[station.line].color;
+    const shape = station.shape || 'circle';
+    const jellyScale = 1 + Math.sin(station.jellyOffset.x * 0.5) * 0.1 + Math.sin(station.jellyOffset.y * 0.5) * 0.1;
+    const sr = r * jellyScale;
+
     if (station.isDestroyed) {
       ctx.fillStyle = '#333';
       ctx.strokeStyle = '#555';
     } else {
-      ctx.fillStyle = station.isTransfer ? '#fff' : lineColor;
-      ctx.strokeStyle = '#fff';
+      ctx.fillStyle = '#0d1220';
+      ctx.strokeStyle = lineColor;
     }
-
-    // Jelly scale effect
-    const jellyScale = 1 + Math.sin(station.jellyOffset.x * 0.5) * 0.1 + Math.sin(station.jellyOffset.y * 0.5) * 0.1;
+    ctx.lineWidth = 3 * cam.zoom;
 
     ctx.beginPath();
-    ctx.arc(sx, sy, r * jellyScale, 0, Math.PI * 2);
+    switch (shape) {
+      case 'circle':
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        break;
+      case 'square':
+        ctx.rect(sx - sr, sy - sr, sr * 2, sr * 2);
+        break;
+      case 'triangle':
+        ctx.moveTo(sx, sy - sr * 1.2);
+        ctx.lineTo(sx + sr, sy + sr * 0.8);
+        ctx.lineTo(sx - sr, sy + sr * 0.8);
+        ctx.closePath();
+        break;
+      case 'diamond':
+        ctx.moveTo(sx, sy - sr * 1.2);
+        ctx.lineTo(sx + sr, sy);
+        ctx.lineTo(sx, sy + sr * 1.2);
+        ctx.lineTo(sx - sr, sy);
+        ctx.closePath();
+        break;
+      case 'star':
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
+          const ox = sx + Math.cos(angle) * sr;
+          const oy = sy + Math.sin(angle) * sr;
+          if (i === 0) ctx.moveTo(ox, oy);
+          else ctx.lineTo(ox, oy);
+          const inner = angle + Math.PI / 5;
+          ctx.lineTo(sx + Math.cos(inner) * sr * 0.5, sy + Math.sin(inner) * sr * 0.5);
+        }
+        ctx.closePath();
+        break;
+    }
     ctx.fill();
-    ctx.lineWidth = 2 * cam.zoom;
     ctx.stroke();
 
-    // Transfer station indicator
-    if (station.isTransfer) {
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 3 * cam.zoom;
+    // Transfer station indicator - outer ring
+    if (station.isTransfer && !station.isDestroyed) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2 * cam.zoom;
       ctx.beginPath();
-      ctx.arc(sx, sy, r * 0.6 * jellyScale, 0, Math.PI * 2);
+      ctx.arc(sx, sy, sr + 5 * cam.zoom, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -385,8 +420,9 @@ export class GameRenderer {
     const isSelected = state.selectedTrain === train.id;
     const lineColor = METRO_LINES[train.line].color;
 
-    // Train body
-    ctx.fillStyle = lineColor;
+    // Train body - draw loading/unloading indicator
+    const isDwelling = train.isDwelling;
+    ctx.fillStyle = isDwelling ? '#fff' : lineColor;
     const w = 14 * cam.zoom;
     const h = 8 * cam.zoom;
 
