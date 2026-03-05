@@ -11,17 +11,21 @@ export interface GameStation {
   depth: 'shallow' | 'deep';
   shape: PassengerShape;
   passengers: Passenger[];
-  hp: number; // 0-100
+  hp: number;
   maxHp: number;
+  maxPassengers: number;
   isDestroyed: boolean;
   isOnFire: boolean;
   fireTimer: number;
   isRepairing: boolean;
   repairProgress: number;
-  jellyOffset: { x: number; y: number }; // wobble
+  jellyOffset: { x: number; y: number };
   jellyVel: { x: number; y: number };
   isOpen: boolean;
-  shelterCount: number; // passengers sheltering during raid
+  shelterCount: number;
+  hasAntiAir: boolean;
+  shieldTimer: number;
+  level: number; // upgrade level 1-3
 }
 
 export interface Passenger {
@@ -31,11 +35,13 @@ export interface Passenger {
   stationId: string;
 }
 
+export type DroneType = 'shahed' | 'molniya' | 'gerbera';
+
 export interface Train {
   id: string;
   line: 'red' | 'blue' | 'green';
-  routeIndex: number; // current station index in route
-  progress: number; // 0-1 between stations
+  routeIndex: number;
+  progress: number;
   direction: 1 | -1;
   speed: number;
   passengers: Passenger[];
@@ -44,6 +50,7 @@ export interface Train {
   y: number;
   dwellTimer: number;
   isDwelling: boolean;
+  level: number; // 1-3, affects capacity
 }
 
 export interface Drone {
@@ -55,6 +62,9 @@ export interface Drone {
   angle: number;
   isDestroyed: boolean;
   wobble: number;
+  droneType: DroneType;
+  hp: number;
+  maxHp: number;
 }
 
 export interface SurfaceVehicle {
@@ -109,6 +119,7 @@ export interface GameState {
   lives: number;
   combo: number;
   maxCombo: number;
+  money: number;
   passengersDelivered: number;
   dronesIntercepted: number;
   totalDrones: number;
@@ -116,7 +127,7 @@ export interface GameState {
   stationsRepaired: number;
   networkEfficiency: number;
   peakLoad: number;
-  dayTime: number; // 0-1 (0=midnight, 0.5=noon)
+  dayTime: number;
   isNight: boolean;
   isAirRaid: boolean;
   airRaidTimer: number;
@@ -126,6 +137,7 @@ export interface GameState {
   gameStarted: boolean;
   isPaused: boolean;
   elapsedTime: number;
+  speedMultiplier: number;
   unlockedRoutes: string[];
   selectedTrain: string | null;
   hoveredStation: string | null;
@@ -135,4 +147,14 @@ export interface GameState {
   qteDroneId: string | null;
   qteKey: string;
   qteTimer: number;
+  notifications: GameNotification[];
+}
+
+export interface GameNotification {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  timer: number;
+  color: string;
 }

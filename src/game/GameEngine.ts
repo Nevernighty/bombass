@@ -1,25 +1,22 @@
-import { STATIONS, GAME_CONFIG, METRO_LINES, SURFACE_ROUTES, DNIPRO_RIVER_POINTS, PassengerShape, SHAPE_COLORS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, Explosion, SurfaceVehicle, RepairUnit } from './types';
+import { STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES } from './constants';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification } from './types';
 import { AudioEngine } from './AudioEngine';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
 
 const SHAPES: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
-
-// Starting 6 central stations (2 per line)
 const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5'];
 
-// Unlock order: expand outward from center
 const UNLOCK_ORDER: Record<string, string[]> = {
   red: ['r9', 'r12', 'r8', 'r13', 'r7', 'r14', 'r6', 'r15', 'r5', 'r16', 'r4', 'r17', 'r3', 'r18', 'r2', 'r1'],
   blue: ['b6', 'b9', 'b5', 'b10', 'b4', 'b11', 'b3', 'b12', 'b2', 'b13', 'b1', 'b14', 'b15', 'b16'],
   green: ['g3', 'g6', 'g2', 'g7', 'g1', 'g8', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15'],
 };
 
-const STATION_UNLOCK_INTERVAL = 20000; // unlock one per line every 20s
+const STATION_UNLOCK_INTERVAL = 20000;
 
-function easeInOutQuad(t: number): number {
+export function easeInOutQuad(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
@@ -38,6 +35,7 @@ export function createInitialState(): GameState {
     passengers: [],
     hp: 100,
     maxHp: 100,
+    maxPassengers: GAME_CONFIG.MAX_PASSENGERS_PER_STATION,
     isDestroyed: false,
     isOnFire: false,
     fireTimer: 0,
@@ -47,9 +45,11 @@ export function createInitialState(): GameState {
     jellyVel: { x: 0, y: 0 },
     isOpen: true,
     shelterCount: 0,
+    hasAntiAir: false,
+    shieldTimer: 0,
+    level: 1,
   }));
 
-  // Create 1 train per line on starting stations
   const trains: Train[] = [];
   (['red', 'blue', 'green'] as const).forEach(line => {
     const lineStartStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
@@ -68,6 +68,7 @@ export function createInitialState(): GameState {
       y: st.y,
       dwellTimer: 0,
       isDwelling: false,
+      level: 1,
     });
   });
 
@@ -83,6 +84,7 @@ export function createInitialState(): GameState {
     lives: 3,
     combo: 1,
     maxCombo: 1,
+    money: 0,
     passengersDelivered: 0,
     dronesIntercepted: 0,
     totalDrones: 0,
@@ -100,6 +102,7 @@ export function createInitialState(): GameState {
     gameStarted: false,
     isPaused: false,
     elapsedTime: 0,
+    speedMultiplier: 1,
     unlockedRoutes: [],
     selectedTrain: null,
     hoveredStation: null,
@@ -109,46 +112,47 @@ export function createInitialState(): GameState {
     qteDroneId: null,
     qteKey: 'Q',
     qteTimer: 0,
+    notifications: [],
   };
 }
 
-function getActiveLineStations(state: GameState, line: string): string[] {
+export function getActiveLineStations(state: GameState, line: string): string[] {
   return STATIONS
     .filter(s => s.line === line && state.activeStationIds.includes(s.id))
     .map(s => s.id);
 }
 
+function addNotification(state: GameState, text: string, x: number, y: number, color = '#fff') {
+  state.notifications.push({ id: uid(), text, x, y, timer: 2000, color });
+}
+
 export function updateGame(state: GameState, dt: number, audio: AudioEngine): GameState {
   if (!state.gameStarted || state.gameOver || state.isPaused) return state;
 
+  const realDt = dt * state.speedMultiplier;
   const s = { ...state };
-  s.elapsedTime += dt;
+  s.elapsedTime += realDt;
 
   // Day/night cycle
-  s.dayTime = (s.dayTime + dt / GAME_CONFIG.DAY_CYCLE_DURATION) % 1;
+  s.dayTime = (s.dayTime + realDt / GAME_CONFIG.DAY_CYCLE_DURATION) % 1;
   s.isNight = s.dayTime < 0.2 || s.dayTime > 0.8;
 
   // Progressive station unlock
   if (s.elapsedTime >= s.nextStationUnlockTime) {
     s.nextStationUnlockTime += STATION_UNLOCK_INTERVAL;
-    let unlocked = false;
     (['red', 'blue', 'green'] as const).forEach(line => {
       const order = UNLOCK_ORDER[line];
       const nextStation = order.find(id => !s.activeStationIds.includes(id));
       if (nextStation) {
         s.activeStationIds.push(nextStation);
-        unlocked = true;
-        // Jelly bounce on the new station
         const st = s.stations.find(st => st.id === nextStation);
         if (st) { st.jellyVel.y = -4; st.jellyVel.x = 2; }
       }
     });
-    if (unlocked) {
-      audio.playClick();
-    }
+    audio.playClick();
   }
 
-  // Determine available shapes based on active stations
+  // Available shapes
   const activeShapes = new Set<PassengerShape>();
   s.stations.filter(st => s.activeStationIds.includes(st.id) && !st.isDestroyed).forEach(st => {
     activeShapes.add(st.shape);
@@ -157,41 +161,32 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
 
   // Spawn passengers
   const spawnRate = Math.max(1500, GAME_CONFIG.PASSENGER_SPAWN_INTERVAL - s.elapsedTime * 0.008);
-  if (Math.random() < dt / spawnRate) {
+  if (Math.random() < realDt / spawnRate) {
     const openStations = s.stations.filter(st =>
       s.activeStationIds.includes(st.id) && st.isOpen && !st.isDestroyed &&
-      st.passengers.length < GAME_CONFIG.MAX_PASSENGERS_PER_STATION
+      st.passengers.length < st.maxPassengers
     );
     if (openStations.length > 0 && availableShapes.length > 1) {
       const station = openStations[Math.floor(Math.random() * openStations.length)];
-      // Passenger wants a shape different from current station
       const possibleShapes = availableShapes.filter(sh => sh !== station.shape);
       if (possibleShapes.length > 0) {
         const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
-        station.passengers.push({
-          id: uid(),
-          shape,
-          spawnTime: s.elapsedTime,
-          stationId: station.id,
-        });
-        // Jelly bounce on spawn
+        station.passengers.push({ id: uid(), shape, spawnTime: s.elapsedTime, stationId: station.id });
         station.jellyVel.y = -2;
       }
     }
   }
 
-  // Update trains with dwell mechanics
+  // Update trains
   s.trains = s.trains.map(train => {
     const t = { ...train };
     const route = getActiveLineStations(s, t.line);
     if (!route || route.length < 2) return t;
 
     if (t.isDwelling) {
-      // Dwelling at station - loading/unloading
-      t.dwellTimer -= dt;
+      t.dwellTimer -= realDt;
       if (t.dwellTimer <= 0) {
         t.isDwelling = false;
-        // Move to next station
         const nextIdx = t.routeIndex + t.direction;
         if (nextIdx >= route.length || nextIdx < 0) {
           t.direction = (t.direction * -1) as 1 | -1;
@@ -199,48 +194,43 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
         t.routeIndex = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
         t.progress = 0;
       }
-      // Stay at current station position
       const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
       if (curStation) { t.x = curStation.x; t.y = curStation.y; }
       return t;
     }
 
-    // Moving between stations
-    t.progress += (t.speed * dt) / 2500;
+    t.progress += (t.speed * realDt) / 2500;
 
     if (t.progress >= 1) {
       t.progress = 1;
       t.isDwelling = true;
-      t.dwellTimer = 1200; // dwell for 1.2 seconds
+      t.dwellTimer = GAME_CONFIG.DWELL_TIME;
 
-      // Arrive at next station
       const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
       const station = s.stations.find(st => st.id === route[nextIdx]);
       if (station && !station.isDestroyed) {
-        // Drop off passengers matching this station's shape
         const matching = t.passengers.filter(p => p.shape === station.shape);
         if (matching.length > 0) {
-          s.score += Math.round(matching.length * s.combo);
+          const earned = Math.round(matching.length * s.combo);
+          s.score += earned;
+          s.money += Math.round(earned * 0.5);
           s.passengersDelivered += matching.length;
           s.combo = Math.min(Math.round((s.combo + 0.2) * 10) / 10, 5);
           s.maxCombo = Math.max(s.maxCombo, s.combo);
           t.passengers = t.passengers.filter(p => p.shape !== station.shape);
+          addNotification(s, `+${earned}`, station.x, station.y, '#2ecc71');
           audio.playSuccess();
         }
-
-        // Pick up passengers
         const space = t.capacity - t.passengers.length;
         if (space > 0 && station.passengers.length > 0) {
           const pickup = station.passengers.splice(0, space);
           t.passengers.push(...pickup);
         }
-
-        // Jelly bounce on arrival
         station.jellyVel.y = -1.5;
       }
     }
 
-    // Interpolate position with easing
+    // Interpolate position
     const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
     const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
     const nextStation = s.stations.find(st => st.id === route[nextIdx]);
@@ -249,25 +239,21 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       t.x = curStation.x + (nextStation.x - curStation.x) * eased;
       t.y = curStation.y + (nextStation.y - curStation.y) * eased;
     }
-
     return t;
   });
 
-  // Check station overflow
+  // Station overflow
   let totalPassengers = 0;
   s.stations.forEach(station => {
     if (!s.activeStationIds.includes(station.id)) return;
     totalPassengers += station.passengers.length;
-    if (station.passengers.length >= GAME_CONFIG.MAX_PASSENGERS_PER_STATION && !station.isDestroyed) {
+    if (station.passengers.length >= station.maxPassengers && !station.isDestroyed) {
       s.combo = 1;
-      if (station.passengers.length > GAME_CONFIG.MAX_PASSENGERS_PER_STATION + 2) {
+      if (station.passengers.length > station.maxPassengers + 2) {
         s.lives--;
         station.passengers.splice(0, 3);
-        station.jellyVel.x = 5;
-        station.jellyVel.y = 5;
-        if (s.lives <= 0) {
-          s.gameOver = true;
-        }
+        station.jellyVel.x = 5; station.jellyVel.y = 5;
+        if (s.lives <= 0) s.gameOver = true;
       }
     }
   });
@@ -282,10 +268,10 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       s.surfaceVehicles.forEach(v => { v.isFrozen = true; });
     }
   } else {
-    s.airRaidTimer += dt;
+    s.airRaidTimer += realDt;
 
-    // Spawn drones
-    if (Math.random() < dt / GAME_CONFIG.DRONE_SPAWN_INTERVAL) {
+    // Spawn drones (different types)
+    if (Math.random() < realDt / GAME_CONFIG.DRONE_SPAWN_INTERVAL) {
       const activeStations = s.stations.filter(st => !st.isDestroyed && s.activeStationIds.includes(st.id));
       const targetStation = activeStations[Math.floor(Math.random() * activeStations.length)];
       if (targetStation) {
@@ -296,16 +282,19 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
         else if (edge < 0.75) { dx = Math.random(); dy = -0.05; }
         else { dx = Math.random(); dy = 1.05; }
 
-        const drone: Drone = {
-          id: uid(),
-          x: dx, y: dy,
+        // Random drone type weighted by game progress
+        const types: DroneType[] = ['shahed', 'shahed', 'molniya', 'gerbera'];
+        const droneType = types[Math.floor(Math.random() * types.length)];
+        const config = DRONE_TYPES[droneType];
+
+        s.drones.push({
+          id: uid(), x: dx, y: dy,
           targetStationId: targetStation.id,
-          speed: GAME_CONFIG.DRONE_SPEED,
-          angle: 0,
-          isDestroyed: false,
+          speed: config.speed,
+          angle: 0, isDestroyed: false,
           wobble: Math.random() * Math.PI * 2,
-        };
-        s.drones.push(drone);
+          droneType, hp: config.hp, maxHp: config.hp,
+        });
         s.totalDrones++;
         audio.playDroneHum();
       }
@@ -313,7 +302,8 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
 
     if (s.airRaidTimer > GAME_CONFIG.AIR_RAID_DURATION) {
       s.isAirRaid = false;
-      s.nextRaidTime = s.elapsedTime + GAME_CONFIG.AIR_RAID_MIN_INTERVAL + Math.random() * (GAME_CONFIG.AIR_RAID_MAX_INTERVAL - GAME_CONFIG.AIR_RAID_MIN_INTERVAL);
+      s.nextRaidTime = s.elapsedTime + GAME_CONFIG.AIR_RAID_MIN_INTERVAL +
+        Math.random() * (GAME_CONFIG.AIR_RAID_MAX_INTERVAL - GAME_CONFIG.AIR_RAID_MIN_INTERVAL);
       s.drones = s.drones.filter(d => !d.isDestroyed);
       audio.stopSiren();
       audio.playAllClear();
@@ -327,21 +317,56 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     const target = s.stations.find(st => st.id === d.targetStationId);
     if (!target) return false;
 
+    // Anti-air auto-intercept
+    if (target.hasAntiAir && target.shieldTimer <= 0) {
+      const dx = target.x - d.x;
+      const dy = target.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.06) {
+        d.hp--;
+        if (d.hp <= 0) {
+          d.isDestroyed = true;
+          s.dronesIntercepted++;
+          s.score += 15;
+          s.money += 10;
+          audio.playIntercept();
+          s.explosions.push({ x: d.x, y: d.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+          addNotification(s, 'ПРО збив!', d.x, d.y, '#3498db');
+          return false;
+        }
+      }
+    }
+
+    // Shield protection
+    if (target.shieldTimer > 0) {
+      const dx = target.x - d.x;
+      const dy = target.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.03) {
+        d.isDestroyed = true;
+        s.dronesIntercepted++;
+        audio.playIntercept();
+        s.explosions.push({ x: d.x, y: d.y, radius: 0, maxRadius: 20, alpha: 1, time: 0 });
+        return false;
+      }
+    }
+
     const dx = target.x - d.x;
     const dy = target.y - d.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     d.angle = Math.atan2(dy, dx);
-    d.wobble += dt * 0.005;
+    d.wobble += realDt * 0.005;
 
     if (dist < 0.015) {
-      target.hp -= 40;
+      const config = DRONE_TYPES[d.droneType];
+      target.hp -= config.damage;
       target.isOnFire = true;
       target.fireTimer = 5000;
-      target.jellyVel.x = 8;
-      target.jellyVel.y = 8;
+      target.jellyVel.x = 8; target.jellyVel.y = 8;
       s.screenShake = 10;
       audio.playExplosion();
       s.explosions.push({ x: target.x, y: target.y, radius: 0, maxRadius: 40, alpha: 1, time: 0 });
+      addNotification(s, `💥 -${config.damage}HP`, target.x, target.y, '#e74c3c');
       if (target.hp <= 0) {
         target.isDestroyed = true;
         target.isOpen = false;
@@ -352,34 +377,38 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       return false;
     }
 
-    const moveSpeed = d.speed * dt / 1000;
+    const moveSpeed = d.speed * realDt / 1000;
     d.x += (dx / dist) * moveSpeed * 0.03;
     d.y += (dy / dist) * moveSpeed * 0.03;
     return true;
   });
 
-  // QTE for intercepting drones
-  if (!s.qteActive && s.drones.length > 0 && Math.random() < dt / 3000) {
-    const keys = ['Q', 'W', 'E', 'R'];
-    s.qteActive = true;
-    s.qteDroneId = s.drones[0].id;
-    s.qteKey = keys[Math.floor(Math.random() * keys.length)];
-    s.qteTimer = 2000;
+  // QTE
+  if (!s.qteActive && s.drones.filter(d => !d.isDestroyed).length > 0 && Math.random() < realDt / 3000) {
+    const activeDrones = s.drones.filter(d => !d.isDestroyed);
+    const drone = activeDrones[Math.floor(Math.random() * activeDrones.length)];
+    if (drone) {
+      const config = DRONE_TYPES[drone.droneType];
+      s.qteActive = true;
+      s.qteDroneId = drone.id;
+      s.qteKey = config.qteKeys[Math.floor(Math.random() * config.qteKeys.length)];
+      s.qteTimer = config.qteTime;
+    }
   }
   if (s.qteActive) {
-    s.qteTimer -= dt;
+    s.qteTimer -= realDt;
     if (s.qteTimer <= 0) { s.qteActive = false; s.qteDroneId = null; }
   }
 
-  // Update explosions
+  // Explosions
   s.explosions = s.explosions.filter(e => {
-    e.time += dt;
+    e.time += realDt;
     e.radius = e.maxRadius * Math.min(1, e.time / 500);
     e.alpha = Math.max(0, 1 - e.time / 1000);
     return e.alpha > 0;
   });
 
-  // Update repair units
+  // Repair units
   s.repairUnits = s.repairUnits.filter(r => {
     const target = s.stations.find(st => st.id === r.targetStationId);
     if (!target) return false;
@@ -387,7 +416,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     const dy = target.y - r.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 0.02) {
-      r.progress += dt / GAME_CONFIG.REPAIR_TIME;
+      r.progress += realDt / GAME_CONFIG.REPAIR_TIME;
       if (r.progress >= 1) {
         target.hp = target.maxHp;
         target.isDestroyed = false;
@@ -395,6 +424,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
         target.isOpen = true;
         target.isRepairing = false;
         s.stationsRepaired++;
+        addNotification(s, '🔧 Відремонтовано!', target.x, target.y, '#3498db');
         audio.playSuccess();
         return false;
       }
@@ -402,16 +432,21 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       target.repairProgress = r.progress;
       return true;
     }
-    const moveSpeed = r.speed * dt / 1000;
+    const moveSpeed = r.speed * realDt / 1000;
     r.x += (dx / dist) * moveSpeed * 0.04;
     r.y += (dy / dist) * moveSpeed * 0.04;
     return true;
   });
 
-  // Fire timer & jelly physics
+  // Shield timers
+  s.stations.forEach(st => {
+    if (st.shieldTimer > 0) st.shieldTimer -= realDt;
+  });
+
+  // Fire/jelly physics
   s.stations.forEach(station => {
     if (station.isOnFire) {
-      station.fireTimer -= dt;
+      station.fireTimer -= realDt;
       if (station.fireTimer <= 0) station.isOnFire = false;
     }
     const springK = 0.15;
@@ -424,11 +459,17 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     station.jellyOffset.y += station.jellyVel.y;
   });
 
-  // Screen shake decay
+  // Notifications
+  s.notifications = s.notifications.filter(n => {
+    n.timer -= realDt;
+    n.y -= realDt * 0.00002;
+    return n.timer > 0;
+  });
+
   s.screenShake *= 0.9;
   if (s.screenShake < 0.5) s.screenShake = 0;
 
-  // Unlock surface routes
+  // Surface routes
   SURFACE_ROUTES.forEach(route => {
     if (s.score >= route.unlockScore && !s.unlockedRoutes.includes(route.id)) {
       s.unlockedRoutes.push(route.id);
@@ -441,12 +482,11 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     }
   });
 
-  // Update surface vehicles
   s.surfaceVehicles.forEach(v => {
     if (v.isFrozen) return;
     const route = SURFACE_ROUTES.find(r => r.id === v.routeId);
     if (!route) return;
-    v.progress += dt / 3000;
+    v.progress += realDt / 3000;
     if (v.progress >= 1) {
       v.progress = 0;
       const nextIdx = v.stopIndex + v.direction;
@@ -475,16 +515,25 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   return s;
 }
 
+// ===== QTE Input =====
 export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   if (!state.qteActive) return state;
   if (key.toUpperCase() === state.qteKey) {
     const drone = state.drones.find(d => d.id === state.qteDroneId);
     if (drone) {
-      drone.isDestroyed = true;
-      state.dronesIntercepted++;
-      state.score += Math.round(10 * state.combo);
-      audio.playIntercept();
-      state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+      drone.hp--;
+      if (drone.hp <= 0) {
+        drone.isDestroyed = true;
+        state.dronesIntercepted++;
+        state.score += Math.round(10 * state.combo);
+        state.money += 15;
+        audio.playIntercept();
+        state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+        addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
+      } else {
+        addNotification(state, `💥 ${drone.hp}/${drone.maxHp} HP`, drone.x, drone.y, '#e67e22');
+        audio.playClick();
+      }
     }
     state.qteActive = false;
     state.qteDroneId = null;
@@ -492,6 +541,7 @@ export function handleQteInput(state: GameState, key: string, audio: AudioEngine
   return state;
 }
 
+// ===== Repair Dispatch =====
 export function dispatchRepair(state: GameState, stationId: string): GameState {
   const station = state.stations.find(s => s.id === stationId);
   if (!station || (!station.isDestroyed && !station.isOnFire)) return state;
@@ -503,10 +553,144 @@ export function dispatchRepair(state: GameState, stationId: string): GameState {
   return state;
 }
 
+// ===== Reverse Train =====
 export function reverseTrain(state: GameState, trainId: string): GameState {
   const train = state.trains.find(t => t.id === trainId);
-  if (train) {
-    train.direction = (train.direction * -1) as 1 | -1;
-  }
+  if (train) train.direction = (train.direction * -1) as 1 | -1;
+  return state;
+}
+
+// ===== 10 NEW GAMEPLAY FUNCTIONS =====
+
+// 1. Purchase Train
+export function purchaseTrain(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+  if (state.money < GAME_CONFIG.TRAIN_COST) return state;
+  const route = getActiveLineStations(state, line);
+  if (route.length < 2) return state;
+  const startStation = state.stations.find(s => s.id === route[0]);
+  if (!startStation) return state;
+  state.money -= GAME_CONFIG.TRAIN_COST;
+  state.trains.push({
+    id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
+    speed: GAME_CONFIG.TRAIN_SPEED, passengers: [],
+    capacity: GAME_CONFIG.TRAIN_CAPACITY,
+    x: startStation.x, y: startStation.y,
+    dwellTimer: 0, isDwelling: false, level: 1,
+  });
+  return state;
+}
+
+// 2. Toggle Station Open/Closed
+export function toggleStationOpen(state: GameState, stationId: string): GameState {
+  const station = state.stations.find(s => s.id === stationId);
+  if (station && !station.isDestroyed) station.isOpen = !station.isOpen;
+  return state;
+}
+
+// 3. Upgrade Train Capacity
+export function upgradeTrainCapacity(state: GameState, trainId: string): GameState {
+  const train = state.trains.find(t => t.id === trainId);
+  if (!train || train.level >= 3) return state;
+  const cost = GAME_CONFIG.UPGRADE_COST * train.level;
+  if (state.money < cost) return state;
+  state.money -= cost;
+  train.level++;
+  train.capacity = GAME_CONFIG.TRAIN_CAPACITY + (train.level - 1) * 3;
+  return state;
+}
+
+// 4. Deploy Anti-Air at Station
+export function deployAntiAir(state: GameState, stationId: string): GameState {
+  const station = state.stations.find(s => s.id === stationId);
+  if (!station || station.hasAntiAir) return state;
+  if (state.money < GAME_CONFIG.ANTI_AIR_COST) return state;
+  state.money -= GAME_CONFIG.ANTI_AIR_COST;
+  station.hasAntiAir = true;
+  return state;
+}
+
+// 5. Activate Shield
+export function activateShield(state: GameState, stationId: string): GameState {
+  const station = state.stations.find(s => s.id === stationId);
+  if (!station || station.shieldTimer > 0) return state;
+  if (state.money < GAME_CONFIG.SHIELD_COST) return state;
+  state.money -= GAME_CONFIG.SHIELD_COST;
+  station.shieldTimer = GAME_CONFIG.SHIELD_DURATION;
+  return state;
+}
+
+// 6. Set Speed Multiplier
+export function setSpeedMultiplier(state: GameState, multiplier: number): GameState {
+  state.speedMultiplier = Math.max(1, Math.min(10, multiplier));
+  return state;
+}
+
+// 7. Reroute Train to Different Line
+export function rerouteTrain(state: GameState, trainId: string, newLine: 'red' | 'blue' | 'green'): GameState {
+  const train = state.trains.find(t => t.id === trainId);
+  if (!train || train.line === newLine) return state;
+  const route = getActiveLineStations(state, newLine);
+  if (route.length < 2) return state;
+  const startStation = state.stations.find(s => s.id === route[0]);
+  if (!startStation) return state;
+  train.line = newLine;
+  train.routeIndex = 0;
+  train.progress = 0;
+  train.x = startStation.x;
+  train.y = startStation.y;
+  train.isDwelling = false;
+  return state;
+}
+
+// 8. Evacuate Station (disperse all passengers)
+export function evacuateStation(state: GameState, stationId: string): GameState {
+  const station = state.stations.find(s => s.id === stationId);
+  if (!station || station.passengers.length === 0) return state;
+  // Distribute passengers to nearby stations on same line
+  const sameLineStations = state.stations.filter(s =>
+    s.line === station.line && s.id !== stationId &&
+    state.activeStationIds.includes(s.id) && !s.isDestroyed && s.isOpen
+  );
+  station.passengers.forEach((p, i) => {
+    if (sameLineStations.length > 0) {
+      const target = sameLineStations[i % sameLineStations.length];
+      if (target.passengers.length < target.maxPassengers) {
+        target.passengers.push({ ...p, stationId: target.id });
+      }
+    }
+  });
+  station.passengers = [];
+  station.jellyVel.x = 3; station.jellyVel.y = -3;
+  return state;
+}
+
+// 9. Call Reinforcements (extra DSNS units)
+export function callReinforcements(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.REINFORCEMENT_COST) return state;
+  state.money -= GAME_CONFIG.REINFORCEMENT_COST;
+  const damaged = state.stations.filter(s =>
+    (s.isDestroyed || s.isOnFire) &&
+    !state.repairUnits.some(r => r.targetStationId === s.id)
+  );
+  damaged.forEach(station => {
+    state.repairUnits.push({
+      id: uid(), x: 0.02, y: 0.95,
+      targetStationId: station.id, progress: 0, speed: 2.0,
+    });
+  });
+  return state;
+}
+
+// 10. Upgrade Station (increase max HP and capacity)
+export function upgradeStation(state: GameState, stationId: string): GameState {
+  const station = state.stations.find(s => s.id === stationId);
+  if (!station || station.level >= 3) return state;
+  const cost = GAME_CONFIG.UPGRADE_COST * station.level;
+  if (state.money < cost) return state;
+  state.money -= cost;
+  station.level++;
+  station.maxHp = 100 + (station.level - 1) * 50;
+  station.maxPassengers = GAME_CONFIG.MAX_PASSENGERS_PER_STATION + (station.level - 1) * 4;
+  station.hp = station.maxHp;
   return state;
 }
