@@ -4,6 +4,9 @@ export class AudioEngine {
   private masterGain: GainNode | null = null;
   private musicOsc: OscillatorNode[] = [];
   private sirenOsc: OscillatorNode | null = null;
+  private sirenOsc2: OscillatorNode | null = null;
+  private sirenLfo: OscillatorNode | null = null;
+  private sirenGain: GainNode | null = null;
   private isPlaying = false;
 
   init() {
@@ -75,30 +78,72 @@ export class AudioEngine {
 
   startSiren() {
     if (!this.ctx || !this.masterGain || this.sirenOsc) return;
+    const t = this.ctx.currentTime;
+
+    // Primary siren oscillator
     this.sirenOsc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
     this.sirenOsc.type = 'sawtooth';
-    gain.gain.value = 0.12;
-    this.sirenOsc.connect(gain);
-    gain.connect(this.masterGain);
-    this.sirenOsc.start();
-    // Modulate siren frequency
+
+    // Secondary oscillator for FM depth
+    this.sirenOsc2 = this.ctx.createOscillator();
+    this.sirenOsc2.type = 'sine';
+    this.sirenOsc2.frequency.value = 3.5; // warble rate
+
+    const fmGain = this.ctx.createGain();
+    fmGain.gain.value = 200; // FM depth
+    this.sirenOsc2.connect(fmGain);
+    fmGain.connect(this.sirenOsc.frequency);
+
+    // LFO for amplitude tremolo
+    this.sirenLfo = this.ctx.createOscillator();
+    this.sirenLfo.type = 'sine';
+    this.sirenLfo.frequency.value = 0.25;
+
+    this.sirenGain = this.ctx.createGain();
+    this.sirenGain.gain.value = 0.1;
+
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.value = 0.04;
+    this.sirenLfo.connect(lfoGain);
+    lfoGain.connect(this.sirenGain.gain);
+
+    // Low rumble
+    const rumble = this.ctx.createOscillator();
+    rumble.type = 'sine';
+    rumble.frequency.value = 55;
+    const rumbleGain = this.ctx.createGain();
+    rumbleGain.gain.value = 0.05;
+    rumble.connect(rumbleGain);
+    rumbleGain.connect(this.masterGain);
+    rumble.start(t);
+
+    this.sirenOsc.connect(this.sirenGain);
+    this.sirenGain.connect(this.masterGain);
+
+    this.sirenOsc.start(t);
+    this.sirenOsc2.start(t);
+    this.sirenLfo.start(t);
+
+    // Sweep frequency up and down
     const modulate = () => {
       if (!this.sirenOsc || !this.ctx) return;
-      const t = this.ctx.currentTime;
-      this.sirenOsc.frequency.setValueAtTime(440, t);
-      this.sirenOsc.frequency.linearRampToValueAtTime(880, t + 2);
-      this.sirenOsc.frequency.linearRampToValueAtTime(440, t + 4);
-      if (this.sirenOsc) setTimeout(modulate, 4000);
+      const now = this.ctx.currentTime;
+      this.sirenOsc.frequency.setValueAtTime(380, now);
+      this.sirenOsc.frequency.linearRampToValueAtTime(780, now + 2.5);
+      this.sirenOsc.frequency.linearRampToValueAtTime(380, now + 5);
+      if (this.sirenOsc) setTimeout(modulate, 5000);
     };
     modulate();
   }
 
   stopSiren() {
-    if (this.sirenOsc) {
-      this.sirenOsc.stop();
-      this.sirenOsc = null;
-    }
+    try { this.sirenOsc?.stop(); } catch {}
+    try { this.sirenOsc2?.stop(); } catch {}
+    try { this.sirenLfo?.stop(); } catch {}
+    this.sirenOsc = null;
+    this.sirenOsc2 = null;
+    this.sirenLfo = null;
+    this.sirenGain = null;
   }
 
   playAllClear() {

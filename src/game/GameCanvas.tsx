@@ -6,6 +6,23 @@ import { AudioEngine } from './AudioEngine';
 import { METRO_LINES, GAME_CONFIG } from './constants';
 import SceneContent from './Scene3D';
 
+// Container ref for non-passive wheel
+const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
+      stateRef.current.camera.targetZoom = Math.max(0.3, Math.min(4, stateRef.current.camera.targetZoom * zoomDelta));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [stateRef]);
+  return containerRef;
+};
+
 interface GameCanvasProps {
   onStateChange?: (state: GameState) => void;
 }
@@ -87,13 +104,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Mouse wheel & pan on the container
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const state = stateRef.current;
-    const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
-    state.camera.targetZoom = Math.max(0.3, Math.min(4, state.camera.targetZoom * zoomDelta));
-  }, []);
+  const containerRef = useWheelHandler(stateRef);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 2 || e.button === 1) {
@@ -158,8 +169,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full h-full"
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

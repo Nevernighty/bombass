@@ -114,7 +114,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
     >
       <Suspense fallback={<TrainFallback lineColor={lineColor} />}>
-        <TrainFallback lineColor={lineColor} />
+        <TrainGLB trainId={trainId} stateRef={stateRef} lineColor={lineColor} />
       </Suspense>
 
       {/* Selection indicator */}
