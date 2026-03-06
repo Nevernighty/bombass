@@ -1,6 +1,6 @@
-import React, { useRef, useState, useCallback, Suspense } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrthographicCamera, Environment } from '@react-three/drei';
+import React, { useRef, useState, Suspense } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from './types';
 import { updateGame, getActiveLineStations } from './GameEngine';
@@ -31,25 +31,20 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     const state = stateRef.current;
     const cam = state.camera;
 
-    // Smooth camera
     cam.zoom += (cam.targetZoom - cam.zoom) * 0.1;
     cam.x += (cam.targetX - cam.x) * 0.1;
     cam.y += (cam.targetY - cam.y) * 0.1;
 
     const ortho = camera as THREE.OrthographicCamera;
-
-    // Update camera zoom
     ortho.zoom = 8 * cam.zoom;
     ortho.updateProjectionMatrix();
 
-    // Pan: offset camera position
     const baseX = 35;
     const baseY = 55;
     const baseZ = 35;
     ortho.position.set(baseX - cam.x * 0.5, baseY, baseZ - cam.y * 0.5);
     ortho.lookAt(-cam.x * 0.5, 0, -cam.y * 0.5);
 
-    // Screen shake
     if (state.screenShake > 0) {
       ortho.position.x += (Math.random() - 0.5) * state.screenShake * 0.3;
       ortho.position.z += (Math.random() - 0.5) * state.screenShake * 0.3;
@@ -73,7 +68,6 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
     const dt = Math.min(delta * 1000, 50);
     stateRef.current = updateGame(state, dt, audioRef.current);
 
-    // Update React HUD at ~5fps
     lastUpdateRef.current += dt;
     if (lastUpdateRef.current > 200) {
       lastUpdateRef.current = 0;
@@ -91,7 +85,6 @@ function SceneContent({
   const [tick, setTick] = useState(0);
   const lastTickRef = useRef(0);
 
-  // Track entity IDs for rendering
   useFrame((_, delta) => {
     lastTickRef.current += delta;
     if (lastTickRef.current > 0.3) {
@@ -107,7 +100,6 @@ function SceneContent({
 
   return (
     <>
-      {/* Camera */}
       <OrthographicCamera
         makeDefault
         position={[35, 55, 35]}
@@ -132,7 +124,7 @@ function SceneContent({
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.5 + Math.sin(Date.now() * 0.005) * 0.3} distance={100} />
       )}
 
-      {/* Ground plane */}
+      {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
         <planeGeometry args={[120, 100]} />
         <meshStandardMaterial
@@ -142,10 +134,8 @@ function SceneContent({
         />
       </mesh>
 
-      {/* Grid lines on ground */}
       <gridHelper args={[120, 24, '#1a2040', '#1a2040']} position={[0, 0.01, 0]} />
 
-      {/* River */}
       <RiverPlane />
 
       {/* Metro lines */}
@@ -183,13 +173,8 @@ function SceneContent({
         />
       ))}
 
-      {/* Explosions */}
       <ExplosionsLayer stateRef={stateRef} />
-
-      {/* Repair units */}
       <RepairUnitsLayer stateRef={stateRef} />
-
-      {/* Floating notifications */}
       <NotificationsLayer stateRef={stateRef} />
     </>
   );

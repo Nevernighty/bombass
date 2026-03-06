@@ -1,56 +1,14 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { GameState, Explosion } from '../types';
+import { GameState } from '../types';
 import { toWorld } from '../constants';
-
-interface ExplosionEffectProps {
-  explosion: Explosion;
-}
-
-export function ExplosionEffect({ explosion }: ExplosionEffectProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
-
-  const [wx, , wz] = toWorld(explosion.x, explosion.y);
-
-  useFrame(() => {
-    if (!meshRef.current) return;
-
-    const scale = explosion.radius * 0.1;
-    meshRef.current.scale.set(scale, scale, scale);
-
-    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
-    mat.opacity = explosion.alpha * 0.8;
-
-    if (lightRef.current) {
-      lightRef.current.intensity = explosion.alpha * 5;
-    }
-  });
-
-  return (
-    <group position={[wx, 1, wz]}>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[1, 16, 16]} />
-        <meshBasicMaterial color="#ff6600" transparent opacity={0.8} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Inner bright core */}
-      <mesh scale={[explosion.radius * 0.05, explosion.radius * 0.05, explosion.radius * 0.05]}>
-        <sphereGeometry args={[1, 8, 8]} />
-        <meshBasicMaterial color="#ffff00" transparent opacity={explosion.alpha * 0.9} />
-      </mesh>
-      <pointLight ref={lightRef} color="#ff4400" intensity={3} distance={15} />
-    </group>
-  );
-}
 
 export function ExplosionsLayer({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const groupRef = useRef<THREE.Group>(null);
-  const meshesRef = useRef<Map<number, { mesh: THREE.Mesh; light: THREE.PointLight }>>(new Map());
 
   useFrame(() => {
     const state = stateRef.current;
-    // Simple approach: render up to 10 explosions
     if (!groupRef.current) return;
 
     const children = groupRef.current.children;
@@ -61,16 +19,59 @@ export function ExplosionsLayer({ stateRef }: { stateRef: React.MutableRefObject
       const [wx, , wz] = toWorld(exp.x, exp.y);
       group.position.set(wx, 1, wz);
       group.visible = true;
-      const scale = exp.radius * 0.1;
-      group.scale.set(scale, scale, scale);
-      // Update material opacity
-      const mesh = group.children[0] as THREE.Mesh;
-      if (mesh?.material) {
-        (mesh.material as THREE.MeshBasicMaterial).opacity = exp.alpha * 0.8;
+
+      // Outer fireball
+      const outerMesh = group.children[0] as THREE.Mesh;
+      if (outerMesh) {
+        const scale = exp.radius * 0.15;
+        outerMesh.scale.set(scale, scale, scale);
+        const mat = outerMesh.material as THREE.MeshBasicMaterial;
+        mat.opacity = exp.alpha * 0.7;
+      }
+
+      // Inner core
+      const innerMesh = group.children[1] as THREE.Mesh;
+      if (innerMesh) {
+        const s2 = exp.radius * 0.08;
+        innerMesh.scale.set(s2, s2, s2);
+        const mat2 = innerMesh.material as THREE.MeshBasicMaterial;
+        mat2.opacity = exp.alpha * 0.9;
+      }
+
+      // Shockwave ring
+      const ringMesh = group.children[2] as THREE.Mesh;
+      if (ringMesh) {
+        const ringScale = exp.radius * 0.2;
+        ringMesh.scale.set(ringScale, ringScale, ringScale);
+        const mat3 = ringMesh.material as THREE.MeshBasicMaterial;
+        mat3.opacity = exp.alpha * 0.4;
+      }
+
+      // Sparks
+      for (let j = 3; j < Math.min(group.children.length, 11); j++) {
+        const spark = group.children[j] as THREE.Mesh;
+        if (spark) {
+          const t = 1 - exp.alpha;
+          const angle = (j - 3) * (Math.PI * 2 / 8);
+          const dist = t * exp.radius * 0.1;
+          spark.position.set(
+            Math.cos(angle) * dist,
+            2 + t * 4 - t * t * 3,
+            Math.sin(angle) * dist
+          );
+          spark.visible = exp.alpha > 0.3;
+          const mat = spark.material as THREE.MeshBasicMaterial;
+          mat.opacity = exp.alpha;
+        }
+      }
+
+      // Light
+      const light = group.children[11] as THREE.PointLight;
+      if (light) {
+        light.intensity = exp.alpha * 8;
       }
     });
 
-    // Hide unused
     for (let i = state.explosions.length; i < children.length; i++) {
       children[i].visible = false;
     }
@@ -80,11 +81,30 @@ export function ExplosionsLayer({ stateRef }: { stateRef: React.MutableRefObject
     <group ref={groupRef}>
       {Array.from({ length: 10 }).map((_, i) => (
         <group key={i} visible={false}>
+          {/* Outer fireball */}
           <mesh>
             <sphereGeometry args={[1, 12, 12]} />
-            <meshBasicMaterial color="#ff6600" transparent opacity={0.8} />
+            <meshBasicMaterial color="#ff6600" transparent opacity={0.7} />
           </mesh>
-          <pointLight color="#ff4400" intensity={3} distance={15} />
+          {/* Inner bright core */}
+          <mesh>
+            <sphereGeometry args={[1, 8, 8]} />
+            <meshBasicMaterial color="#ffff00" transparent opacity={0.9} />
+          </mesh>
+          {/* Shockwave ring */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.8, 1, 24]} />
+            <meshBasicMaterial color="#ff8800" transparent opacity={0.4} side={THREE.DoubleSide} />
+          </mesh>
+          {/* 8 sparks */}
+          {Array.from({ length: 8 }).map((_, j) => (
+            <mesh key={j}>
+              <sphereGeometry args={[0.12, 6, 6]} />
+              <meshBasicMaterial color="#ffcc00" transparent opacity={1} />
+            </mesh>
+          ))}
+          {/* Light */}
+          <pointLight color="#ff4400" intensity={5} distance={20} />
         </group>
       ))}
     </group>

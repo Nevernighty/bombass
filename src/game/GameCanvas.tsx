@@ -6,7 +6,6 @@ import { AudioEngine } from './AudioEngine';
 import { METRO_LINES, GAME_CONFIG } from './constants';
 import SceneContent from './Scene3D';
 
-// Container ref for non-passive wheel
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,7 +32,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const [hudState, setHudState] = useState<GameState>(stateRef.current);
-  const [showActions, setShowActions] = useState(false);
+  const [selectedStation, setSelectedStation] = useState<string | null>(null);
 
   const startGame = useCallback(() => {
     const s = { ...stateRef.current };
@@ -67,6 +66,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       stateRef.current = dispatchRepair({ ...state }, stationId);
     }
     stateRef.current = { ...stateRef.current, hoveredStation: stationId };
+    setSelectedStation(stationId);
     setHudState({ ...stateRef.current });
   }, []);
 
@@ -81,7 +81,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     stateRef.current.hoveredStation = stationId;
   }, []);
 
-  // Keyboard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const state = stateRef.current;
@@ -94,7 +93,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         stateRef.current = { ...stateRef.current, isPaused: !stateRef.current.isPaused };
         setHudState({ ...stateRef.current });
       }
-      // Speed controls
       if (e.key === '1') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 1); setHudState({ ...stateRef.current }); }
       if (e.key === '2') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 2); setHudState({ ...stateRef.current }); }
       if (e.key === '3') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 5); setHudState({ ...stateRef.current }); }
@@ -106,11 +104,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   const containerRef = useWheelHandler(stateRef);
 
+  // Left-click drag panning + right-click panning
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 2 || e.button === 1) {
-      isPanningRef.current = true;
-      panStartRef.current = { x: e.clientX, y: e.clientY };
-    }
+    isPanningRef.current = true;
+    panStartRef.current = { x: e.clientX, y: e.clientY };
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -124,25 +121,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   }, []);
 
   const handleMouseUp = useCallback(() => { isPanningRef.current = false; }, []);
-
   const handleContextMenu = useCallback((e: React.MouseEvent) => { e.preventDefault(); }, []);
 
   const state = hudState;
 
-  // Action handlers
   const handleBuyTrain = (line: 'red' | 'blue' | 'green') => {
     stateRef.current = purchaseTrain({ ...stateRef.current }, line);
     setHudState({ ...stateRef.current });
   };
   const handleDeployAA = () => {
-    if (state.hoveredStation) {
-      stateRef.current = deployAntiAir({ ...stateRef.current }, state.hoveredStation);
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) {
+      stateRef.current = deployAntiAir({ ...stateRef.current }, sid);
       setHudState({ ...stateRef.current });
     }
   };
   const handleShield = () => {
-    if (state.hoveredStation) {
-      stateRef.current = activateShield({ ...stateRef.current }, state.hoveredStation);
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) {
+      stateRef.current = activateShield({ ...stateRef.current }, sid);
       setHudState({ ...stateRef.current });
     }
   };
@@ -151,14 +148,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     setHudState({ ...stateRef.current });
   };
   const handleUpgradeStation = () => {
-    if (state.hoveredStation) {
-      stateRef.current = upgradeStation({ ...stateRef.current }, state.hoveredStation);
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) {
+      stateRef.current = upgradeStation({ ...stateRef.current }, sid);
       setHudState({ ...stateRef.current });
     }
   };
   const handleEvacuate = () => {
-    if (state.hoveredStation) {
-      stateRef.current = evacuateStation({ ...stateRef.current }, state.hoveredStation);
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) {
+      stateRef.current = evacuateStation({ ...stateRef.current }, sid);
+      setHudState({ ...stateRef.current });
+    }
+  };
+  const handleToggleStation = () => {
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) {
+      stateRef.current = toggleStationOpen({ ...stateRef.current }, sid);
+      setHudState({ ...stateRef.current });
+    }
+  };
+  const handleUpgradeTrain = () => {
+    if (state.selectedTrain) {
+      stateRef.current = upgradeTrainCapacity({ ...stateRef.current }, state.selectedTrain);
       setHudState({ ...stateRef.current });
     }
   };
@@ -167,17 +179,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     setHudState({ ...stateRef.current });
   };
 
+  const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full"
+      className="relative w-full h-full select-none"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onContextMenu={handleContextMenu}
     >
-      {/* 3D Canvas */}
       <Canvas
         shadows
         gl={{ antialias: true, alpha: false }}
@@ -197,16 +210,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* ===== START SCREEN ===== */}
       {!state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(10,14,26,0.9)' }}>
-          <div className="text-center p-8 rounded-2xl max-w-lg" style={{ background: 'rgba(20,28,50,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(10,14,26,0.92)' }}>
+          <div className="text-center p-8 rounded-2xl max-w-lg" style={{ background: 'rgba(20,28,50,0.85)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">KYIV TRANSIT</h1>
             <p className="text-xl text-yellow-400 mb-1">RESILIENCE</p>
             <p className="text-gray-400 text-sm mb-6">Керуйте метро Києва. Перевозьте пасажирів. Захищайте місто.</p>
             <div className="text-gray-500 text-xs mb-4 space-y-1">
+              <p>🖱️ Перетягуйте мишкою — камера</p>
               <p>🖱️ Клік по потягу — змінити напрямок</p>
-              <p>🖱️ Клік по пошкодженій станції — ДСНС</p>
+              <p>🖱️ Клік по станції — обрати / ДСНС</p>
               <p>🔲 Q/W/E/R — збити дрон (QTE)</p>
-              <p>⚡ Колесо — зум | Права кнопка — камера</p>
+              <p>⚡ Колесо — зум</p>
               <p>⏸️ Пробіл — пауза | 1/2/3/4 — швидкість</p>
             </div>
             <button
@@ -229,8 +243,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               <div>Пасажирів: <span className="text-white font-bold">{state.passengersDelivered}</span></div>
               <div>Дронів збито: <span className="text-white font-bold">{state.dronesIntercepted}</span></div>
               <div>Макс. комбо: <span className="text-white font-bold">x{state.maxCombo.toFixed(1)}</span></div>
-              <div>Станцій відремонтовано: <span className="text-white font-bold">{state.stationsRepaired}</span></div>
-              <div>Піковий потік: <span className="text-white font-bold">{state.peakLoad}</span></div>
             </div>
             <button
               onClick={restartGame}
@@ -247,15 +259,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         <>
           {/* Top bar */}
           <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-3 pointer-events-none">
-            <div className="pointer-events-auto px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="pointer-events-auto px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.85)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-white font-bold text-lg">{Math.round(state.score)}</span>
                 <span className="text-yellow-400">x{(Math.round(state.combo * 10) / 10).toFixed(1)}</span>
                 <span className="text-green-400">💰{state.money}</span>
                 <span>{'❤️'.repeat(state.lives)}{'🖤'.repeat(Math.max(0, 3 - state.lives))}</span>
               </div>
+              {/* Speed control */}
+              <div className="flex gap-1 mt-1">
+                {[1, 2, 5, 10].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => handleSpeedChange(s)}
+                    className={`px-2 py-0.5 rounded text-xs font-bold transition-colors ${state.speedMultiplier === s
+                      ? 'bg-yellow-500 text-gray-900'
+                      : 'text-gray-400 hover:text-white'
+                    }`}
+                    style={state.speedMultiplier !== s ? { background: 'rgba(15,20,40,0.8)', border: '1px solid rgba(255,255,255,0.1)' } : {}}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="pointer-events-auto px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="pointer-events-auto px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.85)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div className="flex items-center gap-3 text-xs text-gray-400">
                 <span>🚇 {state.passengersDelivered}</span>
                 <span>🎯 {state.dronesIntercepted}/{state.totalDrones}</span>
@@ -265,26 +293,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
           </div>
 
-          {/* Speed control */}
-          <div className="absolute top-14 left-3 pointer-events-auto flex gap-1">
-            {[1, 2, 5, 10].map(s => (
-              <button
-                key={s}
-                onClick={() => handleSpeedChange(s)}
-                className={`px-2 py-1 rounded text-xs font-bold transition-colors ${state.speedMultiplier === s
-                  ? 'bg-yellow-500 text-gray-900'
-                  : 'text-gray-400 hover:text-white'
-                }`}
-                style={state.speedMultiplier !== s ? { background: 'rgba(15,20,40,0.8)', border: '1px solid rgba(255,255,255,0.1)' } : {}}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-
           {/* Air Raid Banner */}
           {state.isAirRaid && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-6 py-2 rounded-lg animate-pulse font-bold text-sm tracking-wider">
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-8 py-3 rounded-lg animate-pulse font-bold text-lg tracking-wider shadow-lg shadow-red-900/50">
               ⚠️ ПОВІТРЯНА ТРИВОГА ⚠️
             </div>
           )}
@@ -292,9 +303,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           {/* QTE overlay */}
           {state.qteActive && (
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 text-center pointer-events-none">
-              <div className="px-8 py-4 rounded-xl animate-pulse" style={{ background: 'rgba(255,200,0,0.15)', border: '2px solid rgba(255,200,0,0.6)' }}>
-                <p className="text-yellow-400 text-2xl font-bold mb-1">Натисни [{state.qteKey}]</p>
-                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="px-10 py-5 rounded-xl animate-pulse" style={{ background: 'rgba(255,200,0,0.2)', border: '2px solid rgba(255,200,0,0.7)', boxShadow: '0 0 30px rgba(255,200,0,0.3)' }}>
+                <p className="text-yellow-400 text-3xl font-bold mb-2">Натисни [{state.qteKey}]</p>
+                <div className="w-full h-3 bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-yellow-400 transition-all"
                     style={{ width: `${(state.qteTimer / 2000) * 100}%` }}
@@ -303,7 +314,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 {state.qteDroneId && (() => {
                   const drone = state.drones.find(d => d.id === state.qteDroneId);
                   return drone ? (
-                    <p className="text-gray-400 text-xs mt-1">
+                    <p className="text-gray-300 text-sm mt-2">
                       {drone.droneType.toUpperCase()} • HP: {drone.hp}/{drone.maxHp}
                     </p>
                   ) : null;
@@ -312,40 +323,61 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
           )}
 
-          {/* Pause overlay */}
+          {/* Pause */}
           {state.isPaused && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(10,14,26,0.6)' }}>
-              <span className="text-4xl font-bold text-white">⏸ ПАУЗА</span>
+              <span className="text-5xl font-bold text-white">⏸ ПАУЗА</span>
             </div>
           )}
 
-          {/* Station info tooltip */}
-          {state.hoveredStation && (() => {
-            const s = state.stations.find(st => st.id === state.hoveredStation);
-            if (!s) return null;
-            return (
-              <div className="absolute bottom-20 left-4 px-4 py-3 rounded-xl text-xs" style={{ background: 'rgba(15,20,40,0.9)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <p className="text-white font-bold">{s.nameUa}</p>
-                <p className="text-gray-400">
-                  {s.line === 'red' ? 'M1' : s.line === 'blue' ? 'M2' : 'M3'} •
-                  {s.depth === 'deep' ? ' Глибока' : ' Мілка'} •
-                  HP: {s.hp}/{s.maxHp} •
-                  Пасажирів: {s.passengers.length}/{s.maxPassengers} •
-                  Рівень: {s.level}
-                  {s.isOnFire ? ' 🔥' : ''}
-                  {s.isDestroyed ? ' 💀' : ''}
-                  {s.isRepairing ? ` 🔧 ${Math.round(s.repairProgress * 100)}%` : ''}
-                  {s.hasAntiAir ? ' 🛡️ ПРО' : ''}
-                  {s.shieldTimer > 0 ? ` ⚡ ${Math.round(s.shieldTimer / 1000)}с` : ''}
-                </p>
+          {/* Selected station panel */}
+          {selStation && (
+            <div className="absolute bottom-20 left-4 px-4 py-3 rounded-xl text-xs pointer-events-auto max-w-xs" style={{ background: 'rgba(15,20,40,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <p className="text-white font-bold text-sm mb-1">{selStation.nameUa}</p>
+              <p className="text-gray-400 mb-2">
+                {selStation.line === 'red' ? 'M1' : selStation.line === 'blue' ? 'M2' : 'M3'} •
+                {selStation.depth === 'deep' ? ' Глибока' : ' Мілка'} •
+                HP: {selStation.hp}/{selStation.maxHp} •
+                Пас: {selStation.passengers.length}/{selStation.maxPassengers} •
+                Рівень: {selStation.level}
+                {selStation.isOnFire ? ' 🔥' : ''}
+                {selStation.isDestroyed ? ' 💀' : ''}
+                {selStation.hasAntiAir ? ' 🛡️' : ''}
+              </p>
+              <div className="flex gap-1 flex-wrap">
+                <button onClick={handleDeployAA} disabled={state.money < GAME_CONFIG.ANTI_AIR_COST || selStation.hasAntiAir}
+                  className="px-2 py-1 rounded text-xs text-blue-400 disabled:opacity-30"
+                  style={{ border: '1px solid rgba(52,152,219,0.3)' }}>
+                  🛡️ ПРО ({GAME_CONFIG.ANTI_AIR_COST}💰)
+                </button>
+                <button onClick={handleShield} disabled={state.money < GAME_CONFIG.SHIELD_COST || selStation.shieldTimer > 0}
+                  className="px-2 py-1 rounded text-xs text-cyan-400 disabled:opacity-30"
+                  style={{ border: '1px solid rgba(0,200,200,0.3)' }}>
+                  ⚡ Щит ({GAME_CONFIG.SHIELD_COST}💰)
+                </button>
+                <button onClick={handleUpgradeStation} disabled={state.money < GAME_CONFIG.UPGRADE_COST * selStation.level || selStation.level >= 3}
+                  className="px-2 py-1 rounded text-xs text-green-400 disabled:opacity-30"
+                  style={{ border: '1px solid rgba(46,204,113,0.3)' }}>
+                  ⬆️ Рівень ({GAME_CONFIG.UPGRADE_COST * selStation.level}💰)
+                </button>
+                <button onClick={handleEvacuate} disabled={selStation.passengers.length === 0}
+                  className="px-2 py-1 rounded text-xs text-orange-400 disabled:opacity-30"
+                  style={{ border: '1px solid rgba(230,126,34,0.3)' }}>
+                  🚨 Евакуація
+                </button>
+                <button onClick={handleToggleStation}
+                  className="px-2 py-1 rounded text-xs text-gray-400"
+                  style={{ border: '1px solid rgba(255,255,255,0.2)' }}>
+                  {selStation.isOpen ? '🔒 Закрити' : '🔓 Відкрити'}
+                </button>
               </div>
-            );
-          })()}
+              <button onClick={() => setSelectedStation(null)} className="text-gray-500 text-xs mt-1 hover:text-gray-300">✕ Закрити</button>
+            </div>
+          )}
 
-          {/* Action bar */}
+          {/* Bottom action bar */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
-            <div className="flex gap-2 px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.85)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              {/* Buy trains */}
+            <div className="flex gap-2 px-4 py-2 rounded-xl" style={{ background: 'rgba(15,20,40,0.88)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
               {(['red', 'blue', 'green'] as const).map(line => (
                 <button
                   key={line}
@@ -355,40 +387,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                   disabled={state.money < GAME_CONFIG.TRAIN_COST}
                   title={`Купити потяг ${line.toUpperCase()} (${GAME_CONFIG.TRAIN_COST}💰)`}
                 >
-                  🚇+
+                  🚇+ {GAME_CONFIG.TRAIN_COST}💰
                 </button>
               ))}
               <div className="w-px bg-gray-600" />
-              <button onClick={handleDeployAA} disabled={state.money < GAME_CONFIG.ANTI_AIR_COST || !state.hoveredStation}
-                className="px-2 py-1 rounded text-xs text-blue-400 hover:bg-blue-900/30 disabled:opacity-30 transition-colors"
-                style={{ border: '1px solid rgba(52,152,219,0.3)' }}
-                title={`ПРО (${GAME_CONFIG.ANTI_AIR_COST}💰) — наведіть на станцію`}>
-                🛡️ ПРО
-              </button>
-              <button onClick={handleShield} disabled={state.money < GAME_CONFIG.SHIELD_COST || !state.hoveredStation}
-                className="px-2 py-1 rounded text-xs text-cyan-400 hover:bg-cyan-900/30 disabled:opacity-30 transition-colors"
-                style={{ border: '1px solid rgba(0,200,200,0.3)' }}
-                title={`Щит (${GAME_CONFIG.SHIELD_COST}💰) — наведіть на станцію`}>
-                ⚡ Щит
-              </button>
               <button onClick={handleReinforcements} disabled={state.money < GAME_CONFIG.REINFORCEMENT_COST}
                 className="px-2 py-1 rounded text-xs text-orange-400 hover:bg-orange-900/30 disabled:opacity-30 transition-colors"
                 style={{ border: '1px solid rgba(230,126,34,0.3)' }}
-                title={`Підкріплення ДСНС (${GAME_CONFIG.REINFORCEMENT_COST}💰)`}>
-                🚒 ДСНС
+                title={`ДСНС (${GAME_CONFIG.REINFORCEMENT_COST}💰)`}>
+                🚒 ДСНС ({GAME_CONFIG.REINFORCEMENT_COST}💰)
               </button>
-              <button onClick={handleUpgradeStation} disabled={state.money < GAME_CONFIG.UPGRADE_COST || !state.hoveredStation}
-                className="px-2 py-1 rounded text-xs text-green-400 hover:bg-green-900/30 disabled:opacity-30 transition-colors"
-                style={{ border: '1px solid rgba(46,204,113,0.3)' }}
-                title={`Апгрейд станції (${GAME_CONFIG.UPGRADE_COST}💰) — наведіть`}>
-                ⬆️ Апгрейд
-              </button>
-              <button onClick={handleEvacuate} disabled={!state.hoveredStation}
-                className="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/30 disabled:opacity-30 transition-colors"
-                style={{ border: '1px solid rgba(231,76,60,0.3)' }}
-                title="Евакуація — наведіть на станцію">
-                🏃 Евак
-              </button>
+              {state.selectedTrain && (
+                <button onClick={handleUpgradeTrain}
+                  disabled={state.money < GAME_CONFIG.UPGRADE_COST * (state.trains.find(t => t.id === state.selectedTrain)?.level || 1)}
+                  className="px-2 py-1 rounded text-xs text-purple-400 hover:bg-purple-900/30 disabled:opacity-30 transition-colors"
+                  style={{ border: '1px solid rgba(155,89,182,0.3)' }}>
+                  ⬆️ Потяг
+                </button>
+              )}
             </div>
           </div>
 
@@ -396,19 +412,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto">
             <button
               onClick={() => { stateRef.current.camera.targetZoom = Math.min(4, stateRef.current.camera.targetZoom * 1.3); }}
-              className="w-8 h-8 rounded-lg text-white font-bold text-lg flex items-center justify-center hover:bg-white/10"
-              style={{ background: 'rgba(15,20,40,0.8)', border: '1px solid rgba(255,255,255,0.1)' }}
-            >+</button>
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-lg font-bold"
+              style={{ background: 'rgba(15,20,40,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>
+              +
+            </button>
             <button
               onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.3, stateRef.current.camera.targetZoom * 0.7); }}
-              className="w-8 h-8 rounded-lg text-white font-bold text-lg flex items-center justify-center hover:bg-white/10"
-              style={{ background: 'rgba(15,20,40,0.8)', border: '1px solid rgba(255,255,255,0.1)' }}
-            >−</button>
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-lg font-bold"
+              style={{ background: 'rgba(15,20,40,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>
+              −
+            </button>
             <button
-              onClick={() => { const c = stateRef.current.camera; c.targetZoom = 1; c.targetX = 0; c.targetY = 0; }}
-              className="w-8 h-8 rounded-lg text-gray-400 text-xs flex items-center justify-center hover:bg-white/10"
-              style={{ background: 'rgba(15,20,40,0.8)', border: '1px solid rgba(255,255,255,0.1)' }}
-            >⌂</button>
+              onClick={() => { stateRef.current.camera.targetX = 0; stateRef.current.camera.targetY = 0; stateRef.current.camera.targetZoom = 1; }}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs"
+              style={{ background: 'rgba(15,20,40,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>
+              ⌂
+            </button>
           </div>
         </>
       )}
