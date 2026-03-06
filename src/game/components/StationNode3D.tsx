@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, GameStation } from '../types';
 import { METRO_LINES, SHAPE_COLORS, toWorld, GAME_CONFIG } from '../constants';
@@ -54,11 +54,9 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     const jellyScaleY = 1 + Math.sin((st.jellyOffset.x + st.jellyOffset.y) * 0.3) * 0.1;
     groupRef.current.scale.set(jellyScaleX, jellyScaleY, jellyScaleZ);
 
-    // Position update with jelly offset
     const [px, , pz] = toWorld(st.x + st.jellyOffset.x * 0.001, st.y + st.jellyOffset.y * 0.001);
     groupRef.current.position.set(px, 0.5, pz);
 
-    // Color based on state
     if (matRef.current) {
       if (st.isDestroyed) {
         matRef.current.color.set('#333333');
@@ -72,11 +70,10 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       } else {
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(lineColor);
-        matRef.current.emissiveIntensity = s.isNight ? 0.4 : 0.1;
+        matRef.current.emissiveIntensity = s.isNight ? 0.4 : 0.15;
       }
     }
 
-    // Fire light
     if (fireRef.current) {
       fireRef.current.visible = st.isOnFire;
       if (st.isOnFire) {
@@ -84,7 +81,6 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       }
     }
 
-    // Shield
     if (shieldRef.current) {
       shieldRef.current.visible = st.shieldTimer > 0;
       if (st.shieldTimer > 0) {
@@ -95,7 +91,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     }
   });
 
-  const size = 1.2;
+  const size = 1.4;
 
   return (
     <group
@@ -112,7 +108,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           ref={matRef}
           color={lineColor}
           emissive={lineColor}
-          emissiveIntensity={0.1}
+          emissiveIntensity={0.15}
           metalness={0.3}
           roughness={0.4}
         />
@@ -121,7 +117,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Transfer ring */}
       {station.isTransfer && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
-          <ringGeometry args={[size + 0.3, size + 0.5, 32]} />
+          <ringGeometry args={[size + 0.3, size + 0.6, 32]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.5} side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -136,28 +132,39 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
 
       {/* Shield sphere */}
       <mesh ref={shieldRef} visible={false}>
-        <sphereGeometry args={[size + 1, 16, 16]} />
+        <sphereGeometry args={[size + 1.2, 16, 16]} />
         <meshBasicMaterial color="#3498db" transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Fire light */}
       <pointLight ref={fireRef} color="#ff4400" intensity={0} distance={8} position={[0, 2, 0]} visible={false} />
 
-      {/* Station name */}
-      <Text
-        position={[0, size + 0.8, 0]}
-        fontSize={0.5}
-        color="#e0e0e0"
-        anchorX="center"
-        anchorY="bottom"
-        outlineWidth={0.05}
-        outlineColor="#000000"
-      >
-        {station.nameUa}
-      </Text>
+      {/* Station name - billboarded so always faces camera */}
+      <Billboard>
+        <Text
+          position={[0, size + 1.2, 0]}
+          fontSize={0.45}
+          color="#e0e0e0"
+          anchorX="center"
+          anchorY="bottom"
+          outlineWidth={0.04}
+          outlineColor="#000000"
+          maxWidth={8}
+        >
+          {station.nameUa}
+        </Text>
+      </Billboard>
 
-      {/* Passenger indicators around station */}
-      <PassengerIndicators stationId={stationId} stateRef={stateRef} radius={size + 0.5} />
+      {/* HP bar when damaged */}
+      <Billboard>
+        <mesh position={[0, size + 0.6, 0]}>
+          <planeGeometry args={[2, 0.15]} />
+          <meshBasicMaterial color="#333" transparent opacity={0.6} />
+        </mesh>
+      </Billboard>
+
+      {/* Passenger indicators */}
+      <PassengerIndicators stationId={stationId} stateRef={stateRef} radius={size + 0.6} />
     </group>
   );
 }
@@ -178,7 +185,7 @@ function PassengerIndicators({ stationId, stateRef, radius }: { stationId: strin
         const angle = (i / maxShow) * Math.PI * 2 - Math.PI / 2;
         children[i].position.set(
           Math.cos(angle) * radius,
-          0.3,
+          0.3 + Math.sin(Date.now() * 0.003 + i) * 0.1,
           Math.sin(angle) * radius
         );
         children[i].visible = true;
@@ -197,7 +204,7 @@ function PassengerIndicators({ stationId, stateRef, radius }: { stationId: strin
     <group ref={groupRef}>
       {Array.from({ length: 8 }).map((_, i) => (
         <mesh key={i} visible={false}>
-          <sphereGeometry args={[0.2, 8, 8]} />
+          <sphereGeometry args={[0.25, 8, 8]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}

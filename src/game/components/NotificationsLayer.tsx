@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from '../types';
 import { toWorld } from '../constants';
@@ -15,13 +15,18 @@ export function NotificationsLayer({ stateRef }: { stateRef: React.MutableRefObj
     const children = groupRef.current.children;
     state.notifications.forEach((notif, i) => {
       if (i >= children.length) return;
-      const textMesh = children[i] as any;
+      const billboard = children[i] as any;
       const [wx, , wz] = toWorld(notif.x, notif.y);
-      const height = 3 + (2000 - notif.timer) * 0.003;
-      textMesh.position.set(wx, height, wz);
-      textMesh.visible = true;
-      textMesh.fillOpacity = Math.min(1, notif.timer / 500);
-      textMesh.color = notif.color;
+      const height = 4 + (2000 - notif.timer) * 0.004;
+      billboard.position.set(wx, height, wz);
+      billboard.visible = true;
+      // Update text child
+      const textMesh = billboard.children?.[0];
+      if (textMesh) {
+        textMesh.fillOpacity = Math.min(1, notif.timer / 500);
+        textMesh.color = notif.color;
+        textMesh.text = notif.text;
+      }
     });
 
     for (let i = state.notifications.length; i < children.length; i++) {
@@ -32,18 +37,19 @@ export function NotificationsLayer({ stateRef }: { stateRef: React.MutableRefObj
   return (
     <group ref={groupRef}>
       {Array.from({ length: 20 }).map((_, i) => (
-        <Text
-          key={i}
-          visible={false}
-          fontSize={0.6}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000000"
-        >
-          {''}
-        </Text>
+        <Billboard key={i} visible={false}>
+          <Text
+            fontSize={0.7}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.06}
+            outlineColor="#000000"
+            fontWeight="bold"
+          >
+            {''}
+          </Text>
+        </Billboard>
       ))}
     </group>
   );

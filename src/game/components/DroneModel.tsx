@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, DroneType } from '../types';
 import { DRONE_TYPES, toWorld } from '../constants';
@@ -17,15 +17,21 @@ const DRONE_GLB: Record<DroneType, string> = {
 };
 
 const DRONE_SCALE: Record<DroneType, number> = {
-  shahed: 1.5,
-  molniya: 0.8,
-  gerbera: 1.2,
+  shahed: 3.0,
+  molniya: 1.5,
+  gerbera: 2.5,
 };
 
 const DRONE_ROTATION_OFFSET: Record<DroneType, [number, number, number]> = {
   shahed: [0, Math.PI, 0],
   molniya: [0, 0, 0],
   gerbera: [0, Math.PI, 0],
+};
+
+const DRONE_FLY_HEIGHT: Record<DroneType, number> = {
+  shahed: 7,
+  molniya: 9,
+  gerbera: 5,
 };
 
 function DroneGLB({ droneType }: { droneType: DroneType }) {
@@ -41,34 +47,35 @@ function DroneFallback({ droneType }: { droneType: DroneType }) {
     return (
       <group>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.15, 0.3, 1.8, 8]} />
+          <cylinderGeometry args={[0.2, 0.5, 3, 8]} />
           <meshStandardMaterial color="#4a4a4a" metalness={0.7} roughness={0.3} />
         </mesh>
-        <mesh><boxGeometry args={[0.1, 2.2, 0.05]} /><meshStandardMaterial color="#555" /></mesh>
-        <mesh position={[0.95, 0, 0]}><sphereGeometry args={[0.15, 8, 8]} /><meshStandardMaterial color="#cc0000" emissive="#ff0000" emissiveIntensity={0.5} /></mesh>
+        <mesh><boxGeometry args={[0.1, 3.5, 0.05]} /><meshStandardMaterial color="#555" /></mesh>
+        <mesh position={[1.5, 0, 0]}><sphereGeometry args={[0.2, 8, 8]} /><meshStandardMaterial color="#cc0000" emissive="#ff0000" emissiveIntensity={0.5} /></mesh>
       </group>
     );
   }
   if (droneType === 'molniya') {
     return (
       <group>
-        <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.08, 0.2, 1.2, 6]} /><meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} /></mesh>
-        <mesh><boxGeometry args={[0.6, 1.5, 0.03]} /><meshStandardMaterial color="#999" /></mesh>
-        <pointLight color="#00aaff" intensity={2} distance={3} position={[-0.7, 0, 0]} />
+        <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.1, 0.3, 2, 6]} /><meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} /></mesh>
+        <mesh><boxGeometry args={[0.8, 2.5, 0.03]} /><meshStandardMaterial color="#999" /></mesh>
+        <pointLight color="#00aaff" intensity={2} distance={4} position={[-1, 0, 0]} />
       </group>
     );
   }
   return (
     <group>
-      <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.25, 0.4, 2.2, 8]} /><meshStandardMaterial color="#3a3a3a" /></mesh>
-      <mesh><boxGeometry args={[0.15, 3.0, 0.06]} /><meshStandardMaterial color="#444" /></mesh>
-      <pointLight color="#ff4400" intensity={2} distance={4} position={[-1.2, 0, 0]} />
+      <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.35, 0.6, 3.5, 8]} /><meshStandardMaterial color="#3a3a3a" /></mesh>
+      <mesh><boxGeometry args={[0.2, 4.5, 0.08]} /><meshStandardMaterial color="#444" /></mesh>
+      <pointLight color="#ff4400" intensity={3} distance={6} position={[-1.5, 0, 0]} />
     </group>
   );
 }
 
 export function DroneModel({ droneId, stateRef }: DroneModelProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const prevAngle = useRef<number | null>(null);
 
   const drone = useMemo(() => stateRef.current.drones.find(d => d.id === droneId), [droneId]);
   if (!drone) return null;
@@ -83,20 +90,28 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
 
     groupRef.current.visible = true;
     const [wx, , wz] = toWorld(d.x, d.y);
-    const flyHeight = 6 + Math.sin(d.wobble) * 0.5;
+    const flyHeight = DRONE_FLY_HEIGHT[d.droneType] + Math.sin(d.wobble) * 0.5;
     groupRef.current.position.set(wx, flyHeight, wz);
 
-    // Face toward target
+    // Face toward target with smooth rotation
     const target = state.stations.find(s => s.id === d.targetStationId);
     if (target) {
       const [tx, , tz] = toWorld(target.x, target.y);
-      const angle = Math.atan2(tx - wx, tz - wz);
-      groupRef.current.rotation.y = angle;
+      const targetAngle = Math.atan2(tx - wx, tz - wz);
+      
+      if (prevAngle.current === null) {
+        prevAngle.current = targetAngle;
+      }
+      let diff = targetAngle - prevAngle.current;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      prevAngle.current += diff * 0.05;
+      groupRef.current.rotation.y = prevAngle.current;
     }
 
     // Wobble
-    groupRef.current.rotation.z = Math.sin(d.wobble) * 0.1;
-    groupRef.current.rotation.x = Math.sin(d.wobble * 0.7) * 0.05;
+    groupRef.current.rotation.z = Math.sin(d.wobble) * 0.08;
+    groupRef.current.rotation.x = Math.sin(d.wobble * 0.7) * 0.04;
   });
 
   return (
@@ -106,15 +121,43 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
       </Suspense>
 
       {/* Danger glow */}
-      <pointLight color="#ff0000" intensity={1} distance={6} />
+      <pointLight color="#ff0000" intensity={2} distance={8} />
+
+      {/* Engine trail */}
+      <mesh position={[-1, 0, 0]}>
+        <sphereGeometry args={[0.3, 8, 8]} />
+        <meshBasicMaterial color="#ff4400" transparent opacity={0.4} />
+      </mesh>
 
       {/* HP indicator for multi-HP drones */}
       {drone.maxHp > 1 && (
-        <mesh position={[0, 1.2, 0]}>
-          <sphereGeometry args={[0.15, 8, 8]} />
-          <meshBasicMaterial color={drone.hp > 1 ? '#ffaa00' : '#ff0000'} />
-        </mesh>
+        <Billboard>
+          <Text
+            position={[0, 2, 0]}
+            fontSize={0.5}
+            color={drone.hp > 1 ? '#ffaa00' : '#ff0000'}
+            anchorX="center"
+            outlineWidth={0.04}
+            outlineColor="#000"
+          >
+            {`HP ${drone.hp}/${drone.maxHp}`}
+          </Text>
+        </Billboard>
       )}
+
+      {/* Drone type label */}
+      <Billboard>
+        <Text
+          position={[0, -1.5, 0]}
+          fontSize={0.4}
+          color="#ff4444"
+          anchorX="center"
+          outlineWidth={0.03}
+          outlineColor="#000"
+        >
+          {drone.droneType.toUpperCase()}
+        </Text>
+      </Billboard>
     </group>
   );
 }
