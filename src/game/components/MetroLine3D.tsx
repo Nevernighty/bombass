@@ -13,7 +13,7 @@ interface MetroLine3DProps {
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const prevStationCount = useRef(0);
+  const prevStationCount = useRef(-1);
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
 
