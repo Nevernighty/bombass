@@ -17,9 +17,9 @@ const DRONE_GLB: Record<DroneType, string> = {
 };
 
 const DRONE_SCALE: Record<DroneType, number> = {
-  shahed: 3.0,
-  molniya: 1.5,
-  gerbera: 2.5,
+  shahed: 4.5,
+  molniya: 2.5,
+  gerbera: 3.5,
 };
 
 const DRONE_ROTATION_OFFSET: Record<DroneType, [number, number, number]> = {
@@ -105,7 +105,7 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
       let diff = targetAngle - prevAngle.current;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      prevAngle.current += diff * 0.05;
+      prevAngle.current += diff * 0.08;
       groupRef.current.rotation.y = prevAngle.current;
     }
 
@@ -125,19 +125,19 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
 
       {/* Engine trail */}
       <mesh position={[-1, 0, 0]}>
-        <sphereGeometry args={[0.3, 8, 8]} />
-        <meshBasicMaterial color="#ff4400" transparent opacity={0.4} />
+        <sphereGeometry args={[0.4, 8, 8]} />
+        <meshBasicMaterial color="#ff4400" transparent opacity={0.5} />
       </mesh>
 
       {/* HP indicator for multi-HP drones */}
       {drone.maxHp > 1 && (
         <Billboard>
           <Text
-            position={[0, 2, 0]}
-            fontSize={0.5}
+            position={[0, 2.5, 0]}
+            fontSize={0.6}
             color={drone.hp > 1 ? '#ffaa00' : '#ff0000'}
             anchorX="center"
-            outlineWidth={0.04}
+            outlineWidth={0.05}
             outlineColor="#000"
           >
             {`HP ${drone.hp}/${drone.maxHp}`}
@@ -148,11 +148,11 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
       {/* Drone type label */}
       <Billboard>
         <Text
-          position={[0, -1.5, 0]}
-          fontSize={0.4}
+          position={[0, -2, 0]}
+          fontSize={0.5}
           color="#ff4444"
           anchorX="center"
-          outlineWidth={0.03}
+          outlineWidth={0.04}
           outlineColor="#000"
         >
           {drone.droneType.toUpperCase()}

@@ -70,7 +70,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       } else {
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(lineColor);
-        matRef.current.emissiveIntensity = s.isNight ? 0.4 : 0.15;
+        matRef.current.emissiveIntensity = s.isNight ? 0.5 : 0.2;
       }
     }
 
@@ -91,7 +91,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     }
   });
 
-  const size = 1.4;
+  const size = 1.8;
 
   return (
     <group
@@ -108,7 +108,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           ref={matRef}
           color={lineColor}
           emissive={lineColor}
-          emissiveIntensity={0.15}
+          emissiveIntensity={0.2}
           metalness={0.3}
           roughness={0.4}
         />
@@ -139,15 +139,15 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Fire light */}
       <pointLight ref={fireRef} color="#ff4400" intensity={0} distance={8} position={[0, 2, 0]} visible={false} />
 
-      {/* Station name - billboarded so always faces camera */}
+      {/* Station name - billboarded */}
       <Billboard>
         <Text
-          position={[0, size + 1.2, 0]}
-          fontSize={0.45}
+          position={[0, size + 1.5, 0]}
+          fontSize={0.5}
           color="#e0e0e0"
           anchorX="center"
           anchorY="bottom"
-          outlineWidth={0.04}
+          outlineWidth={0.05}
           outlineColor="#000000"
           maxWidth={8}
         >
@@ -155,10 +155,25 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         </Text>
       </Billboard>
 
-      {/* HP bar when damaged */}
+      {/* Passenger count billboard */}
       <Billboard>
-        <mesh position={[0, size + 0.6, 0]}>
-          <planeGeometry args={[2, 0.15]} />
+        <Text
+          position={[0, size + 0.8, 0]}
+          fontSize={0.4}
+          color="#ffcc00"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.03}
+          outlineColor="#000000"
+        >
+          {''}
+        </Text>
+      </Billboard>
+
+      {/* HP bar background */}
+      <Billboard>
+        <mesh position={[0, size + 0.4, 0]}>
+          <planeGeometry args={[2.5, 0.18]} />
           <meshBasicMaterial color="#333" transparent opacity={0.6} />
         </mesh>
       </Billboard>
@@ -204,7 +219,7 @@ function PassengerIndicators({ stationId, stateRef, radius }: { stationId: strin
     <group ref={groupRef}>
       {Array.from({ length: 8 }).map((_, i) => (
         <mesh key={i} visible={false}>
-          <sphereGeometry args={[0.25, 8, 8]} />
+          <sphereGeometry args={[0.3, 8, 8]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}
