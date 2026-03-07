@@ -1,9 +1,9 @@
 import React, { useRef, useMemo, Suspense } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { useGLTF, Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from '../types';
-import { METRO_LINES, STATIONS, toWorld, GAME_CONFIG } from '../constants';
+import { METRO_LINES, STATIONS, toWorld } from '../constants';
 import { getActiveLineStations, easeInOutQuad } from '../GameEngine';
 
 interface TrainModelProps {
@@ -58,6 +58,7 @@ function TrainFallback({ lineColor }: { lineColor: string }) {
 export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const prevAngle = useRef<number | null>(null);
+  const lastMovementAngle = useRef<number>(0);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
@@ -72,33 +73,37 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     const [wx, , wz] = toWorld(t.x, t.y);
     groupRef.current.position.set(wx, 0.6, wz);
 
-    // Calculate facing direction from actual movement vector
-    const route = getActiveLineStations(state, t.line);
-    if (route.length >= 2) {
-      const curIdx = t.routeIndex;
-      const nextIdx = Math.max(0, Math.min(route.length - 1, curIdx + t.direction));
-      const curSt = STATIONS.find(s => s.id === route[curIdx]);
-      const nextSt = STATIONS.find(s => s.id === route[nextIdx]);
-      if (curSt && nextSt && (curSt.id !== nextSt.id)) {
-        const [cx, , cz] = toWorld(curSt.x, curSt.y);
-        const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
-        const targetAngle = Math.atan2(nx - cx, nz - cz);
-        
-        if (prevAngle.current === null) {
-          prevAngle.current = targetAngle;
+    // Only compute rotation when NOT dwelling (moving between stations)
+    if (!t.isDwelling) {
+      const route = getActiveLineStations(state, t.line);
+      if (route.length >= 2) {
+        const curIdx = t.routeIndex;
+        const nextIdx = Math.max(0, Math.min(route.length - 1, curIdx + t.direction));
+        const curSt = STATIONS.find(s => s.id === route[curIdx]);
+        const nextSt = STATIONS.find(s => s.id === route[nextIdx]);
+        if (curSt && nextSt && curSt.id !== nextSt.id) {
+          const [cx, , cz] = toWorld(curSt.x, curSt.y);
+          const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
+          const targetAngle = Math.atan2(nx - cx, nz - cz);
+          lastMovementAngle.current = targetAngle;
         }
-        // Smooth rotation with angle wrapping
-        let diff = targetAngle - prevAngle.current;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        prevAngle.current += diff * 0.08;
-        groupRef.current.rotation.y = prevAngle.current;
       }
     }
 
-    // Dwell animation
+    // Smooth rotation toward last known movement angle
+    const targetAngle = lastMovementAngle.current;
+    if (prevAngle.current === null) {
+      prevAngle.current = targetAngle;
+    }
+    let diff = targetAngle - prevAngle.current;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    prevAngle.current += diff * 0.15;
+    groupRef.current.rotation.y = prevAngle.current;
+
+    // Dwell animation — gentle bob
     if (t.isDwelling) {
-      groupRef.current.position.y = 0.6 + Math.sin(Date.now() * 0.008) * 0.08;
+      groupRef.current.position.y = 0.6 + Math.sin(Date.now() * 0.006) * 0.06;
     }
   });
 

@@ -183,17 +183,34 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     const route = getActiveLineStations(s, t.line);
     if (!route || route.length < 2) return t;
 
+    // Clamp routeIndex to valid range (route may have changed)
+    t.routeIndex = Math.max(0, Math.min(route.length - 1, t.routeIndex));
+
     if (t.isDwelling) {
       t.dwellTimer -= realDt;
       if (t.dwellTimer <= 0) {
         t.isDwelling = false;
-        const nextIdx = t.routeIndex + t.direction;
-        if (nextIdx >= route.length || nextIdx < 0) {
+        t.progress = 0;
+        // Check if we need to reverse at ends
+        const peekNext = t.routeIndex + t.direction;
+        if (peekNext >= route.length || peekNext < 0) {
           t.direction = (t.direction * -1) as 1 | -1;
         }
-        t.routeIndex = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
-        t.progress = 0;
       }
+      // Stay at current station during dwell
+      const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
+      if (curStation) { t.x = curStation.x; t.y = curStation.y; }
+      return t;
+    }
+
+    // Calculate next station index
+    const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
+    
+    // If we're at an end and can't move, just dwell
+    if (nextIdx === t.routeIndex) {
+      t.direction = (t.direction * -1) as 1 | -1;
+      t.isDwelling = true;
+      t.dwellTimer = GAME_CONFIG.DWELL_TIME;
       const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
       if (curStation) { t.x = curStation.x; t.y = curStation.y; }
       return t;
@@ -201,13 +218,30 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
 
     t.progress += (t.speed * realDt) / 2500;
 
+    // Interpolate position between current and next station
+    const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
+    const nextStation = s.stations.find(st => st.id === route[nextIdx]);
+    if (curStation && nextStation) {
+      const eased = easeInOutQuad(Math.min(t.progress, 1));
+      t.x = curStation.x + (nextStation.x - curStation.x) * eased;
+      t.y = curStation.y + (nextStation.y - curStation.y) * eased;
+    }
+
     if (t.progress >= 1) {
-      t.progress = 1;
+      // Arrived at next station — advance routeIndex FIRST
+      t.routeIndex = nextIdx;
+      t.progress = 0;
       t.isDwelling = true;
       t.dwellTimer = GAME_CONFIG.DWELL_TIME;
 
-      const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
-      const station = s.stations.find(st => st.id === route[nextIdx]);
+      // Snap to destination
+      const station = s.stations.find(st => st.id === route[t.routeIndex]);
+      if (station) {
+        t.x = station.x;
+        t.y = station.y;
+      }
+
+      // Load/unload passengers at arrival station
       if (station && !station.isDestroyed) {
         const matching = t.passengers.filter(p => p.shape === station.shape);
         if (matching.length > 0) {
@@ -230,15 +264,6 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       }
     }
 
-    // Interpolate position
-    const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
-    const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
-    const nextStation = s.stations.find(st => st.id === route[nextIdx]);
-    if (curStation && nextStation) {
-      const eased = easeInOutQuad(t.progress);
-      t.x = curStation.x + (nextStation.x - curStation.x) * eased;
-      t.y = curStation.y + (nextStation.y - curStation.y) * eased;
-    }
     return t;
   });
 
