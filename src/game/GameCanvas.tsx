@@ -114,8 +114,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
-      stateRef.current.camera.targetX -= dx * 0.3;
-      stateRef.current.camera.targetY -= dy * 0.3;
+      stateRef.current.camera.targetX -= dx * 0.15;
+      stateRef.current.camera.targetY -= dy * 0.15;
       panStartRef.current = { x: e.clientX, y: e.clientY };
     }
   }, []);

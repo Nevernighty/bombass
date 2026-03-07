@@ -13,7 +13,7 @@ interface MetroLine3DProps {
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const prevKey = useRef('');
+  const prevKey = useRef('__init__');
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
 
@@ -43,8 +43,8 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         glowGeometryRef.current?.dispose();
 
         const segments = Math.max(points.length * 20, 64);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.35, 8, false);
-        const glowGeo = new THREE.TubeGeometry(curve, segments, 0.7, 8, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.5, 8, false);
+        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.0, 8, false);
 
         geometryRef.current = tubeGeo;
         glowGeometryRef.current = glowGeo;
@@ -57,17 +57,17 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     // Night glow intensity
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.35 : 0.12;
+      mat.opacity = state.isNight ? 0.4 : 0.18;
     }
 
     // Main line emissive pulse
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 0.6 : 0.3;
+      mat.emissiveIntensity = state.isNight ? 0.7 : 0.35;
     }
   });
 
-  // Create a tiny initial geometry that will be replaced
+  // Tiny initial geometry (off-screen, will be replaced on first frame)
   const initCurve = useMemo(() => new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, -100, 0), new THREE.Vector3(1, -100, 0)
   ]), []);
@@ -76,11 +76,11 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     <group>
       {/* Main line tube */}
       <mesh ref={meshRef}>
-        <tubeGeometry args={[initCurve, 2, 0.35, 8, false]} />
+        <tubeGeometry args={[initCurve, 2, 0.5, 8, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.35}
           metalness={0.5}
           roughness={0.2}
         />
@@ -88,8 +88,8 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
       {/* Glow tube */}
       <mesh ref={glowRef}>
-        <tubeGeometry args={[initCurve, 2, 0.7, 8, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.12} side={THREE.DoubleSide} />
+        <tubeGeometry args={[initCurve, 2, 1.0, 8, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.18} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );

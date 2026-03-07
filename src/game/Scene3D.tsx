@@ -1,4 +1,4 @@
-import React, { useRef, useState, Suspense } from 'react';
+import React, { useRef, useState, Suspense, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -39,11 +39,11 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     ortho.zoom = 8 * cam.zoom;
     ortho.updateProjectionMatrix();
 
-    const baseX = 35;
-    const baseY = 55;
-    const baseZ = 35;
-    ortho.position.set(baseX - cam.x * 0.5, baseY, baseZ - cam.y * 0.5);
-    ortho.lookAt(-cam.x * 0.5, 0, -cam.y * 0.5);
+    const baseX = 30;
+    const baseY = 50;
+    const baseZ = 30;
+    ortho.position.set(baseX - cam.x, baseY, baseZ - cam.y);
+    ortho.lookAt(-cam.x, 0, -cam.y);
 
     if (state.screenShake > 0) {
       ortho.position.x += (Math.random() - 0.5) * state.screenShake * 0.3;
@@ -78,6 +78,52 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
   return null;
 }
 
+// Procedural buildings scattered around the map
+function CityBuildings() {
+  const buildings = useMemo(() => {
+    const result: { x: number; z: number; w: number; h: number; d: number; color: string }[] = [];
+    const rng = (seed: number) => {
+      let s = seed;
+      return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    };
+    const rand = rng(42);
+
+    for (let i = 0; i < 70; i++) {
+      const nx = rand();
+      const ny = rand();
+      const [wx, , wz] = toWorld(nx, ny);
+      
+      // Skip if too close to metro stations
+      const tooClose = STATIONS.some(s => {
+        const [sx, , sz] = toWorld(s.x, s.y);
+        const dx = wx - sx;
+        const dz = wz - sz;
+        return Math.sqrt(dx * dx + dz * dz) < 4;
+      });
+      if (tooClose) continue;
+
+      const h = 0.5 + rand() * 4;
+      const w = 0.8 + rand() * 1.5;
+      const d = 0.8 + rand() * 1.5;
+      const brightness = 15 + Math.floor(rand() * 20);
+      const color = `hsl(220, 10%, ${brightness}%)`;
+      result.push({ x: wx, z: wz, w, h, d, color });
+    }
+    return result;
+  }, []);
+
+  return (
+    <group>
+      {buildings.map((b, i) => (
+        <mesh key={i} position={[b.x, b.h / 2, b.z]} castShadow receiveShadow>
+          <boxGeometry args={[b.w, b.h, b.d]} />
+          <meshStandardMaterial color={b.color} metalness={0.2} roughness={0.8} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function SceneContent({
   stateRef, audioRef, onStateChange,
   onStationClick, onTrainClick, onStationHover,
@@ -102,7 +148,7 @@ function SceneContent({
     <>
       <OrthographicCamera
         makeDefault
-        position={[35, 55, 35]}
+        position={[30, 50, 30]}
         zoom={8}
         near={-1000}
         far={1000}
@@ -110,33 +156,40 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
+      {/* Fog for atmosphere */}
+      <fog attach="fog" args={['#0a0e1a', 60, 140]} />
+
       {/* Lighting */}
-      <ambientLight intensity={state.isNight ? 0.3 : 0.6} color={state.isNight ? '#4466aa' : '#ffffff'} />
+      <ambientLight intensity={state.isNight ? 0.25 : 0.55} color={state.isNight ? '#3344aa' : '#ffffff'} />
       <directionalLight
         position={[20, 40, 10]}
-        intensity={state.isNight ? 0.3 : 0.8}
-        color={state.isNight ? '#6688cc' : '#ffffee'}
+        intensity={state.isNight ? 0.2 : 0.8}
+        color={state.isNight ? '#4466aa' : '#ffffee'}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
+      {state.isNight && (
+        <hemisphereLight args={['#112244', '#000011', 0.15]} />
+      )}
       {state.isAirRaid && (
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.5 + Math.sin(Date.now() * 0.005) * 0.3} distance={100} />
       )}
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
-        <planeGeometry args={[120, 100]} />
+        <planeGeometry args={[140, 120]} />
         <meshStandardMaterial
-          color={state.isNight ? '#0a0e1a' : '#121828'}
+          color={state.isNight ? '#080c16' : '#101624'}
           metalness={0.1}
           roughness={0.9}
         />
       </mesh>
 
-      <gridHelper args={[120, 24, '#1a2040', '#1a2040']} position={[0, 0.01, 0]} />
+      <gridHelper args={[140, 28, '#151e38', '#151e38']} position={[0, 0.01, 0]} />
 
       <RiverPlane />
+      <CityBuildings />
 
       {/* Metro lines */}
       <MetroLine3D line="red" stateRef={stateRef} />
