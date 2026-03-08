@@ -152,6 +152,9 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     const st = s.stations.find(ss => ss.id === stationId);
     if (!st || !groupRef.current) return;
 
+    const isPending = s.pendingStations.includes(stationId);
+    const effectiveColor = isPending ? '#666666' : lineColor;
+
     // Hover scale — spring to 1.25x
     const targetScale = isHoveredRef.current ? 1.25 : 1;
     hoverScaleRef.current += (targetScale - hoverScaleRef.current) * (1 - Math.exp(-12 * delta));
@@ -167,7 +170,11 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
 
     if (matRef.current) {
       const emissiveBoost = isHoveredRef.current ? 0.4 : 0;
-      if (st.isDestroyed) {
+      if (isPending) {
+        matRef.current.color.set('#555555');
+        matRef.current.emissive.set('#333333');
+        matRef.current.emissiveIntensity = 0.15 + Math.sin(Date.now() * 0.003) * 0.1 + emissiveBoost;
+      } else if (st.isDestroyed) {
         matRef.current.color.set('#333333');
         matRef.current.emissive.set('#000000');
       } else if (st.isOnFire) {
@@ -175,15 +182,15 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         matRef.current.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3 + emissiveBoost;
       } else if (st.hp < st.maxHp) {
         const hpRatio = st.hp / st.maxHp;
-        matRef.current.color.set(lineColor);
-        matRef.current.emissive.set(hpRatio < 0.5 ? '#cc2200' : lineColor);
+        matRef.current.color.set(effectiveColor);
+        matRef.current.emissive.set(hpRatio < 0.5 ? '#cc2200' : effectiveColor);
         matRef.current.emissiveIntensity = (hpRatio < 0.5 ? 0.4 : 0.25) + emissiveBoost;
       } else if (st.passengers.length >= st.maxPassengers - 1) {
         matRef.current.emissive.set('#ff0000');
         matRef.current.emissiveIntensity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2 + emissiveBoost;
       } else {
-        matRef.current.color.set(lineColor);
-        matRef.current.emissive.set(lineColor);
+        matRef.current.color.set(effectiveColor);
+        matRef.current.emissive.set(effectiveColor);
         matRef.current.emissiveIntensity = (s.isNight ? 1.0 : 0.25) + emissiveBoost;
       }
     }
@@ -201,6 +208,17 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         (shieldRef.current.material as THREE.MeshBasicMaterial).opacity =
           0.15 + Math.sin(Date.now() * 0.003) * 0.08;
         shieldRef.current.rotation.y += delta * 0.5;
+      }
+    }
+
+    // Pending station pulsing ring
+    if (pendingRingRef.current) {
+      pendingRingRef.current.visible = isPending;
+      if (isPending) {
+        const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.2;
+        pendingRingRef.current.scale.set(pulse, pulse, 1);
+        (pendingRingRef.current.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(Date.now() * 0.003) * 0.15;
+        pendingRingRef.current.rotation.z += delta * 0.5;
       }
     }
 
@@ -254,7 +272,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         type: 'station',
         id: stationId,
         name: st.nameUa,
-        details: st.isDestroyed ? 'Зруйновано' : `HP: ${st.hp}/${st.maxHp} | Пасажири: ${st.passengers.length}/${st.maxPassengers}`,
+        details: isPending ? '🔗 Проведи лінію щоб підключити' :
+          st.isDestroyed ? 'Зруйновано' : `HP: ${st.hp}/${st.maxHp} | Пасажири: ${st.passengers.length}/${st.maxPassengers}`,
       };
     }
   });
