@@ -68,8 +68,8 @@ function ActionBtn({ onClick, disabled, label, cost, active, timer, hotkey, insu
         background: active ? `${color}15` : 'transparent',
         border: `1px solid ${active ? `${color}40` : 'hsl(var(--border))'}`,
         color: insufficientMoney ? 'hsl(var(--destructive))' : color,
-        ringColor: active ? color : undefined,
-      }}>
+        boxShadow: active ? `0 0 8px ${color}20` : 'none',
+      } as React.CSSProperties}>
       <span className="text-[11px] font-bold leading-none">{label}</span>
       {cost !== undefined && (
         <span className="text-[8px] leading-none mt-0.5" style={{ color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
