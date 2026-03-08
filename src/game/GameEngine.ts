@@ -1,9 +1,10 @@
 import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy } from './types';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
 import { generateBuildingData } from './components/CityBuildings';
+import { SCENARIOS, ACHIEVEMENT_DEFS } from './config/scenarios';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
@@ -41,19 +42,20 @@ function assignStationShape(station: typeof STATIONS[0], index: number): Passeng
 function initBuildings(): BuildingState[] {
   const data = generateBuildingData();
   return data.map((b, i) => ({
-    id: i,
-    x: b.x,
-    y: b.y,
-    hp: 50,
-    maxHp: 50,
-    isDestroyed: false,
-    height: b.h,
-    width: b.w,
-    depth: b.d,
+    id: i, x: b.x, y: b.y,
+    hp: 50, maxHp: 50, isDestroyed: false,
+    height: b.h, width: b.w, depth: b.d,
   }));
 }
 
-export function createInitialState(): GameState {
+function initAchievements(): Achievement[] {
+  return ACHIEVEMENT_DEFS.map(d => ({
+    ...d, unlocked: false,
+  }));
+}
+
+export function createInitialState(mode: GameMode = 'classic'): GameState {
+  const scenario = SCENARIOS[mode];
   let stationIndex = 0;
   const stations: GameStation[] = STATIONS.map(s => ({
     ...s,
@@ -66,32 +68,52 @@ export function createInitialState(): GameState {
     isRepairing: false, repairProgress: 0,
     jellyOffset: { x: 0, y: 0 }, jellyVel: { x: 0, y: 0 },
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
-    isSheltering: false, tunnelSealTimer: 0,
+    isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
   }));
 
   const trains: Train[] = [];
-  (['red', 'blue', 'green'] as const).forEach(line => {
+  const linesToUse = scenario.activeLines;
+  let trainsCreated = 0;
+  linesToUse.forEach(line => {
     const lineStartStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
     if (lineStartStations.length < 2) return;
     const st = STATION_MAP.get(lineStartStations[0])!;
-    trains.push({
-      id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
-      speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-      x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
-    });
+    if (trainsCreated < scenario.startTrains) {
+      trains.push({
+        id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
+        speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+      });
+      trainsCreated++;
+    }
   });
+  // If mode wants more trains, add extras
+  while (trainsCreated < scenario.startTrains) {
+    const line = linesToUse[trainsCreated % linesToUse.length];
+    const lineStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
+    if (lineStations.length > 0) {
+      const st = STATION_MAP.get(lineStations[Math.min(1, lineStations.length - 1)])!;
+      trains.push({
+        id: uid(), line, routeIndex: 0, progress: 0, direction: -1,
+        speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+      });
+    }
+    trainsCreated++;
+  }
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
     camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 },
-    score: 0, lives: 3, combo: 1, maxCombo: 1, money: 50,
+    score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
     stationsDestroyed: 0, stationsRepaired: 0,
     networkEfficiency: 100, peakLoad: 0,
-    dayTime: 0.25, isNight: false,
-    isAirRaid: false, airRaidTimer: 0, raidDronesSpawned: 0,
-    nextRaidTime: GAME_CONFIG.AIR_RAID_MIN_INTERVAL + Math.random() * (GAME_CONFIG.AIR_RAID_MAX_INTERVAL - GAME_CONFIG.AIR_RAID_MIN_INTERVAL),
+    dayTime: scenario.permanentNight ? 0.1 : 0.25, isNight: scenario.permanentNight,
+    isAirRaid: scenario.continuousRaids, airRaidTimer: 0, raidDronesSpawned: 0,
+    nextRaidTime: scenario.noRaids ? Infinity : (scenario.continuousRaids ? 0 :
+      GAME_CONFIG.AIR_RAID_MIN_INTERVAL + Math.random() * (GAME_CONFIG.AIR_RAID_MAX_INTERVAL - GAME_CONFIG.AIR_RAID_MIN_INTERVAL)),
     screenShake: 0, gameOver: false, gameStarted: false, isPaused: false,
     elapsedTime: 0, speedMultiplier: 1, unlockedRoutes: [],
     selectedTrain: null, hoveredStation: null,
@@ -101,20 +123,25 @@ export function createInitialState(): GameState {
     // Phase 4
     buildings: initBuildings(),
     selectedDroneId: null,
-    powerGrid: 100,
-    maxPower: 100,
-    generators: 0,
-    rushHourTimer: RUSH_HOUR_INTERVAL,
-    rushHourActive: false,
-    rushHourCooldown: 0,
-    radarActive: false,
-    radarWarnings: [],
+    powerGrid: 100, maxPower: 100, generators: 0,
+    rushHourTimer: RUSH_HOUR_INTERVAL, rushHourActive: false, rushHourCooldown: 0,
+    radarActive: false, radarWarnings: [],
     decoys: [],
-    speedBoostLine: null,
-    speedBoostTimer: 0,
-    speedBoostCooldown: 0,
-    comboMilestones: [],
-    buildingsDestroyed: 0,
+    speedBoostLine: null, speedBoostTimer: 0, speedBoostCooldown: 0,
+    comboMilestones: [], buildingsDestroyed: 0,
+    // Phase 5
+    gameMode: mode,
+    achievements: initAchievements(),
+    satisfactionRate: 100,
+    doubleFareTimer: 0,
+    expressLineId: null, expressTimer: 0,
+    blackoutMode: false,
+    signalFlareTimer: 0,
+    droneJammerTimer: 0,
+    emergencyBrakeTimer: 0,
+    stationMagnetId: null, stationMagnetTimer: 0,
+    winConditionMet: false,
+    modeTimer: 0,
     _cachedLineStations: {},
   };
 }
@@ -137,6 +164,7 @@ function addNotification(state: GameState, text: string, x: number, y: number, c
 function updatePassengers(s: GameState, realDt: number, events: EventBus): void {
   const wave = getCurrentWave(s.elapsedTime);
   const activeSet = new Set(s.activeStationIds);
+  const scenario = SCENARIOS[s.gameMode];
 
   const activeShapes = new Set<PassengerShape>();
   for (const st of s.stations) {
@@ -144,16 +172,28 @@ function updatePassengers(s: GameState, realDt: number, events: EventBus): void 
   }
   const availableShapes = Array.from(activeShapes);
 
-  // Rush hour multiplier
-  const spawnRateMult = s.rushHourActive ? 3 : 1;
-  const effectiveSpawnRate = wave.passengerSpawnRate / spawnRateMult;
+  const rushMult = s.rushHourActive ? 3 : 1;
+  const blackoutMult = s.blackoutMode ? 0.5 : 1;
+  const scenarioMult = scenario.passengerMultiplier;
+  const effectiveSpawnRate = wave.passengerSpawnRate / (rushMult * blackoutMult * scenarioMult);
 
   if (Math.random() < realDt / effectiveSpawnRate && availableShapes.length > 1) {
     const openStations = s.stations.filter(st =>
       activeSet.has(st.id) && st.isOpen && !st.isDestroyed && !st.isSheltering && st.passengers.length < st.maxPassengers
     );
     if (openStations.length > 0) {
-      const station = openStations[Math.floor(Math.random() * openStations.length)];
+      // Station magnet: weighted selection
+      let station: GameStation;
+      if (s.stationMagnetId && Math.random() < 0.5) {
+        const magnet = getStation(s, s.stationMagnetId);
+        if (magnet && !magnet.isDestroyed && magnet.isOpen && magnet.passengers.length < magnet.maxPassengers) {
+          station = magnet;
+        } else {
+          station = openStations[Math.floor(Math.random() * openStations.length)];
+        }
+      } else {
+        station = openStations[Math.floor(Math.random() * openStations.length)];
+      }
       const possibleShapes = availableShapes.filter(sh => sh !== station.shape);
       if (possibleShapes.length > 0) {
         const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
@@ -196,10 +236,17 @@ function updatePassengers(s: GameState, realDt: number, events: EventBus): void 
     }
   }
   s.peakLoad = Math.max(s.peakLoad, totalPassengers);
+
+  // Satisfaction rate
+  const total = s.passengersDelivered + s.passengersAbandoned;
+  s.satisfactionRate = total > 0 ? Math.round((s.passengersDelivered / total) * 100) : 100;
 }
 
 // ==================== SYSTEM: Trains ====================
 function updateTrains(s: GameState, realDt: number, events: EventBus): void {
+  // Emergency brake
+  if (s.emergencyBrakeTimer > 0) return;
+
   s.trains = s.trains.map(train => {
     const t = { ...train };
     const route = getActiveLineStations(s, t.line);
@@ -208,24 +255,31 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
     t.routeIndex = Math.max(0, Math.min(route.length - 1, t.routeIndex));
 
     // Speed boost
-    const speedMult = (s.speedBoostLine === t.line && s.speedBoostTimer > 0) ? 2 : 1;
+    const boostMult = (s.speedBoostLine === t.line && s.speedBoostTimer > 0) ? 2 : 1;
+    const expressMult = (s.expressLineId === t.line && s.expressTimer > 0) ? 3 : 1;
+    const speedMult = Math.max(boostMult, expressMult);
 
     if (t.isDwelling) {
-      t.dwellTimer -= realDt;
-      if (t.dwellTimer <= 0) {
+      // Express line: skip dwell at non-terminal stations
+      if (expressMult > 1 && t.routeIndex > 0 && t.routeIndex < route.length - 1) {
         t.isDwelling = false;
-        t.progress = 0;
-        const peekNext = t.routeIndex + t.direction;
-        if (peekNext >= route.length || peekNext < 0) {
-          t.direction = (t.direction * -1) as 1 | -1;
+        t.dwellTimer = 0;
+      } else {
+        t.dwellTimer -= realDt;
+        if (t.dwellTimer <= 0) {
+          t.isDwelling = false;
+          t.progress = 0;
+          const peekNext = t.routeIndex + t.direction;
+          if (peekNext >= route.length || peekNext < 0) {
+            t.direction = (t.direction * -1) as 1 | -1;
+          }
         }
+        const curStData = STATION_MAP.get(route[t.routeIndex]);
+        if (curStData) { t.x = curStData.x; t.y = curStData.y; }
+        return t;
       }
-      const curStData = STATION_MAP.get(route[t.routeIndex]);
-      if (curStData) { t.x = curStData.x; t.y = curStData.y; }
-      return t;
     }
 
-    // Check tunnel seal — if sealed between current and next, stop
     const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
     if (nextIdx === t.routeIndex) {
       t.direction = (t.direction * -1) as 1 | -1;
@@ -236,11 +290,8 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
       return t;
     }
 
-    // Check tunnel seal
     const curStation = getStation(s, route[t.routeIndex]);
-    const nextStation = getStation(s, route[nextIdx]);
     if (curStation && curStation.tunnelSealTimer > 0) {
-      // Sealed, don't move
       t.isDwelling = true;
       t.dwellTimer = 500;
       return t;
@@ -267,10 +318,10 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
         t.x = arrStation.x; t.y = arrStation.y;
 
         if (!arrStation.isDestroyed) {
-          // Unload matching passengers
           const matching = t.passengers.filter(p => p.shape === arrStation.shape);
           if (matching.length > 0) {
-            const earned = Math.round(matching.length * s.combo);
+            const fareMult = s.doubleFareTimer > 0 ? 2 : 1;
+            const earned = Math.round(matching.length * s.combo * fareMult);
             s.score += earned;
             s.money += Math.round(earned * 0.5);
             s.passengersDelivered += matching.length;
@@ -281,7 +332,6 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
           }
 
-          // Transfer logic at transfer stations
           if (arrStation.isTransfer) {
             const currentLineShapes = new Set<PassengerShape>();
             const activeSet = new Set(s.activeStationIds);
@@ -304,7 +354,6 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
             }
           }
 
-          // Load
           const space = t.capacity - t.passengers.length;
           if (space > 0 && arrStation.passengers.length > 0) {
             const pickup = arrStation.passengers.splice(0, space);
@@ -321,13 +370,15 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
 
 // ==================== SYSTEM: Drones ====================
 function updateDrones(s: GameState, realDt: number, events: EventBus): void {
+  // Jammer effect
+  const jammerMult = s.droneJammerTimer > 0 ? 0.5 : 1;
+
   // Auto-attack from anti-air stations targeting selectedDroneId
   if (s.selectedDroneId) {
     const selDrone = s.drones.find(d => d.id === s.selectedDroneId && !d.isDestroyed);
     if (!selDrone) {
       s.selectedDroneId = null;
     } else {
-      // Anti-air stations auto-fire at selected drone
       for (const st of s.stations) {
         if (!st.hasAntiAir || st.isDestroyed) continue;
         const dx = st.x - selDrone.x, dy = st.y - selDrone.y;
@@ -353,7 +404,6 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
   s.drones = s.drones.filter(d => {
     if (d.isDestroyed) return false;
 
-    // Check if targeting a decoy
     let targetX: number, targetY: number;
     const closestDecoy = s.decoys.length > 0 ? s.decoys.reduce((closest, decoy) => {
       const ddx = decoy.x - d.x, ddy = decoy.y - d.y;
@@ -362,7 +412,6 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
       return closest;
     }, null as { decoy: Decoy; dist: number } | null) : null;
 
-    // 40% chance drones divert to decoy if close enough
     if (closestDecoy && closestDecoy.dist < 0.3 && d.id.charCodeAt(0) % 5 < 2) {
       targetX = closestDecoy.decoy.x;
       targetY = closestDecoy.decoy.y;
@@ -376,7 +425,17 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
     const target = getStation(s, d.targetStationId);
     if (!target) return false;
 
-    // Anti-air intercept (non-selected, proximity-based)
+    // Blackout miss chance
+    if (s.blackoutMode && Math.random() < 0.001 * realDt) {
+      // Drone misses — changes to random target
+      const activeSet = new Set(s.activeStationIds);
+      const activeStations = s.stations.filter(st => !st.isDestroyed && activeSet.has(st.id));
+      if (activeStations.length > 0) {
+        d.targetStationId = activeStations[Math.floor(Math.random() * activeStations.length)].id;
+      }
+    }
+
+    // Anti-air intercept
     if (target.hasAntiAir && target.shieldTimer <= 0 && s.selectedDroneId !== d.id) {
       const dx = target.x - d.x, dy = target.y - d.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -418,7 +477,6 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
 
       // 30% chance to hit a building instead
       if (d.targetBuildingIdx === -1 && Math.random() < 0.3 && s.buildings.length > 0) {
-        // Find nearest non-destroyed building
         let nearestBldg = -1;
         let nearestDist = Infinity;
         for (let bi = 0; bi < s.buildings.length; bi++) {
@@ -443,7 +501,6 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
         }
       }
 
-      // Bridge vulnerability — double damage
       const damageMult = BRIDGE_STATION_IDS.has(d.targetStationId) ? 2 : 1;
 
       target.hp -= config.damage * damageMult;
@@ -465,7 +522,7 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
       return false;
     }
 
-    const moveSpeed = d.speed * realDt / 1000;
+    const moveSpeed = d.speed * jammerMult * realDt / 1000;
     d.x += (dx / dist) * moveSpeed * 0.03;
     d.y += (dy / dist) * moveSpeed * 0.03;
     return true;
@@ -475,6 +532,7 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
 // ==================== SYSTEM: Crisis (Air Raids) ====================
 function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
   const wave = getCurrentWave(s.elapsedTime);
+  const scenario = SCENARIOS[s.gameMode];
   const newWaveIdx = getCurrentWaveIndex(s.elapsedTime);
   if (newWaveIdx > s.waveIndex) {
     s.waveIndex = newWaveIdx;
@@ -482,10 +540,10 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
     events.emit({ type: 'WAVE_ADVANCE', data: { wave: newWaveIdx } });
   }
 
+  if (scenario.noRaids) return;
+
   if (!s.isAirRaid) {
-    // Radar early warning
     if (s.radarActive && s.elapsedTime > s.nextRaidTime - 5000 && s.radarWarnings.length === 0) {
-      // Show warning dots at map edges
       for (let i = 0; i < 3; i++) {
         const edge = Math.random();
         let wx = 0, wy = 0;
@@ -509,10 +567,17 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
   } else {
     s.airRaidTimer += realDt;
 
+    // Bridge defense mode: target bridge stations
+    const bridgeOnly = s.gameMode === 'bridge_defense';
+
     if (s.raidDronesSpawned < wave.maxDronesPerRaid && Math.random() < realDt / wave.droneSpawnRate) {
       const activeSet = new Set(s.activeStationIds);
-      const activeStations = s.stations.filter(st => !st.isDestroyed && activeSet.has(st.id));
-      const targetStation = activeStations[Math.floor(Math.random() * activeStations.length)];
+      let targetPool = s.stations.filter(st => !st.isDestroyed && activeSet.has(st.id));
+      if (bridgeOnly) {
+        const bridgeStations = targetPool.filter(st => BRIDGE_STATION_IDS.has(st.id));
+        if (bridgeStations.length > 0) targetPool = bridgeStations;
+      }
+      const targetStation = targetPool[Math.floor(Math.random() * targetPool.length)];
       if (targetStation) {
         const edge = Math.random();
         let dx = 0, dy = 0;
@@ -536,12 +601,17 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
       }
     }
 
-    if (s.airRaidTimer > wave.raidDuration) {
+    if (!scenario.continuousRaids && s.airRaidTimer > wave.raidDuration) {
       s.isAirRaid = false;
       s.nextRaidTime = s.elapsedTime + wave.calmMin + Math.random() * (wave.calmMax - wave.calmMin);
       s.drones = s.drones.filter(d => !d.isDestroyed);
       events.emit({ type: 'AIR_RAID_END' });
       s.surfaceVehicles.forEach(v => { v.isFrozen = false; });
+    }
+
+    // Continuous raids: reset spawned count periodically
+    if (scenario.continuousRaids && s.raidDronesSpawned >= wave.maxDronesPerRaid) {
+      s.raidDronesSpawned = 0;
     }
   }
 }
@@ -581,7 +651,8 @@ function updateRepair(s: GameState, realDt: number, events: EventBus): void {
 function updateProgression(s: GameState, realDt: number, events: EventBus): void {
   if (s.elapsedTime >= s.nextStationUnlockTime) {
     s.nextStationUnlockTime += STATION_UNLOCK_INTERVAL;
-    (['red', 'blue', 'green'] as const).forEach(line => {
+    const scenario = SCENARIOS[s.gameMode];
+    scenario.activeLines.forEach(line => {
       const order = UNLOCK_ORDER[line];
       const nextStation = order.find(id => !s.activeStationIds.includes(id));
       if (nextStation) {
@@ -596,13 +667,13 @@ function updateProgression(s: GameState, realDt: number, events: EventBus): void
 
 // ==================== SYSTEM: Power Grid ====================
 function updatePowerGrid(s: GameState, realDt: number): void {
+  const scenario = SCENARIOS[s.gameMode];
   const activeCount = s.activeStationIds.length;
-  const drain = activeCount * 0.003 * (realDt / 1000);
+  const drain = activeCount * 0.003 * scenario.powerDrainMultiplier * (realDt / 1000);
   const generation = (1 + s.generators * 2) * 0.01 * (realDt / 1000);
   s.powerGrid = Math.min(s.maxPower, Math.max(0, s.powerGrid - drain + generation));
 
   if (s.powerGrid <= 0) {
-    // Random station shuts down
     const openStations = s.stations.filter(st => st.isOpen && !st.isDestroyed);
     if (openStations.length > 0 && Math.random() < 0.001) {
       const victim = openStations[Math.floor(Math.random() * openStations.length)];
@@ -644,7 +715,6 @@ function updateComboRewards(s: GameState): void {
         s.money += 30;
         addNotification(s, '🌟 Комбо x3! +30💰', 0.5, 0.4, '#f59e0b');
       } else if (m === 4) {
-        // Temporary speed boost all lines
         s.speedBoostLine = 'red';
         s.speedBoostTimer = 5000;
         addNotification(s, '⚡ Комбо x4! Прискорення!', 0.5, 0.4, '#f59e0b');
@@ -654,21 +724,109 @@ function updateComboRewards(s: GameState): void {
       }
     }
   }
-  // Reset milestones if combo drops
   if (s.combo < 3) {
     s.comboMilestones = [];
   }
 }
 
+// ==================== SYSTEM: Phase 5 Timers ====================
+function updatePhase5Timers(s: GameState, realDt: number): void {
+  if (s.doubleFareTimer > 0) s.doubleFareTimer -= realDt;
+  if (s.expressTimer > 0) {
+    s.expressTimer -= realDt;
+    if (s.expressTimer <= 0) s.expressLineId = null;
+  }
+  if (s.signalFlareTimer > 0) s.signalFlareTimer -= realDt;
+  if (s.droneJammerTimer > 0) s.droneJammerTimer -= realDt;
+  if (s.emergencyBrakeTimer > 0) s.emergencyBrakeTimer -= realDt;
+  if (s.stationMagnetTimer > 0) {
+    s.stationMagnetTimer -= realDt;
+    if (s.stationMagnetTimer <= 0) s.stationMagnetId = null;
+  }
+
+  // Station magnet timers
+  for (const st of s.stations) {
+    if (st.magnetTimer > 0) st.magnetTimer -= realDt;
+  }
+}
+
+// ==================== SYSTEM: Achievements ====================
+function updateAchievements(s: GameState): void {
+  function unlock(id: string) {
+    const ach = s.achievements.find(a => a.id === id);
+    if (ach && !ach.unlocked) {
+      ach.unlocked = true;
+      ach.unlockedAt = s.elapsedTime;
+      addNotification(s, `🏆 ${ach.nameUa}`, 0.5, 0.3, '#eab308');
+    }
+  }
+
+  if (s.passengersDelivered >= 1) unlock('first_ride');
+  if (s.passengersDelivered >= 100) unlock('hundred');
+  if (s.passengersDelivered >= 1000) unlock('thousand');
+  if (s.dronesIntercepted >= 10) unlock('sniper');
+  if (s.elapsedTime >= 300000 && s.stationsDestroyed === 0) unlock('indestructible');
+  if (s.combo >= 5) unlock('combo_master');
+  if (s.money >= 500) unlock('economist');
+  if (s.stationsRepaired >= 5) unlock('rescuer');
+
+  // Three lines check
+  const lines = new Set(s.trains.map(t => t.line));
+  if (lines.size >= 3) unlock('three_lines');
+
+  // Full line check
+  const activeSet = new Set(s.activeStationIds);
+  (['red', 'blue', 'green'] as const).forEach(line => {
+    const total = LINE_STATIONS[line].length;
+    const active = LINE_STATIONS[line].filter(id => activeSet.has(id)).length;
+    if (active >= total) unlock('full_line');
+  });
+}
+
+// ==================== SYSTEM: Win Conditions ====================
+function updateWinConditions(s: GameState): void {
+  const scenario = SCENARIOS[s.gameMode];
+  if (!scenario.winCondition || s.winConditionMet) return;
+
+  const wc = scenario.winCondition;
+  if (wc.type === 'passengers' && s.passengersDelivered >= wc.target) {
+    s.winConditionMet = true;
+    addNotification(s, '🎉 ПЕРЕМОГА!', 0.5, 0.5, '#22c55e');
+  }
+  if (wc.type === 'survive' && s.elapsedTime >= wc.target) {
+    s.winConditionMet = true;
+    addNotification(s, '🎉 ВИЖИЛИ! ПЕРЕМОГА!', 0.5, 0.5, '#22c55e');
+  }
+  if (wc.type === 'protect' && s.elapsedTime >= wc.target) {
+    // Check bridge stations are alive
+    const bridgeAlive = Array.from(BRIDGE_STATION_IDS).every(id => {
+      const st = getStation(s, id);
+      return st && !st.isDestroyed;
+    });
+    if (bridgeAlive) {
+      s.winConditionMet = true;
+      addNotification(s, '🌉 МІСТ ЗАХИЩЕНО! ПЕРЕМОГА!', 0.5, 0.5, '#22c55e');
+    }
+  }
+
+  // Time limit
+  if (scenario.timeLimit && s.elapsedTime >= scenario.timeLimit && !s.winConditionMet) {
+    s.gameOver = true;
+  }
+
+  // Blackout mode: lose if station destroyed
+  if (s.gameMode === 'blackout' && s.stationsDestroyed > 0 && !s.winConditionMet) {
+    s.gameOver = true;
+  }
+}
+
 // ==================== SYSTEM: Physics / Misc ====================
 function updatePhysics(s: GameState, realDt: number): void {
-  // Shield timers
   for (const st of s.stations) {
     if (st.shieldTimer > 0) st.shieldTimer -= realDt;
     if (st.tunnelSealTimer > 0) st.tunnelSealTimer -= realDt;
   }
 
-  // Fire/jelly physics
   for (const station of s.stations) {
     if (station.isOnFire) {
       station.fireTimer -= realDt;
@@ -683,7 +841,6 @@ function updatePhysics(s: GameState, realDt: number): void {
     station.jellyOffset.y += station.jellyVel.y;
   }
 
-  // Notifications
   s.notifications = s.notifications.filter(n => {
     n.timer -= realDt;
     n.y -= realDt * 0.00002;
@@ -693,7 +850,6 @@ function updatePhysics(s: GameState, realDt: number): void {
   s.screenShake *= 0.9;
   if (s.screenShake < 0.5) s.screenShake = 0;
 
-  // Explosions
   s.explosions = s.explosions.filter(e => {
     e.time += realDt;
     e.radius = e.maxRadius * Math.min(1, e.time / 500);
@@ -701,7 +857,6 @@ function updatePhysics(s: GameState, realDt: number): void {
     return e.alpha > 0;
   });
 
-  // Speed boost timer
   if (s.speedBoostTimer > 0) {
     s.speedBoostTimer -= realDt;
     if (s.speedBoostTimer <= 0) {
@@ -710,13 +865,11 @@ function updatePhysics(s: GameState, realDt: number): void {
   }
   if (s.speedBoostCooldown > 0) s.speedBoostCooldown -= realDt;
 
-  // Decoy timers
   s.decoys = s.decoys.filter(d => {
     d.timer -= realDt;
     return d.timer > 0 && d.hp > 0;
   });
 
-  // Radar warnings
   s.radarWarnings = s.radarWarnings.filter(w => {
     w.timer -= realDt;
     return w.timer > 0;
@@ -757,10 +910,15 @@ function updatePhysics(s: GameState, realDt: number): void {
     v.y = curStop.y + (nextStop.y - curStop.y) * v.progress;
   }
 
-  // Network efficiency
   const totalCap = s.trains.reduce((sum, t) => sum + t.capacity, 0);
   const totalUsed = s.trains.reduce((sum, t) => sum + t.passengers.length, 0);
   s.networkEfficiency = totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0;
+
+  // Permanent night for blackout mode
+  if (SCENARIOS[s.gameMode].permanentNight) {
+    s.isNight = true;
+    s.dayTime = 0.1;
+  }
 }
 
 // ==================== MAIN UPDATE ====================
@@ -772,6 +930,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   const realDt = dt * state.speedMultiplier;
   const s = { ...state };
   s.elapsedTime += realDt;
+  s.modeTimer += realDt;
 
   s.dayTime = (s.dayTime + realDt / GAME_CONFIG.DAY_CYCLE_DURATION) % 1;
   s.isNight = s.dayTime < 0.2 || s.dayTime > 0.8;
@@ -792,6 +951,9 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updatePowerGrid(s, realDt);
   updateRushHour(s, realDt);
   updateComboRewards(s);
+  updatePhase5Timers(s, realDt);
+  updateAchievements(s);
+  updateWinConditions(s);
   updatePhysics(s, realDt);
 
   globalEventBus.flush();
@@ -801,10 +963,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
 
 // ===== Click-to-select/attack drone =====
 export function attackDrone(state: GameState, droneId: string): GameState {
-  // Select the drone
   state.selectedDroneId = droneId;
-
-  // Manual click costs 5 money
   if (state.money < 5) return state;
   const drone = state.drones.find(d => d.id === droneId && !d.isDestroyed);
   if (!drone) return state;
@@ -953,7 +1112,7 @@ export function upgradeStation(state: GameState, stationId: string): GameState {
   return state;
 }
 
-// ===== New Phase 4 Actions =====
+// ===== Phase 4 Actions =====
 export function buyGenerator(state: GameState): GameState {
   if (state.money < GAME_CONFIG.GENERATOR_COST) return state;
   state.money -= GAME_CONFIG.GENERATOR_COST;
@@ -975,15 +1134,13 @@ export function buyRadar(state: GameState): GameState {
 export function placeDecoy(state: GameState): GameState {
   if (state.money < GAME_CONFIG.DECOY_COST) return state;
   state.money -= GAME_CONFIG.DECOY_COST;
-  // Place decoy at random position away from center
   const angle = Math.random() * Math.PI * 2;
   const dist = 0.15 + Math.random() * 0.2;
   state.decoys.push({
     id: uid(),
     x: 0.5 + Math.cos(angle) * dist,
     y: 0.5 + Math.sin(angle) * dist,
-    timer: 20000,
-    hp: 1,
+    timer: 20000, hp: 1,
   });
   addNotification(state, '🎯 Приманку розміщено!', 0.5, 0.5, '#f59e0b');
   return state;
@@ -1015,7 +1172,111 @@ export function sealTunnel(state: GameState, stationId: string): GameState {
   return state;
 }
 
-// Keep handleQteInput for backward compat but it's now a no-op
+// ===== Phase 5 Actions =====
+export function emergencyBrake(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.EMERGENCY_BRAKE_COST || state.emergencyBrakeTimer > 0) return state;
+  state.money -= GAME_CONFIG.EMERGENCY_BRAKE_COST;
+  state.emergencyBrakeTimer = 5000;
+  addNotification(state, '🛑 Екстренне гальмування!', 0.5, 0.5, '#ef4444');
+  return state;
+}
+
+export function activateDoubleFare(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.DOUBLE_FARE_COST || state.doubleFareTimer > 0) return state;
+  state.money -= GAME_CONFIG.DOUBLE_FARE_COST;
+  state.doubleFareTimer = 15000;
+  addNotification(state, '💰 Подвійний тариф! x2 очки!', 0.5, 0.5, '#22c55e');
+  return state;
+}
+
+export function activateExpressLine(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+  if (state.money < GAME_CONFIG.EXPRESS_LINE_COST || state.expressTimer > 0) return state;
+  state.money -= GAME_CONFIG.EXPRESS_LINE_COST;
+  state.expressLineId = line;
+  state.expressTimer = 20000;
+  addNotification(state, `🚄 Експрес ${line.toUpperCase()}! x3 швидкість!`, 0.5, 0.5, '#3b82f6');
+  return state;
+}
+
+export function toggleBlackout(state: GameState): GameState {
+  state.blackoutMode = !state.blackoutMode;
+  addNotification(state, state.blackoutMode ? '🌑 Блекаут: дрони промахуються частіше' : '💡 Світло увімкнено', 0.5, 0.5, '#9ca3af');
+  return state;
+}
+
+export function activateSignalFlare(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.SIGNAL_FLARE_COST || state.signalFlareTimer > 0) return state;
+  state.money -= GAME_CONFIG.SIGNAL_FLARE_COST;
+  state.signalFlareTimer = 10000;
+  addNotification(state, '🔦 Сигнальна ракета! Цілі дронів видно!', 0.5, 0.5, '#f59e0b');
+  return state;
+}
+
+export function passengerAirdrop(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.PASSENGER_AIRDROP_COST) return state;
+  state.money -= GAME_CONFIG.PASSENGER_AIRDROP_COST;
+  const activeSet = new Set(state.activeStationIds);
+  const shapes: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
+  const activeShapes = new Set<PassengerShape>();
+  for (const st of state.stations) {
+    if (activeSet.has(st.id) && !st.isDestroyed) activeShapes.add(st.shape);
+  }
+  const availShapes = Array.from(activeShapes);
+
+  for (const st of state.stations) {
+    if (!activeSet.has(st.id) || st.isDestroyed || !st.isOpen) continue;
+    if (st.passengers.length >= st.maxPassengers) continue;
+    for (let i = 0; i < 3 && st.passengers.length < st.maxPassengers; i++) {
+      const possibleShapes = availShapes.filter(sh => sh !== st.shape);
+      if (possibleShapes.length > 0) {
+        const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
+        st.passengers.push({ id: uid(), shape, spawnTime: state.elapsedTime, stationId: st.id, patience: 20000 });
+      }
+    }
+  }
+  addNotification(state, '🪂 Пасажирів висаджено!', 0.5, 0.5, '#8b5cf6');
+  return state;
+}
+
+export function mergeTrains(state: GameState, trainId1: string, trainId2: string): GameState {
+  const t1 = state.trains.find(t => t.id === trainId1);
+  const t2 = state.trains.find(t => t.id === trainId2);
+  if (!t1 || !t2 || t1.line !== t2.line) return state;
+  t1.capacity += t2.capacity;
+  t1.passengers.push(...t2.passengers);
+  t1.level = Math.max(t1.level, t2.level);
+  state.trains = state.trains.filter(t => t.id !== trainId2);
+  addNotification(state, '🔗 Потяги об\'єднані!', t1.x, t1.y, '#a855f7');
+  return state;
+}
+
+export function activateStationMagnet(state: GameState, stationId: string): GameState {
+  if (state.money < GAME_CONFIG.STATION_MAGNET_COST || state.stationMagnetTimer > 0) return state;
+  state.money -= GAME_CONFIG.STATION_MAGNET_COST;
+  state.stationMagnetId = stationId;
+  state.stationMagnetTimer = 20000;
+  const st = getStation(state, stationId);
+  addNotification(state, `🧲 Магніт: ${st?.nameUa}`, 0.5, 0.5, '#ec4899');
+  return state;
+}
+
+export function activateDroneJammer(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.DRONE_JAMMER_COST || state.droneJammerTimer > 0) return state;
+  state.money -= GAME_CONFIG.DRONE_JAMMER_COST;
+  state.droneJammerTimer = 15000;
+  addNotification(state, '📡 Глушилка! Дрони -50% швидкість!', 0.5, 0.5, '#06b6d4');
+  return state;
+}
+
+export function emergencyFund(state: GameState): GameState {
+  if (state.lives <= 1) return state;
+  state.lives--;
+  state.money += 80;
+  addNotification(state, '💔 -1 ❤️ → +80💰', 0.5, 0.5, '#ef4444');
+  return state;
+}
+
+// Keep for backward compat
 export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   return state;
 }
