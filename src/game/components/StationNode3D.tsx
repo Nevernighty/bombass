@@ -325,14 +325,14 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Station name */}
       <Billboard>
         <Text
-          position={[0, size + 2.0, 0]}
-          fontSize={0.65}
+          position={[0, size + 3.0, 0]}
+          fontSize={station.isTransfer ? 0.75 : 0.6}
           color="#e0e0e0"
           anchorX="center"
           anchorY="bottom"
-          outlineWidth={0.04}
+          outlineWidth={0.05}
           outlineColor="#000000"
-          maxWidth={7}
+          maxWidth={8}
         >
           {station.nameUa}
         </Text>
@@ -341,8 +341,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Passenger count */}
       <Billboard>
         <Text
-          position={[0, size + 1.5, 0]}
-          fontSize={0.4}
+          position={[0, size + 2.3, 0]}
+          fontSize={0.45}
           color={station.passengers.length >= station.maxPassengers - 1 ? '#ff4444' : '#ffcc00'}
           anchorX="center"
           anchorY="middle"
