@@ -538,7 +538,16 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
       return false;
     }
 
-    const moveSpeed = d.speed * jammerMult * realDt / 1000;
+    // Stunned drones don't move
+    if (d.isStunned) {
+      d.stunTimer -= realDt;
+      if (d.stunTimer <= 0) { d.isStunned = false; }
+      return true;
+    }
+
+    // Rain slows drones
+    const rainMult = s.isRaining ? 0.8 : 1;
+    const moveSpeed = d.speed * jammerMult * rainMult * realDt / 1000;
     d.x += (dx / dist) * moveSpeed * 0.03;
     d.y += (dy / dist) * moveSpeed * 0.03;
     return true;
