@@ -655,6 +655,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
               🔗 {state.pendingStations.length} станц. чекають підключення
             </div>
+          )}
 
           {state.isPaused && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(6,10,20,0.6)' }}>
