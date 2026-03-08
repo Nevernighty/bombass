@@ -48,6 +48,7 @@ export interface Passenger {
   spawnTime: number;
   stationId: string;
   patience: number;
+  isVIP?: boolean;
 }
 
 export type DroneType = 'shahed' | 'molniya' | 'gerbera';
@@ -193,6 +194,20 @@ export interface FloatingScore {
   scale: number;
 }
 
+export interface GameEvent {
+  id: string;
+  type: 'rush_surge' | 'vip_passenger' | 'power_flicker' | 'emergency_evac';
+  timer: number;
+  data?: any;
+}
+
+export interface HoveredElement {
+  type: 'station' | 'train' | 'building' | 'drone';
+  id: string;
+  name?: string;
+  details?: string;
+}
+
 export interface GameState {
   stations: GameStation[];
   trains: Train[];
@@ -281,6 +296,10 @@ export interface GameState {
   swarmWarningTimer: number;
   // Phase 17
   closedSegments: { line: string; from: string; to: string; timer: number }[];
+  // Phase 18
+  activeEvents: GameEvent[];
+  hoveredElement: HoveredElement | null;
+  eventLog: string[];
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }

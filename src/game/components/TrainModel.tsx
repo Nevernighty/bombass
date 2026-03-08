@@ -12,7 +12,7 @@ interface TrainModelProps {
   onClick?: (id: string) => void;
 }
 
-const TRAIN_SCALE = 0.25;
+const TRAIN_SCALE = 0.4;
 const TRAIN_BASE_Y = 0.35;
 const BRIDGE_Y = 3.8;
 
@@ -42,7 +42,6 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
 
 useGLTF.preload('/models/metro_wagon_type_d.glb');
 
-// Boarding dot animation state
 interface BoardingDot {
   start: THREE.Vector3;
   end: THREE.Vector3;
@@ -58,6 +57,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const boardingDotsRef = useRef<BoardingDot[]>([]);
   const dotMeshRefs = useRef<(THREE.Mesh | null)[]>([null, null, null]);
   const wasDwelling = useRef(false);
+  const isHoveredRef = useRef(false);
+  const bobPhase = useRef(0);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
@@ -85,9 +86,16 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       targetY = TRAIN_BASE_Y + (BRIDGE_Y - TRAIN_BASE_Y) * (currentIsBridge ? (1 - t.progress) : t.progress);
     }
 
+    // Dwelling bob animation
+    if (t.isDwelling) {
+      bobPhase.current += delta * 4;
+      targetY += Math.sin(bobPhase.current) * 0.08;
+    } else {
+      bobPhase.current = 0;
+    }
+
     const targetPos = new THREE.Vector3(wx, targetY, wz);
 
-    // Critically damped spring interpolation — no jumping
     const springFactor = 1 - Math.exp(-8 * delta);
     smoothPos.current.lerp(targetPos, springFactor);
     groupRef.current.position.copy(smoothPos.current);
@@ -115,7 +123,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
 
     // Boarding dots animation
     if (t.isDwelling && !wasDwelling.current) {
-      // Just started dwelling — spawn boarding dots
       const curSt = STATION_MAP.get(currentStationId);
       if (curSt) {
         const [sx, , sz] = toWorld(curSt.x, curSt.y);
@@ -133,7 +140,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     }
     wasDwelling.current = t.isDwelling;
 
-    // Animate boarding dots
     for (let i = 0; i < 3; i++) {
       const dot = boardingDotsRef.current[i];
       const mesh = dotMeshRefs.current[i];
@@ -141,7 +147,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         dot.progress = Math.min(1, dot.progress + delta * 2);
         const p = dot.progress;
         mesh.position.lerpVectors(dot.start, dot.end, p);
-        mesh.position.y += Math.sin(p * Math.PI) * 0.8; // arc
+        mesh.position.y += Math.sin(p * Math.PI) * 0.8;
         mesh.visible = p < 1;
         mesh.scale.setScalar(0.12 * (1 - p * 0.5));
       } else if (mesh) {
@@ -157,43 +163,74 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         shieldMeshRef.current.rotation.y += delta * 0.8;
       }
     }
+
+    // Hover tooltip
+    if (isHoveredRef.current) {
+      stateRef.current.hoveredElement = {
+        type: 'train',
+        id: trainId,
+        name: `${lineName} Потяг Lv.${t.level}`,
+        details: `${t.passengers.length}/${t.capacity} пасажирів | ${t.isDwelling ? 'На станції' : 'В русі'}`,
+      };
+    }
   });
 
   const isSelected = stateRef.current.selectedTrain === trainId;
   const fillRatio = train.passengers.length / train.capacity;
   const ringColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
 
+  // Wagon chain: extra wagons behind for upgraded trains
+  const wagonCount = Math.min(train.level, 3);
+
   return (
     <group
       ref={groupRef}
+      renderOrder={20}
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
-      onPointerEnter={() => { document.body.style.cursor = 'pointer'; }}
-      onPointerLeave={() => { document.body.style.cursor = 'default'; }}
+      onPointerEnter={() => {
+        isHoveredRef.current = true;
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerLeave={() => {
+        isHoveredRef.current = false;
+        document.body.style.cursor = 'default';
+        if (stateRef.current.hoveredElement?.type === 'train') {
+          stateRef.current.hoveredElement = null;
+        }
+      }}
     >
+      {/* Lead wagon */}
       <GLBTrain lineColor={lineColor} />
+
+      {/* Additional wagons for upgraded trains */}
+      {wagonCount > 1 && Array.from({ length: wagonCount - 1 }).map((_, i) => (
+        <group key={`wagon-${i}`} position={[0, 0, -(i + 1) * 1.2]}>
+          <GLBTrain lineColor={lineColor} />
+        </group>
+      ))}
 
       {/* Ground shadow */}
       <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.5, 12]} />
+        <circleGeometry args={[0.6, 12]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.25} depthWrite={false} />
       </mesh>
 
       {/* Capacity ring */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.3, 0.5, 16]} />
+        <ringGeometry args={[0.4, 0.6, 16]} />
         <meshBasicMaterial color={ringColor} transparent opacity={fillRatio > 0 ? 0.5 : 0.15} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>
-        <sphereGeometry args={[1.0, 10, 10]} />
+        <sphereGeometry args={[1.2, 10, 10]} />
         <meshBasicMaterial color="#3b82f6" transparent opacity={0.1} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Selection ring */}
       {isSelected && (
         <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.5, 0.7, 16]} />
+          <ringGeometry args={[0.6, 0.85, 16]} />
           <meshBasicMaterial color="#ffcc00" transparent opacity={0.6} side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -208,32 +245,20 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
 
       {/* Labels */}
       <Billboard>
-        <Text
-          position={[0, 1.2, 0]}
-          fontSize={0.4}
-          color={lineColor}
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.04}
-          outlineColor="#000000"
-          fontWeight="bold"
-        >
+        <Text position={[0, 1.5, 0]} fontSize={0.5} color={lineColor} anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#000000" fontWeight="bold">
           {lineName}
         </Text>
-        <Text
-          position={[0, 0.75, 0]}
-          fontSize={0.25}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.02}
-          outlineColor="#000000"
-        >
+        <Text position={[0, 0.95, 0]} fontSize={0.3} color="#ffffff" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor="#000000">
           {`${train.passengers.length}/${train.capacity}`}
         </Text>
+        {train.level > 1 && (
+          <Text position={[0, 0.55, 0]} fontSize={0.22} color="#fbbf24" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor="#000000">
+            {'★'.repeat(train.level)}
+          </Text>
+        )}
       </Billboard>
 
-      <pointLight color={lineColor} intensity={0.5} distance={3} position={[0, 0.15, 0.4]} />
+      <pointLight color={lineColor} intensity={0.6} distance={4} position={[0, 0.15, 0.4]} />
     </group>
   );
 }
