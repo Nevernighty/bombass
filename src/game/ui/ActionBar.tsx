@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { METRO_LINES, GAME_CONFIG } from '../constants';
+import { ChevronUp } from 'lucide-react';
 
 interface ActionBarProps {
   money: number;
@@ -33,118 +34,152 @@ interface ActionBarProps {
   onTrainShield: () => void;
 }
 
-interface TooltipData {
-  name: string;
+interface DropdownItem {
+  label: string;
+  fullName: string;
   desc: string;
-}
-
-const TOOLTIPS: Record<string, TooltipData> = {
-  M1: { name: 'Потяг M1', desc: 'Купити потяг для Святошинсько-Броварської лінії' },
-  M2: { name: 'Потяг M2', desc: 'Купити потяг для Оболонсько-Теремківської лінії' },
-  M3: { name: 'Потяг M3', desc: 'Купити потяг для Сирецько-Печерської лінії' },
-  UP: { name: 'Апгрейд потяга', desc: 'Збільшити місткість та швидкість обраного потяга' },
-  ЩИТ: { name: 'Щит потяга', desc: 'Тимчасовий захист потяга від пошкоджень' },
-  РДР: { name: 'Радар', desc: 'Раннє попередження про наближення дронів' },
-  ПРМ: { name: 'Приманка', desc: 'Розмістити хибну ціль що відволікає дрони' },
-  ГЛШ: { name: 'Глушилка дронів', desc: 'Тимчасово уповільнює всі ворожі дрони' },
-  СГН: { name: 'Сигнальна ракета', desc: 'Підсвічує всіх дронів на карті' },
-  'x2$': { name: 'Подвійний тариф', desc: 'Тимчасово подвоює дохід за пасажирів' },
-  ДСТ: { name: 'Десант пасажирів', desc: 'Додати пасажирів на випадкові станції' },
-  '-HP': { name: 'Екстрений фонд', desc: 'Обміняти одне життя на гроші' },
-  СТОП: { name: 'Екстрене гальмування', desc: 'Зупинити всі потяги для безпеки' },
-  НІЧ: { name: 'Режим блекауту', desc: 'Вимкнути світло — дрони гірше бачать станції' },
-  РЕМ: { name: 'Ремонтна бригада', desc: 'Надіслати ремонтників до пошкодженої станції' },
-  ГЕН: { name: 'Генератор', desc: 'Забезпечити станцію автономним живленням' },
-};
-
-function ActionBtn({ onClick, disabled, label, cost, active, timer, hotkey, insufficientMoney, accentColor }: {
+  cost?: number;
+  hotkey?: string;
   onClick: () => void;
   disabled?: boolean;
-  label: string;
-  cost?: number;
   active?: boolean;
   timer?: number;
-  hotkey?: string;
-  insufficientMoney?: boolean;
   accentColor?: string;
+}
+
+function DropdownGroup({ title, items, accentColor }: {
+  title: string;
+  items: DropdownItem[];
+  accentColor: string;
 }) {
-  const [pressed, setPressed] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
-  const tooltipTimer = useRef<ReturnType<typeof setTimeout>>();
-  const color = accentColor || 'hsl(var(--foreground))';
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const handleClick = useCallback(() => {
-    if (disabled) return;
-    setPressed(true);
-    setTimeout(() => setPressed(false), 200);
-    onClick();
-  }, [disabled, onClick]);
-
-  const handleMouseEnter = useCallback(() => {
-    tooltipTimer.current = setTimeout(() => setShowTooltip(true), 200);
+  const handleEnter = useCallback(() => {
+    clearTimeout(closeTimer.current);
+    setOpen(true);
   }, []);
 
-  const handleMouseLeave = useCallback(() => {
-    clearTimeout(tooltipTimer.current);
-    setShowTooltip(false);
+  const handleLeave = useCallback(() => {
+    closeTimer.current = setTimeout(() => setOpen(false), 200);
   }, []);
 
-  const timerSecs = timer && timer > 0 ? Math.ceil(timer / 1000) : null;
-  const tip = TOOLTIPS[label];
+  const activeCount = items.filter(i => i.active || (i.timer && i.timer > 0)).length;
 
   return (
-    <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <button onClick={handleClick} disabled={disabled}
-        className={`relative flex flex-col items-center justify-center gap-0 rounded-md transition-all
-          ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-muted/50 cursor-pointer'}
-          ${pressed ? 'scale-90' : ''}
-          ${active ? 'ring-1' : ''}`}
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-bold transition-all hover:brightness-125 cursor-pointer"
         style={{
-          width: '40px',
-          height: '40px',
-          background: active ? `${color}15` : 'transparent',
-          border: `1px solid ${active ? `${color}40` : 'hsl(var(--border))'}`,
-          color: insufficientMoney ? 'hsl(var(--destructive))' : color,
-          boxShadow: active ? `0 0 8px ${color}20` : 'none',
-        } as React.CSSProperties}>
-        <span className="text-[11px] font-bold leading-none">{label}</span>
-        {cost !== undefined && (
-          <span className="text-[8px] leading-none mt-0.5" style={{ color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
-            ${cost}
-          </span>
-        )}
-        {hotkey && (
-          <span className="absolute bottom-0.5 right-0.5 text-[7px] font-mono" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.5 }}>{hotkey}</span>
-        )}
-        {timerSecs && (
-          <span className="absolute -top-1 -right-1 text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center"
-            style={{ background: 'hsl(var(--game-bg))', color: 'hsl(var(--game-accent))', border: '1px solid hsl(var(--game-accent))' }}>
-            {timerSecs}
+          background: open ? `${accentColor}20` : 'transparent',
+          border: `1px solid ${open ? accentColor + '60' : 'hsl(var(--border))'}`,
+          color: accentColor,
+        }}
+      >
+        {title}
+        <ChevronUp size={12} className={`transition-transform ${open ? '' : 'rotate-180'}`} style={{ opacity: 0.6 }} />
+        {activeCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center"
+            style={{ background: accentColor, color: '#000' }}>
+            {activeCount}
           </span>
         )}
       </button>
 
-      {/* Rich tooltip */}
-      {showTooltip && tip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
-          style={{ width: '180px' }}>
-          <div className="game-panel rounded-lg px-3 py-2 text-left">
-            <p className="text-[12px] font-bold mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{tip.name}</p>
-            <p className="text-[10px] leading-snug mb-1" style={{ color: 'hsl(var(--muted-foreground))' }}>{tip.desc}</p>
-            <div className="flex items-center justify-between">
-              {cost !== undefined && (
-                <span className="text-[10px] font-mono" style={{ color: 'hsl(145, 63%, 49%)' }}>${cost}</span>
-              )}
-              {hotkey && (
-                <span className="text-[9px] font-mono px-1 rounded" style={{ background: 'hsla(var(--muted), 0.5)', color: 'hsl(var(--muted-foreground))' }}>{hotkey}</span>
-              )}
-            </div>
+      {open && (
+        <div className="absolute bottom-full left-0 mb-1 z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
+          style={{ minWidth: '240px' }}>
+          <div className="game-panel rounded-lg p-1.5 flex flex-col gap-0.5">
+            {items.map((item, i) => (
+              <DropdownItemBtn key={i} item={item} onClose={() => setOpen(false)} />
+            ))}
           </div>
-          {/* Arrow */}
-          <div className="w-2 h-2 rotate-45 mx-auto -mt-1" style={{ background: 'hsla(var(--game-glass), 0.9)', borderRight: '1px solid hsl(var(--border))', borderBottom: '1px solid hsl(var(--border))' }} />
         </div>
       )}
     </div>
+  );
+}
+
+function DropdownItemBtn({ item, onClose }: { item: DropdownItem; onClose: () => void }) {
+  const [pressed, setPressed] = useState(false);
+  const timerSecs = item.timer && item.timer > 0 ? Math.ceil(item.timer / 1000) : null;
+
+  return (
+    <button
+      onClick={() => {
+        if (item.disabled) return;
+        setPressed(true);
+        setTimeout(() => setPressed(false), 200);
+        item.onClick();
+      }}
+      disabled={item.disabled}
+      className={`flex items-start gap-2 w-full px-2.5 py-2 rounded-md text-left transition-all
+        ${item.disabled ? 'opacity-30 cursor-not-allowed' : 'hover:bg-muted/40 cursor-pointer'}
+        ${pressed ? 'scale-95' : ''}
+        ${item.active ? 'ring-1' : ''}`}
+      style={{
+        background: item.active ? `${item.accentColor || 'hsl(var(--foreground))'}10` : 'transparent',
+        borderColor: item.active ? item.accentColor : 'transparent',
+      }}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold" style={{ color: item.accentColor || 'hsl(var(--foreground))' }}>
+            {item.fullName}
+          </span>
+          {timerSecs && (
+            <span className="text-[9px] font-mono px-1 rounded-full" style={{ background: 'hsl(var(--game-accent))', color: '#000' }}>
+              {timerSecs}с
+            </span>
+          )}
+        </div>
+        <p className="text-[9px] leading-snug mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>
+          {item.desc}
+        </p>
+      </div>
+      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        {item.cost !== undefined && (
+          <span className="text-[10px] font-mono" style={{ color: 'hsl(145, 63%, 49%)' }}>${item.cost}</span>
+        )}
+        {item.hotkey && (
+          <span className="text-[8px] font-mono px-1 rounded" style={{ background: 'hsla(var(--muted), 0.5)', color: 'hsl(var(--muted-foreground))' }}>
+            {item.hotkey}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function TrainBtn({ line, money, onClick, color }: {
+  line: string;
+  money: number;
+  onClick: () => void;
+  color: string;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const insufficient = money < GAME_CONFIG.TRAIN_COST;
+
+  return (
+    <button
+      onClick={() => { setPressed(true); setTimeout(() => setPressed(false), 200); onClick(); }}
+      disabled={insufficient}
+      className={`flex flex-col items-center justify-center rounded-md transition-all
+        ${insufficient ? 'opacity-30 cursor-not-allowed' : 'hover:bg-muted/50 cursor-pointer'}
+        ${pressed ? 'scale-90' : ''}`}
+      style={{
+        width: '44px', height: '44px',
+        border: `2px solid ${color}`,
+        color,
+        background: `${color}10`,
+      }}
+    >
+      <span className="text-[13px] font-black leading-none">{line}</span>
+      <span className="text-[8px] leading-none mt-0.5" style={{ color: insufficient ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
+        ${GAME_CONFIG.TRAIN_COST}
+      </span>
+    </button>
   );
 }
 
@@ -160,80 +195,58 @@ export const ActionBar = React.memo(function ActionBar({
   onBlackout, onSignalFlare, onPassengerAirdrop,
   onDroneJammer, onEmergencyFund, onTrainShield,
 }: ActionBarProps) {
+
+  const defenseItems: DropdownItem[] = [
+    { label: 'РДР', fullName: 'Радар', desc: 'Раннє попередження про наближення дронів', cost: GAME_CONFIG.RADAR_COST, onClick: onBuyRadar, disabled: money < GAME_CONFIG.RADAR_COST || radarActive, active: radarActive, accentColor: 'hsl(185, 80%, 45%)' },
+    { label: 'ПРМ', fullName: 'Приманка', desc: 'Хибна ціль що відволікає ворожі дрони', cost: GAME_CONFIG.DECOY_COST, hotkey: 'T', onClick: onPlaceDecoy, disabled: money < GAME_CONFIG.DECOY_COST, accentColor: 'hsl(var(--game-accent))' },
+    { label: 'ГЛШ', fullName: 'Глушилка дронів', desc: 'Тимчасово уповільнює всі ворожі дрони на карті', cost: GAME_CONFIG.DRONE_JAMMER_COST, onClick: onDroneJammer, disabled: money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0, timer: droneJammerTimer, accentColor: 'hsl(185, 80%, 45%)' },
+    { label: 'СГН', fullName: 'Сигнальна ракета', desc: 'Підсвічує всі дрони та їхні цілі', cost: GAME_CONFIG.SIGNAL_FLARE_COST, onClick: onSignalFlare, disabled: money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0, timer: signalFlareTimer, accentColor: 'hsl(var(--game-accent))' },
+  ];
+
+  const economyItems: DropdownItem[] = [
+    { label: 'x2$', fullName: 'Подвійний тариф', desc: 'Тимчасово подвоює дохід за кожного доставленого пасажира', cost: GAME_CONFIG.DOUBLE_FARE_COST, onClick: onDoubleFare, disabled: money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0, active: doubleFareTimer > 0, timer: doubleFareTimer, accentColor: 'hsl(145, 63%, 49%)' },
+    { label: 'ДСТ', fullName: 'Десант пасажирів', desc: 'Додати пасажирів на випадкові станції для більшого доходу', cost: GAME_CONFIG.PASSENGER_AIRDROP_COST, onClick: onPassengerAirdrop, disabled: money < GAME_CONFIG.PASSENGER_AIRDROP_COST, accentColor: 'hsl(280, 60%, 65%)' },
+    { label: '-HP', fullName: 'Екстрений фонд', desc: 'Обміняти одне життя на негайне поповнення бюджету', onClick: onEmergencyFund, disabled: lives <= 1, accentColor: 'hsl(var(--destructive))' },
+  ];
+
+  const emergencyItems: DropdownItem[] = [
+    { label: 'СТОП', fullName: 'Екстрене гальмування', desc: 'Зупинити всі потяги для безпеки під час тривоги', cost: GAME_CONFIG.EMERGENCY_BRAKE_COST, onClick: onEmergencyBrake, disabled: money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0, timer: emergencyBrakeTimer, accentColor: 'hsl(var(--destructive))' },
+    { label: 'НІЧ', fullName: 'Режим блекауту', desc: 'Вимкнути світло — дрони гірше бачать станції', onClick: onBlackout, active: blackoutMode, accentColor: 'hsl(var(--muted-foreground))' },
+    { label: 'РЕМ', fullName: 'Ремонтна бригада', desc: 'Надіслати ремонтників до найпошкодженішої станції', cost: GAME_CONFIG.REINFORCEMENT_COST, hotkey: 'R', onClick: onReinforcements, disabled: money < GAME_CONFIG.REINFORCEMENT_COST, accentColor: 'hsl(25, 95%, 53%)' },
+    { label: 'ГЕН', fullName: 'Генератор', desc: 'Забезпечити станцію автономним живленням при блекауті', cost: GAME_CONFIG.GENERATOR_COST, onClick: onBuyGenerator, disabled: money < GAME_CONFIG.GENERATOR_COST, accentColor: 'hsl(145, 63%, 49%)' },
+  ];
+
+  const transportItems: DropdownItem[] = [];
+  if (selectedTrain) {
+    transportItems.push(
+      { label: 'UP', fullName: 'Апгрейд потяга', desc: 'Збільшити місткість та швидкість обраного потяга', cost: GAME_CONFIG.UPGRADE_COST * selectedTrainLevel, onClick: onUpgradeTrain, disabled: money < GAME_CONFIG.UPGRADE_COST * selectedTrainLevel, accentColor: 'hsl(280, 60%, 65%)' },
+      { label: 'ЩИТ', fullName: 'Щит потяга', desc: 'Тимчасовий захист обраного потяга від пошкоджень дронів', cost: 30, onClick: onTrainShield, disabled: money < 30, accentColor: 'hsl(204, 70%, 53%)' },
+    );
+  }
+
   const divider = <div className="w-px self-stretch" style={{ background: 'hsl(var(--border))' }} />;
 
   return (
     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-auto">
-      <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg game-panel">
-        {/* Transport */}
-        {(['red', 'blue', 'green'] as const).map(line => (
-          <ActionBtn key={line} onClick={() => onBuyTrain(line)}
-            disabled={money < GAME_CONFIG.TRAIN_COST}
-            insufficientMoney={money < GAME_CONFIG.TRAIN_COST}
-            label={line === 'red' ? 'M1' : line === 'blue' ? 'M2' : 'M3'}
-            cost={GAME_CONFIG.TRAIN_COST}
-            hotkey="Q"
-            accentColor={METRO_LINES[line].color} />
-        ))}
-        {selectedTrain && (
+      <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg game-panel">
+        {/* Direct train buttons */}
+        <TrainBtn line="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
+        <TrainBtn line="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
+        <TrainBtn line="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+
+        {transportItems.length > 0 && (
           <>
-            <ActionBtn onClick={onUpgradeTrain}
-              disabled={money < GAME_CONFIG.UPGRADE_COST * selectedTrainLevel}
-              insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * selectedTrainLevel}
-              label="UP" cost={GAME_CONFIG.UPGRADE_COST * selectedTrainLevel}
-              accentColor="hsl(280, 60%, 65%)" />
-            <ActionBtn onClick={onTrainShield}
-              disabled={money < 30}
-              insufficientMoney={money < 30}
-              label="ЩИТ" cost={30}
-              accentColor="hsl(204, 70%, 53%)" />
+            {divider}
+            <DropdownGroup title="Потяг" items={transportItems} accentColor="hsl(280, 60%, 65%)" />
           </>
         )}
-        {divider}
 
-        {/* Defense */}
-        <ActionBtn onClick={onBuyRadar} disabled={money < GAME_CONFIG.RADAR_COST || radarActive}
-          label="РДР" cost={GAME_CONFIG.RADAR_COST} active={radarActive}
-          accentColor="hsl(185, 80%, 45%)" />
-        <ActionBtn onClick={onPlaceDecoy} disabled={money < GAME_CONFIG.DECOY_COST}
-          insufficientMoney={money < GAME_CONFIG.DECOY_COST}
-          label="ПРМ" cost={GAME_CONFIG.DECOY_COST} hotkey="T"
-          accentColor="hsl(var(--game-accent))" />
-        <ActionBtn onClick={onDroneJammer} disabled={money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0}
-          label="ГЛШ" cost={GAME_CONFIG.DRONE_JAMMER_COST} timer={droneJammerTimer}
-          accentColor="hsl(185, 80%, 45%)" />
-        <ActionBtn onClick={onSignalFlare} disabled={money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0}
-          label="СГН" cost={GAME_CONFIG.SIGNAL_FLARE_COST} timer={signalFlareTimer}
-          accentColor="hsl(var(--game-accent))" />
         {divider}
-
-        {/* Economy */}
-        <ActionBtn onClick={onDoubleFare} disabled={money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0}
-          label="x2$" cost={GAME_CONFIG.DOUBLE_FARE_COST} active={doubleFareTimer > 0} timer={doubleFareTimer}
-          accentColor="hsl(145, 63%, 49%)" />
-        <ActionBtn onClick={onPassengerAirdrop} disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST}
-          insufficientMoney={money < GAME_CONFIG.PASSENGER_AIRDROP_COST}
-          label="ДСТ" cost={GAME_CONFIG.PASSENGER_AIRDROP_COST}
-          accentColor="hsl(280, 60%, 65%)" />
-        <ActionBtn onClick={onEmergencyFund} disabled={lives <= 1}
-          label="-HP" accentColor="hsl(var(--destructive))" />
+        <DropdownGroup title="Оборона" items={defenseItems} accentColor="hsl(185, 80%, 45%)" />
         {divider}
-
-        {/* Emergency */}
-        <ActionBtn onClick={onEmergencyBrake} disabled={money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0}
-          label="СТОП" cost={GAME_CONFIG.EMERGENCY_BRAKE_COST} timer={emergencyBrakeTimer}
-          accentColor="hsl(var(--destructive))" />
-        <ActionBtn onClick={onBlackout}
-          label="НІЧ" active={blackoutMode}
-          accentColor="hsl(var(--muted-foreground))" />
-        <ActionBtn onClick={onReinforcements} disabled={money < GAME_CONFIG.REINFORCEMENT_COST}
-          insufficientMoney={money < GAME_CONFIG.REINFORCEMENT_COST}
-          label="РЕМ" cost={GAME_CONFIG.REINFORCEMENT_COST} hotkey="R"
-          accentColor="hsl(25, 95%, 53%)" />
-        <ActionBtn onClick={onBuyGenerator} disabled={money < GAME_CONFIG.GENERATOR_COST}
-          insufficientMoney={money < GAME_CONFIG.GENERATOR_COST}
-          label="ГЕН" cost={GAME_CONFIG.GENERATOR_COST}
-          accentColor="hsl(145, 63%, 49%)" />
+        <DropdownGroup title="Економіка" items={economyItems} accentColor="hsl(145, 63%, 49%)" />
+        {divider}
+        <DropdownGroup title="Термінові" items={emergencyItems} accentColor="hsl(25, 95%, 53%)" />
       </div>
     </div>
   );

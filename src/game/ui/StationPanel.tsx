@@ -33,14 +33,14 @@ interface BtnTooltip {
 }
 
 const BTN_TOOLTIPS: Record<string, BtnTooltip> = {
-  'ПРО': { name: 'Протиповітряна оборона', desc: 'Автоматично збиває дрони поблизу станції' },
-  'ЗРК': { name: 'Зенітний ракетний комплекс', desc: 'Потужна ракетна система великого радіуса дії' },
+  'Зенітка': { name: 'Протиповітряна оборона', desc: 'Автоматично збиває дрони поблизу станції' },
+  'Ракетний комплекс': { name: 'Зенітний ракетний комплекс', desc: 'Потужна ракетна система великого радіуса дії' },
   'Турель': { name: 'Зенітна турель', desc: 'Автоматична кулеметна установка проти дронів' },
   'Перехоплювач': { name: 'Ракета-перехоплювач', desc: 'Одноразова ракета знищує найближчий дрон' },
   'Щит': { name: 'Захисний щит', desc: 'Тимчасовий бар\'єр поглинає весь вхідний урон' },
   'Укріплення': { name: 'Фортифікація', desc: 'Зменшує отриманий урон на 50% назавжди' },
-  'ЕМІ': { name: 'Електромагнітний імпульс', desc: 'Вимикає всі дрони поблизу на кілька секунд' },
-  'Рівень ↑': { name: 'Покращити станцію', desc: 'Збільшує місткість, дохід та міцність' },
+  'EMP імпульс': { name: 'Електромагнітний імпульс', desc: 'Вимикає всі дрони поблизу на кілька секунд' },
+  'Покращити': { name: 'Покращити станцію', desc: 'Збільшує місткість, дохід та міцність' },
   'Евакуація': { name: 'Евакуювати пасажирів', desc: 'Перемістити всіх пасажирів на сусідні станції' },
   'Тунель': { name: 'Герметизація тунелю', desc: 'Тимчасово закрити тунелі для захисту від затоплення' },
   'Прискорення': { name: 'Прискорення потягів', desc: 'Тимчасово збільшити швидкість руху потягів' },
@@ -90,7 +90,6 @@ function PanelBtn({ onClick, disabled, children, cost, insufficientMoney, label 
         )}
       </button>
 
-      {/* Tooltip */}
       {showTip && tip && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-1 duration-150"
           style={{ width: '190px' }}>
@@ -140,10 +139,7 @@ export const StationPanel = React.memo(function StationPanel({
       {/* HP bar */}
       <div className="flex items-center gap-2 mb-2">
         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
-          <div className="h-full rounded-full transition-all duration-500" style={{
-            width: `${hpPct}%`,
-            background: hpColor,
-          }} />
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${hpPct}%`, background: hpColor }} />
         </div>
         <span className="text-[10px] font-mono" style={{ color: hpColor }}>{station.hp}/{station.maxHp}</span>
       </div>
@@ -152,7 +148,7 @@ export const StationPanel = React.memo(function StationPanel({
       <div className="flex items-center gap-3 mb-3 text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
         <span>{station.passengers.length}/{station.maxPassengers} пасажирів</span>
         <span>${station.stationIncome}/доставка</span>
-        {station.hasAntiAir && <span style={{ color: 'hsl(204, 70%, 53%)' }}>ПРО</span>}
+        {station.hasAntiAir && <span style={{ color: 'hsl(204, 70%, 53%)' }}>Зенітка</span>}
         {station.hasSAM && <span style={{ color: 'hsl(145, 63%, 49%)' }}>ЗРК</span>}
         {station.hasAATurret && <span style={{ color: 'hsl(var(--game-accent))' }}>Турель</span>}
       </div>
@@ -178,12 +174,12 @@ export const StationPanel = React.memo(function StationPanel({
       <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Оборона</p>
       <div className="grid grid-cols-2 gap-1 mb-3">
         <PanelBtn onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir}
-          insufficientMoney={money < GAME_CONFIG.ANTI_AIR_COST} cost={GAME_CONFIG.ANTI_AIR_COST} label="ПРО">
-          ПРО
+          insufficientMoney={money < GAME_CONFIG.ANTI_AIR_COST} cost={GAME_CONFIG.ANTI_AIR_COST} label="Зенітка">
+          Зенітка
         </PanelBtn>
         <PanelBtn onClick={onBuySAM} disabled={money < GAME_CONFIG.SAM_BATTERY_COST || station.hasSAM}
-          insufficientMoney={money < GAME_CONFIG.SAM_BATTERY_COST} cost={GAME_CONFIG.SAM_BATTERY_COST} label="ЗРК">
-          ЗРК
+          insufficientMoney={money < GAME_CONFIG.SAM_BATTERY_COST} cost={GAME_CONFIG.SAM_BATTERY_COST} label="Ракетний комплекс">
+          Ракетний комплекс
         </PanelBtn>
         <PanelBtn onClick={onBuyAATurret} disabled={money < GAME_CONFIG.AA_TURRET_COST || station.hasAATurret}
           insufficientMoney={money < GAME_CONFIG.AA_TURRET_COST} cost={GAME_CONFIG.AA_TURRET_COST} label="Турель">
@@ -202,8 +198,8 @@ export const StationPanel = React.memo(function StationPanel({
           Укріплення
         </PanelBtn>
         <PanelBtn onClick={onEMP} disabled={money < 60 || station.empCooldown > 0}
-          insufficientMoney={money < 60} cost={60} label="ЕМІ">
-          ЕМІ
+          insufficientMoney={money < 60} cost={60} label="EMP імпульс">
+          EMP імпульс
         </PanelBtn>
       </div>
 
@@ -214,23 +210,23 @@ export const StationPanel = React.memo(function StationPanel({
       <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Управління</p>
       <div className="grid grid-cols-2 gap-1">
         <PanelBtn onClick={onUpgrade} disabled={money < GAME_CONFIG.UPGRADE_COST * station.level || station.level >= 3}
-          insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * station.level} cost={GAME_CONFIG.UPGRADE_COST * station.level} label="Рівень ↑">
-          Рівень ↑
+          insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * station.level} cost={GAME_CONFIG.UPGRADE_COST * station.level} label="Покращити">
+          Покращити
         </PanelBtn>
         <PanelBtn onClick={onEvacuate} disabled={station.passengers.length === 0} label="Евакуація">
           Евакуація
         </PanelBtn>
         <PanelBtn onClick={onToggle} label={station.isOpen ? 'Закрити' : 'Відкрити'}>
-          {station.isOpen ? 'Закрити' : 'Відкрити'}
+          {station.isOpen ? 'Закрити станцію' : 'Відкрити станцію'}
         </PanelBtn>
         {station.depth === 'deep' && isAirRaid && (
           <PanelBtn onClick={onShelter} label={station.isSheltering ? 'Вийти' : 'Сховок'}>
-            {station.isSheltering ? 'Вийти' : 'Сховок'}
+            {station.isSheltering ? 'Вийти з укриття' : 'Режим укриття'}
           </PanelBtn>
         )}
         <PanelBtn onClick={onSealTunnel} disabled={money < GAME_CONFIG.TUNNEL_SEAL_COST || station.tunnelSealTimer > 0}
           insufficientMoney={money < GAME_CONFIG.TUNNEL_SEAL_COST} cost={GAME_CONFIG.TUNNEL_SEAL_COST} label="Тунель">
-          Тунель
+          Герметизація тунелю
         </PanelBtn>
         <PanelBtn onClick={onSpeedBoost} disabled={money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0}
           insufficientMoney={money < GAME_CONFIG.SPEED_BOOST_COST} cost={GAME_CONFIG.SPEED_BOOST_COST} label="Прискорення">
@@ -238,11 +234,11 @@ export const StationPanel = React.memo(function StationPanel({
         </PanelBtn>
         <PanelBtn onClick={onExpressLine} disabled={money < GAME_CONFIG.EXPRESS_LINE_COST}
           insufficientMoney={money < GAME_CONFIG.EXPRESS_LINE_COST} cost={GAME_CONFIG.EXPRESS_LINE_COST} label="Експрес">
-          Експрес
+          Експрес-лінія
         </PanelBtn>
         <PanelBtn onClick={onStationMagnet} disabled={money < GAME_CONFIG.STATION_MAGNET_COST || stationMagnetTimer > 0}
           insufficientMoney={money < GAME_CONFIG.STATION_MAGNET_COST} cost={GAME_CONFIG.STATION_MAGNET_COST} label="Магніт">
-          Магніт
+          Магніт пасажирів
         </PanelBtn>
       </div>
     </div>
