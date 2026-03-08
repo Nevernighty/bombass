@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { GameStation } from '../types';
 import { GAME_CONFIG, METRO_LINES } from '../constants';
 import { X } from 'lucide-react';
@@ -27,29 +27,83 @@ interface StationPanelProps {
   onEMP: () => void;
 }
 
-function PanelBtn({ onClick, disabled, children, cost, insufficientMoney }: {
+interface BtnTooltip {
+  name: string;
+  desc: string;
+}
+
+const BTN_TOOLTIPS: Record<string, BtnTooltip> = {
+  'ПРО': { name: 'Протиповітряна оборона', desc: 'Автоматично збиває дрони поблизу станції' },
+  'ЗРК': { name: 'Зенітний ракетний комплекс', desc: 'Потужна ракетна система великого радіуса дії' },
+  'Турель': { name: 'Зенітна турель', desc: 'Автоматична кулеметна установка проти дронів' },
+  'Перехоплювач': { name: 'Ракета-перехоплювач', desc: 'Одноразова ракета знищує найближчий дрон' },
+  'Щит': { name: 'Захисний щит', desc: 'Тимчасовий бар\'єр поглинає весь вхідний урон' },
+  'Укріплення': { name: 'Фортифікація', desc: 'Зменшує отриманий урон на 50% назавжди' },
+  'ЕМІ': { name: 'Електромагнітний імпульс', desc: 'Вимикає всі дрони поблизу на кілька секунд' },
+  'Рівень ↑': { name: 'Покращити станцію', desc: 'Збільшує місткість, дохід та міцність' },
+  'Евакуація': { name: 'Евакуювати пасажирів', desc: 'Перемістити всіх пасажирів на сусідні станції' },
+  'Тунель': { name: 'Герметизація тунелю', desc: 'Тимчасово закрити тунелі для захисту від затоплення' },
+  'Прискорення': { name: 'Прискорення потягів', desc: 'Тимчасово збільшити швидкість руху потягів' },
+  'Експрес': { name: 'Експрес-лінія', desc: 'Запустити швидкий маршрут без зупинок' },
+  'Магніт': { name: 'Магніт пасажирів', desc: 'Притягнути пасажирів із сусідніх станцій' },
+  'Закрити': { name: 'Закрити станцію', desc: 'Припинити прийом пасажирів' },
+  'Відкрити': { name: 'Відкрити станцію', desc: 'Відновити прийом пасажирів' },
+  'Сховок': { name: 'Режим укриття', desc: 'Використати глибоку станцію як бомбосховище' },
+  'Вийти': { name: 'Вийти з укриття', desc: 'Повернути станцію у звичайний режим' },
+};
+
+function PanelBtn({ onClick, disabled, children, cost, insufficientMoney, label }: {
   onClick: () => void;
   disabled?: boolean;
   children: React.ReactNode;
   cost?: number;
   insufficientMoney?: boolean;
+  label?: string;
 }) {
+  const [showTip, setShowTip] = useState(false);
+  const tipTimer = useRef<ReturnType<typeof setTimeout>>();
+  const tip = label ? BTN_TOOLTIPS[label] : null;
+
+  const handleEnter = useCallback(() => {
+    tipTimer.current = setTimeout(() => setShowTip(true), 250);
+  }, []);
+  const handleLeave = useCallback(() => {
+    clearTimeout(tipTimer.current);
+    setShowTip(false);
+  }, []);
+
   return (
-    <button onClick={onClick} disabled={disabled}
-      className="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all
-        disabled:opacity-25 hover:bg-muted/40"
-      style={{
-        background: insufficientMoney ? 'hsla(0, 72%, 51%, 0.05)' : 'hsla(var(--muted), 0.3)',
-        border: '1px solid hsl(var(--border))',
-        color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
-      }}>
-      <span className="font-medium">{children}</span>
-      {cost !== undefined && (
-        <span className="text-[10px] ml-2" style={{ color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
-          ${cost}
-        </span>
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <button onClick={onClick} disabled={disabled}
+        className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all
+          disabled:opacity-25 hover:brightness-125"
+        style={{
+          background: insufficientMoney ? 'hsla(0, 72%, 51%, 0.05)' : 'hsla(var(--muted), 0.3)',
+          border: '1px solid hsl(var(--border))',
+          color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
+        }}>
+        <span className="font-medium">{children}</span>
+        {cost !== undefined && (
+          <span className="text-[10px] ml-2" style={{ color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
+            ${cost}
+          </span>
+        )}
+      </button>
+
+      {/* Tooltip */}
+      {showTip && tip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-1 duration-150"
+          style={{ width: '190px' }}>
+          <div className="game-panel rounded-lg px-3 py-2 text-left">
+            <p className="text-[11px] font-bold mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{tip.name}</p>
+            <p className="text-[10px] leading-snug" style={{ color: 'hsl(var(--muted-foreground))' }}>{tip.desc}</p>
+            {cost !== undefined && (
+              <p className="text-[10px] font-mono mt-1" style={{ color: 'hsl(145, 63%, 49%)' }}>${cost}</p>
+            )}
+          </div>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -65,7 +119,7 @@ export const StationPanel = React.memo(function StationPanel({
   const lineName = station.line === 'red' ? 'M1' : station.line === 'blue' ? 'M2' : 'M3';
 
   return (
-    <div className="absolute bottom-20 left-3 px-4 py-3 rounded-lg text-xs pointer-events-auto w-72 animate-slide-in-left game-panel">
+    <div className="absolute bottom-20 left-3 px-4 py-3 rounded-lg text-xs pointer-events-auto w-80 animate-slide-in-left game-panel">
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
@@ -74,7 +128,7 @@ export const StationPanel = React.memo(function StationPanel({
             <p className="text-sm font-bold" style={{ color: 'hsl(var(--foreground))' }}>{station.nameUa}</p>
             <p className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
               {lineName} · {station.depth === 'deep' ? 'Глибока' : 'Мілка'} · Рів.{station.level}
-              {station.isFortified ? ' · Форт' : ''}
+              {station.isFortified ? ' · Укріплена' : ''}
             </p>
           </div>
         </div>
@@ -85,7 +139,7 @@ export const StationPanel = React.memo(function StationPanel({
 
       {/* HP bar */}
       <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
           <div className="h-full rounded-full transition-all duration-500" style={{
             width: `${hpPct}%`,
             background: hpColor,
@@ -96,11 +150,11 @@ export const StationPanel = React.memo(function StationPanel({
 
       {/* Stats */}
       <div className="flex items-center gap-3 mb-3 text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-        <span>{station.passengers.length}/{station.maxPassengers} пас.</span>
-        <span>${station.stationIncome}/дост.</span>
+        <span>{station.passengers.length}/{station.maxPassengers} пасажирів</span>
+        <span>${station.stationIncome}/доставка</span>
         {station.hasAntiAir && <span style={{ color: 'hsl(204, 70%, 53%)' }}>ПРО</span>}
         {station.hasSAM && <span style={{ color: 'hsl(145, 63%, 49%)' }}>ЗРК</span>}
-        {station.hasAATurret && <span style={{ color: 'hsl(var(--game-accent))' }}>Тур.</span>}
+        {station.hasAATurret && <span style={{ color: 'hsl(var(--game-accent))' }}>Турель</span>}
       </div>
 
       {/* Passenger shapes */}
@@ -121,70 +175,73 @@ export const StationPanel = React.memo(function StationPanel({
       )}
 
       {/* Defense section */}
-      <p className="text-[9px] mb-1 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.5 }}>Оборона</p>
-      <div className="grid grid-cols-2 gap-1 mb-2">
+      <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Оборона</p>
+      <div className="grid grid-cols-2 gap-1 mb-3">
         <PanelBtn onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir}
-          insufficientMoney={money < GAME_CONFIG.ANTI_AIR_COST} cost={GAME_CONFIG.ANTI_AIR_COST}>
+          insufficientMoney={money < GAME_CONFIG.ANTI_AIR_COST} cost={GAME_CONFIG.ANTI_AIR_COST} label="ПРО">
           ПРО
         </PanelBtn>
         <PanelBtn onClick={onBuySAM} disabled={money < GAME_CONFIG.SAM_BATTERY_COST || station.hasSAM}
-          insufficientMoney={money < GAME_CONFIG.SAM_BATTERY_COST} cost={GAME_CONFIG.SAM_BATTERY_COST}>
+          insufficientMoney={money < GAME_CONFIG.SAM_BATTERY_COST} cost={GAME_CONFIG.SAM_BATTERY_COST} label="ЗРК">
           ЗРК
         </PanelBtn>
         <PanelBtn onClick={onBuyAATurret} disabled={money < GAME_CONFIG.AA_TURRET_COST || station.hasAATurret}
-          insufficientMoney={money < GAME_CONFIG.AA_TURRET_COST} cost={GAME_CONFIG.AA_TURRET_COST}>
+          insufficientMoney={money < GAME_CONFIG.AA_TURRET_COST} cost={GAME_CONFIG.AA_TURRET_COST} label="Турель">
           Турель
         </PanelBtn>
         <PanelBtn onClick={onLaunchInterceptor} disabled={money < GAME_CONFIG.INTERCEPTOR_COST}
-          insufficientMoney={money < GAME_CONFIG.INTERCEPTOR_COST} cost={GAME_CONFIG.INTERCEPTOR_COST}>
-          Перехоп.
+          insufficientMoney={money < GAME_CONFIG.INTERCEPTOR_COST} cost={GAME_CONFIG.INTERCEPTOR_COST} label="Перехоплювач">
+          Перехоплювач
         </PanelBtn>
         <PanelBtn onClick={onShield} disabled={money < GAME_CONFIG.SHIELD_COST || station.shieldTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.SHIELD_COST} cost={GAME_CONFIG.SHIELD_COST}>
+          insufficientMoney={money < GAME_CONFIG.SHIELD_COST} cost={GAME_CONFIG.SHIELD_COST} label="Щит">
           Щит
         </PanelBtn>
         <PanelBtn onClick={onFortify} disabled={money < 100 || station.isFortified}
-          insufficientMoney={money < 100} cost={100}>
-          Форт
+          insufficientMoney={money < 100} cost={100} label="Укріплення">
+          Укріплення
         </PanelBtn>
         <PanelBtn onClick={onEMP} disabled={money < 60 || station.empCooldown > 0}
-          insufficientMoney={money < 60} cost={60}>
+          insufficientMoney={money < 60} cost={60} label="ЕМІ">
           ЕМІ
         </PanelBtn>
       </div>
 
+      {/* Separator */}
+      <div className="h-px w-full mb-3" style={{ background: 'hsl(var(--border))' }} />
+
       {/* Station actions */}
-      <p className="text-[9px] mb-1 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.5 }}>Станція</p>
+      <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Управління</p>
       <div className="grid grid-cols-2 gap-1">
         <PanelBtn onClick={onUpgrade} disabled={money < GAME_CONFIG.UPGRADE_COST * station.level || station.level >= 3}
-          insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * station.level} cost={GAME_CONFIG.UPGRADE_COST * station.level}>
+          insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * station.level} cost={GAME_CONFIG.UPGRADE_COST * station.level} label="Рівень ↑">
           Рівень ↑
         </PanelBtn>
-        <PanelBtn onClick={onEvacuate} disabled={station.passengers.length === 0}>
+        <PanelBtn onClick={onEvacuate} disabled={station.passengers.length === 0} label="Евакуація">
           Евакуація
         </PanelBtn>
-        <PanelBtn onClick={onToggle}>
+        <PanelBtn onClick={onToggle} label={station.isOpen ? 'Закрити' : 'Відкрити'}>
           {station.isOpen ? 'Закрити' : 'Відкрити'}
         </PanelBtn>
         {station.depth === 'deep' && isAirRaid && (
-          <PanelBtn onClick={onShelter}>
+          <PanelBtn onClick={onShelter} label={station.isSheltering ? 'Вийти' : 'Сховок'}>
             {station.isSheltering ? 'Вийти' : 'Сховок'}
           </PanelBtn>
         )}
         <PanelBtn onClick={onSealTunnel} disabled={money < GAME_CONFIG.TUNNEL_SEAL_COST || station.tunnelSealTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.TUNNEL_SEAL_COST} cost={GAME_CONFIG.TUNNEL_SEAL_COST}>
+          insufficientMoney={money < GAME_CONFIG.TUNNEL_SEAL_COST} cost={GAME_CONFIG.TUNNEL_SEAL_COST} label="Тунель">
           Тунель
         </PanelBtn>
         <PanelBtn onClick={onSpeedBoost} disabled={money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0}
-          insufficientMoney={money < GAME_CONFIG.SPEED_BOOST_COST} cost={GAME_CONFIG.SPEED_BOOST_COST}>
-          Прискор.
+          insufficientMoney={money < GAME_CONFIG.SPEED_BOOST_COST} cost={GAME_CONFIG.SPEED_BOOST_COST} label="Прискорення">
+          Прискорення
         </PanelBtn>
         <PanelBtn onClick={onExpressLine} disabled={money < GAME_CONFIG.EXPRESS_LINE_COST}
-          insufficientMoney={money < GAME_CONFIG.EXPRESS_LINE_COST} cost={GAME_CONFIG.EXPRESS_LINE_COST}>
+          insufficientMoney={money < GAME_CONFIG.EXPRESS_LINE_COST} cost={GAME_CONFIG.EXPRESS_LINE_COST} label="Експрес">
           Експрес
         </PanelBtn>
         <PanelBtn onClick={onStationMagnet} disabled={money < GAME_CONFIG.STATION_MAGNET_COST || stationMagnetTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.STATION_MAGNET_COST} cost={GAME_CONFIG.STATION_MAGNET_COST}>
+          insufficientMoney={money < GAME_CONFIG.STATION_MAGNET_COST} cost={GAME_CONFIG.STATION_MAGNET_COST} label="Магніт">
           Магніт
         </PanelBtn>
       </div>
