@@ -28,6 +28,71 @@ function StationGeometry({ shape, size }: { shape: string; size: number }) {
   }
 }
 
+// Fire particle system
+function FireParticles({ active }: { active: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame(({ clock }) => {
+    if (!groupRef.current || !active) return;
+    groupRef.current.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      const t = clock.elapsedTime * 3 + i * 1.2;
+      mesh.position.y = 0.5 + ((t % 2) * 1.2);
+      mesh.position.x = Math.sin(t * 1.5 + i) * 0.4;
+      mesh.position.z = Math.cos(t * 1.3 + i * 0.7) * 0.4;
+      const scale = 0.15 - ((t % 2) / 2) * 0.12;
+      mesh.scale.setScalar(Math.max(0.03, scale));
+      (mesh.material as THREE.MeshBasicMaterial).opacity = 1 - (t % 2) / 2;
+    });
+  });
+
+  if (!active) return null;
+
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <mesh key={i}>
+          <sphereGeometry args={[1, 6, 6]} />
+          <meshBasicMaterial color={i % 2 === 0 ? '#ff6600' : '#ffaa00'} transparent opacity={0.8} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Passenger orbit dots
+function PassengerOrbit({ count, lineColor, maxPassengers }: { count: number; lineColor: string; maxPassengers: number }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const shown = Math.min(count, 6);
+  
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    groupRef.current.children.forEach((child, i) => {
+      const speed = 0.8 + (i / shown) * 0.5;
+      const angle = clock.elapsedTime * speed + (i / shown) * Math.PI * 2;
+      const radius = 2.2 + i * 0.15;
+      child.position.x = Math.cos(angle) * radius;
+      child.position.z = Math.sin(angle) * radius;
+      child.position.y = 0.3 + Math.sin(clock.elapsedTime * 2 + i) * 0.15;
+    });
+  });
+
+  if (count === 0) return null;
+  const fillRatio = count / maxPassengers;
+  const dotColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.5 ? '#ffaa00' : lineColor;
+
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: shown }).map((_, i) => (
+        <mesh key={i}>
+          <sphereGeometry args={[0.15, 6, 6]} />
+          <meshBasicMaterial color={dotColor} transparent opacity={0.7} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function StationNode3D({ stationId, stateRef, onClick, onHover }: StationNode3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -54,7 +119,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     if (!st || !groupRef.current) return;
 
     // Hover scale smoothing
-    const targetScale = isHoveredRef.current ? 1.12 : 1;
+    const targetScale = isHoveredRef.current ? 1.15 : 1;
     hoverScaleRef.current += (targetScale - hoverScaleRef.current) * 0.15;
 
     // Jelly wobble
@@ -127,10 +192,10 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     if (pulseRef.current) {
       if (st.passengers.length > 0 && !st.isDestroyed) {
         pulseRef.current.visible = true;
+        const fillRatio = st.passengers.length / st.maxPassengers;
         const pulseScale = 1 + Math.sin(Date.now() * 0.003) * 0.15;
         pulseRef.current.scale.set(pulseScale, pulseScale, 1);
-        (pulseRef.current.material as THREE.MeshBasicMaterial).opacity =
-          0.2 + (st.passengers.length / st.maxPassengers) * 0.3;
+        (pulseRef.current.material as THREE.MeshBasicMaterial).opacity = 0.2 + fillRatio * 0.4;
       } else {
         pulseRef.current.visible = false;
       }
@@ -150,15 +215,15 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     }
   });
 
-  const size = 1.5;
+  const size = 2.0;
 
   return (
     <group
       ref={groupRef}
       position={[wx, 0.4, wz]}
       onClick={(e) => { e.stopPropagation(); onClick?.(stationId); }}
-      onPointerEnter={() => { isHoveredRef.current = true; onHover?.(stationId); }}
-      onPointerLeave={() => { isHoveredRef.current = false; onHover?.(null); }}
+      onPointerEnter={() => { isHoveredRef.current = true; onHover?.(stationId); document.body.style.cursor = 'pointer'; }}
+      onPointerLeave={() => { isHoveredRef.current = false; onHover?.(null); document.body.style.cursor = 'default'; }}
     >
       {/* Selection ring */}
       <mesh ref={selectRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} visible={false}>
@@ -197,6 +262,12 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           roughness={0.4}
         />
       </mesh>
+
+      {/* Passenger orbit dots */}
+      <PassengerOrbit count={station.passengers.length} lineColor={lineColor} maxPassengers={station.maxPassengers} />
+
+      {/* Fire particles */}
+      <FireParticles active={station.isOnFire} />
 
       {/* Fortification walls */}
       {station.isFortified && (
@@ -254,8 +325,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Station name */}
       <Billboard>
         <Text
-          position={[0, size + 1.8, 0]}
-          fontSize={0.42}
+          position={[0, size + 2.0, 0]}
+          fontSize={0.55}
           color="#e0e0e0"
           anchorX="center"
           anchorY="bottom"
@@ -270,8 +341,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Passenger count */}
       <Billboard>
         <Text
-          position={[0, size + 1.3, 0]}
-          fontSize={0.35}
+          position={[0, size + 1.5, 0]}
+          fontSize={0.4}
           color={station.passengers.length >= station.maxPassengers - 1 ? '#ff4444' : '#ffcc00'}
           anchorX="center"
           anchorY="middle"
@@ -285,12 +356,12 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* HP bar when damaged */}
       {station.hp < station.maxHp && !station.isDestroyed && (
         <Billboard>
-          <mesh position={[0, size + 0.9, 0]}>
-            <planeGeometry args={[2, 0.15]} />
+          <mesh position={[0, size + 1.1, 0]}>
+            <planeGeometry args={[2.5, 0.2]} />
             <meshBasicMaterial color="#333333" transparent opacity={0.7} />
           </mesh>
-          <mesh position={[(station.hp / station.maxHp - 1) * 1, size + 0.9, 0.01]}>
-            <planeGeometry args={[2 * (station.hp / station.maxHp), 0.12]} />
+          <mesh position={[(station.hp / station.maxHp - 1) * 1.25, size + 1.1, 0.01]}>
+            <planeGeometry args={[2.5 * (station.hp / station.maxHp), 0.16]} />
             <meshBasicMaterial color={station.hp / station.maxHp > 0.5 ? '#22c55e' : '#ef4444'} />
           </mesh>
         </Billboard>

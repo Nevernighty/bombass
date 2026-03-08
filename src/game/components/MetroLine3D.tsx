@@ -13,13 +13,15 @@ interface MetroLine3DProps {
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const pulseRef = useRef<THREE.Mesh>(null);
   const prevKey = useRef('__init__');
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
+  const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
 
   const { color } = METRO_LINES[line];
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     const state = stateRef.current;
     const activeIds = getActiveLineStations(state, line);
     const key = activeIds.join(',');
@@ -38,13 +40,14 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
       if (points.length >= 2) {
         const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
+        curveRef.current = curve;
 
         geometryRef.current?.dispose();
         glowGeometryRef.current?.dispose();
 
         const segments = Math.max(points.length * 16, 48);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.3, 6, false);
-        const glowGeo = new THREE.TubeGeometry(curve, segments, 0.7, 6, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.5, 8, false);
+        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.0, 8, false);
 
         geometryRef.current = tubeGeo;
         glowGeometryRef.current = glowGeo;
@@ -57,11 +60,22 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     // Night glow
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.35 : 0.12;
+      mat.opacity = state.isNight ? 0.35 : 0.15;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
       mat.emissiveIntensity = state.isNight ? 0.8 : 0.4;
+    }
+
+    // Animated energy pulse
+    if (pulseRef.current && curveRef.current) {
+      const t = (clock.elapsedTime * 0.15 + (line === 'blue' ? 0.33 : line === 'green' ? 0.66 : 0)) % 1;
+      const pt = curveRef.current.getPointAt(t);
+      pulseRef.current.position.copy(pt);
+      pulseRef.current.position.y = 0.5;
+      pulseRef.current.visible = true;
+      const pScale = 0.8 + Math.sin(clock.elapsedTime * 4) * 0.2;
+      pulseRef.current.scale.setScalar(pScale);
     }
   });
 
@@ -72,7 +86,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   return (
     <group>
       <mesh ref={meshRef}>
-        <tubeGeometry args={[initCurve, 2, 0.3, 6, false]} />
+        <tubeGeometry args={[initCurve, 2, 0.5, 8, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -82,8 +96,13 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         />
       </mesh>
       <mesh ref={glowRef}>
-        <tubeGeometry args={[initCurve, 2, 0.7, 6, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.12} side={THREE.DoubleSide} />
+        <tubeGeometry args={[initCurve, 2, 1.0, 8, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Energy pulse sphere */}
+      <mesh ref={pulseRef} visible={false}>
+        <sphereGeometry args={[0.6, 8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0.8} />
       </mesh>
     </group>
   );
