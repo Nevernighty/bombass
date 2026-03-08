@@ -35,15 +35,25 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     const state = stateRef.current;
     const cam = state.camera;
 
-    cam.zoom += (cam.targetZoom - cam.zoom) * 0.08;
-    cam.x += (cam.targetX - cam.x) * 0.08;
-    cam.y += (cam.targetY - cam.y) * 0.08;
+    // WASD panning
+    const panSpeed = 25 * delta / Math.max(cam.zoom, 0.3);
+    const keys = cam.keysDown;
+    if (keys.has('w') || keys.has('W') || keys.has('ArrowUp')) cam.targetY += panSpeed;
+    if (keys.has('s') || keys.has('S') || keys.has('ArrowDown')) cam.targetY -= panSpeed;
+    if (keys.has('a') || keys.has('A') || keys.has('ArrowLeft')) cam.targetX += panSpeed;
+    if (keys.has('d') || keys.has('D') || keys.has('ArrowRight')) cam.targetX -= panSpeed;
+
+    // Smooth interpolation
+    cam.zoom += (cam.targetZoom - cam.zoom) * 0.1;
+    cam.x += (cam.targetX - cam.x) * 0.1;
+    cam.y += (cam.targetY - cam.y) * 0.1;
 
     const ortho = camera as THREE.OrthographicCamera;
     ortho.zoom = 10 * cam.zoom;
     ortho.updateProjectionMatrix();
 
     const orbitAngle = cam.orbitAngle;
+    const tiltAngle = cam.tiltAngle;
 
     if (cam.mode === 'follow' && state.selectedTrain) {
       const train = state.trains.find(t => t.id === state.selectedTrain);
@@ -52,20 +62,27 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
         cam.targetX = -wx;
         cam.targetY = -wz;
       }
+    } else if (cam.mode === 'overview') {
+      cam.targetX += (0 - cam.targetX) * 0.02;
+      cam.targetY += (0 - cam.targetY) * 0.02;
+      cam.targetZoom += (0.35 - cam.targetZoom) * 0.03;
     } else if (cam.mode === 'cinematic') {
       cinematicTimeRef.current += delta * cam.orbitSpeed;
-      const radius = 35;
-      const cx = Math.sin(cinematicTimeRef.current) * radius;
-      const cz = Math.cos(cinematicTimeRef.current) * radius;
+      const t = cinematicTimeRef.current;
+      // Figure-8 path
+      const radius = 30;
+      const cx = Math.sin(t) * radius;
+      const cz = Math.sin(t * 2) * radius * 0.4;
       cam.targetX = -cx * 0.3;
       cam.targetY = -cz * 0.3;
+      cam.targetZoom += (0.8 - cam.targetZoom) * 0.01;
     }
 
-    // Apply orbit rotation
+    // Apply orbit rotation + tilt
     const dist = 45;
-    const baseX = Math.sin(orbitAngle) * dist;
-    const baseZ = Math.cos(orbitAngle) * dist;
-    const baseY = 45;
+    const baseX = Math.sin(orbitAngle) * dist * Math.cos(tiltAngle);
+    const baseZ = Math.cos(orbitAngle) * dist * Math.cos(tiltAngle);
+    const baseY = dist * Math.sin(tiltAngle);
 
     ortho.position.set(baseX - cam.x, baseY, baseZ - cam.y);
     ortho.lookAt(-cam.x, 0, -cam.y);
@@ -95,7 +112,7 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
     stateRef.current = updateGame(state, dt, audioRef.current);
 
     lastUpdateRef.current += dt;
-    if (lastUpdateRef.current > 150) {
+    if (lastUpdateRef.current > 200) {
       lastUpdateRef.current = 0;
       onStateChange(stateRef.current);
     }
@@ -121,7 +138,7 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
 
   useFrame(() => {
     frameCountRef.current++;
-    if (frameCountRef.current % 3 !== 0) return; // Throttle to every 3 frames
+    if (frameCountRef.current % 3 !== 0) return;
 
     const state = stateRef.current;
     const stKey = state.activeStationIds.join(',');
@@ -162,14 +179,14 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
   );
 }
 
-// Cloud layer using InstancedMesh for performance
+// Cloud layer using InstancedMesh
 function CloudLayer({ isNight }: { isNight: boolean }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const tempObj = useMemo(() => new THREE.Object3D(), []);
 
   const cloudData = useMemo(() => {
     const clouds = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 8; i++) {
       clouds.push({
         x: (Math.random() - 0.5) * 120,
         z: (Math.random() - 0.5) * 100,
@@ -209,7 +226,50 @@ function CloudLayer({ isNight }: { isNight: boolean }) {
   );
 }
 
-// Ambient particles using uniform-based animation (no per-frame needsUpdate)
+// Stars at night
+function NightSky({ isNight }: { isNight: boolean }) {
+  const pointsRef = useRef<THREE.Points>(null);
+
+  const positions = useMemo(() => {
+    const count = 200;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.4;
+      const r = 120;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.cos(phi);
+      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    return pos;
+  }, []);
+
+  useFrame(({ clock }) => {
+    if (!pointsRef.current) return;
+    pointsRef.current.rotation.y = clock.elapsedTime * 0.002;
+  });
+
+  if (!isNight) return null;
+
+  return (
+    <>
+      <points ref={pointsRef}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial size={0.4} color="#ffffff" transparent opacity={0.6} sizeAttenuation={false} />
+      </points>
+      {/* Moon */}
+      <mesh position={[60, 80, -40]}>
+        <sphereGeometry args={[4, 16, 16]} />
+        <meshBasicMaterial color="#e8e0d0" />
+      </mesh>
+      <pointLight position={[60, 80, -40]} color="#ccccdd" intensity={0.3} distance={200} />
+    </>
+  );
+}
+
+// Ambient fireflies at night
 function AmbientParticles({ isNight }: { isNight: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
   const basePositions = useRef<Float32Array | null>(null);
@@ -230,7 +290,6 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
     return { positions: pos, colors: col };
   }, []);
 
-  // Store base positions once
   React.useEffect(() => {
     basePositions.current = new Float32Array(positions);
   }, [positions]);
@@ -365,7 +424,6 @@ function InterceptorDronesLayer({ stateRef }: { stateRef: React.MutableRefObject
         const [wx, , wz] = toWorld(iDrone.x, iDrone.y);
         child.position.set(wx, 7, wz);
         child.visible = true;
-        // Face target
         const target = stateRef.current.drones.find(d => d.id === iDrone.targetDroneId);
         if (target) {
           const [tx, , tz] = toWorld(target.x, target.y);
@@ -397,7 +455,7 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
 
   const { positions } = useMemo(() => {
-    const count = 300;
+    const count = 150;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 120;
@@ -436,18 +494,21 @@ function SceneContent({
 }: SceneContentProps) {
   const state = stateRef.current;
 
-  const ambientIntensity = state.isNight ? 0.35 : 0.5;
+  const ambientIntensity = state.isNight ? 0.4 : 0.5;
   const ambientColor = state.isNight ? '#4455aa' : '#e8e8ff';
-  const dirIntensity = state.isNight ? 0.3 : 0.7;
+  const dirIntensity = state.isNight ? 0.35 : 0.7;
   const dirColor = state.isNight ? '#6688cc' : '#ffffee';
   const fogColor = state.isNight ? '#0a1025' : '#0a0e1a';
   const groundColor = state.isNight ? '#0a1025' : '#0c1220';
 
-  const skyTop = state.isNight ? '#050818' : '#1a3050';
+  // Sunset/sunrise sky transition
+  const skyHue = state.dayTime > 0.7 && state.dayTime < 0.85 ? '#2a1535' : // sunset
+    state.dayTime > 0.15 && state.dayTime < 0.25 ? '#1a2545' : // sunrise
+    state.isNight ? '#050818' : '#1a3050';
 
   return (
     <>
-      <OrthographicCamera makeDefault position={[25, 45, 25]} zoom={10} near={-1000} far={1000} />
+      <OrthographicCamera makeDefault position={[25, 40, 25]} zoom={10} near={-1000} far={1000} />
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
@@ -458,30 +519,33 @@ function SceneContent({
       <hemisphereLight args={[
         state.isNight ? '#223366' : '#87ceeb',
         state.isNight ? '#111122' : '#362907',
-        state.isNight ? 0.25 : 0.15
+        state.isNight ? 0.3 : 0.15
       ]} />
       {state.isAirRaid && (
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25} distance={120} />
       )}
-      {/* Enhanced night lighting — 6 city glow lights */}
+      {/* Enhanced night lighting */}
       {state.isNight && (
         <>
-          <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.4} distance={80} />
-          <pointLight position={[-25, 6, -15]} color="#ffaa44" intensity={0.25} distance={60} />
-          <pointLight position={[20, 6, 20]} color="#ffaa44" intensity={0.25} distance={60} />
-          <pointLight position={[-15, 5, 15]} color="#ff8833" intensity={0.2} distance={50} />
-          <pointLight position={[10, 5, -20]} color="#ffaa44" intensity={0.2} distance={50} />
-          <pointLight position={[30, 6, 0]} color="#ff9944" intensity={0.2} distance={50} />
+          <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.5} distance={80} />
+          <pointLight position={[-25, 6, -15]} color="#ffaa44" intensity={0.3} distance={60} />
+          <pointLight position={[20, 6, 20]} color="#ffaa44" intensity={0.3} distance={60} />
+          <pointLight position={[-15, 5, 15]} color="#ff8833" intensity={0.25} distance={50} />
+          <pointLight position={[10, 5, -20]} color="#ffaa44" intensity={0.25} distance={50} />
+          <pointLight position={[30, 6, 0]} color="#ff9944" intensity={0.25} distance={50} />
         </>
       )}
 
       {/* Skybox gradient dome */}
       <mesh position={[0, 0, 0]}>
         <sphereGeometry args={[150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshBasicMaterial color={skyTop} side={THREE.BackSide} transparent opacity={0.8} />
+        <meshBasicMaterial color={skyHue} side={THREE.BackSide} transparent opacity={0.8} />
       </mesh>
 
-      {/* Ground with slight emissive at night */}
+      {/* Night sky: stars + moon */}
+      <NightSky isNight={state.isNight} />
+
+      {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
         <planeGeometry args={[160, 130]} />
         <meshStandardMaterial
@@ -489,7 +553,7 @@ function SceneContent({
           metalness={0.05}
           roughness={0.95}
           emissive={state.isNight ? '#0a0e20' : '#000000'}
-          emissiveIntensity={state.isNight ? 0.1 : 0}
+          emissiveIntensity={state.isNight ? 0.15 : 0}
         />
       </mesh>
       <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />

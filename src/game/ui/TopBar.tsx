@@ -25,6 +25,7 @@ interface TopBarProps {
   winConditionMet: boolean;
   cameraMode: CameraMode;
   isRaining: boolean;
+  passiveIncome: number;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -41,7 +42,7 @@ export const TopBar = React.memo(function TopBar({
   networkEfficiency, isNight, waveIndex, isAirRaid,
   powerGrid, maxPower, rushHourActive, radarActive,
   satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
-  cameraMode, isRaining,
+  cameraMode, isRaining, passiveIncome,
   onSpeedChange,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
@@ -53,6 +54,7 @@ export const TopBar = React.memo(function TopBar({
           <span className="text-white font-bold text-base">{Math.round(score)}</span>
           <span style={{ color: combo >= 3 ? '#f59e0b' : '#eab308' }}>x{(Math.round(combo * 10) / 10).toFixed(1)}</span>
           <span style={{ color: '#22c55e' }}>💰{money}</span>
+          <span className="text-xs" style={{ color: '#4ade80' }}>+{passiveIncome}/10с</span>
           <span>{'❤️'.repeat(Math.min(lives, 5))}{'🖤'.repeat(Math.max(0, 3 - lives))}</span>
         </div>
         <div className="flex gap-1 mt-1 items-center flex-wrap">
@@ -66,6 +68,7 @@ export const TopBar = React.memo(function TopBar({
               {s}x
             </button>
           ))}
+          <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded" style={{ color: '#6b7280', background: 'rgba(255,255,255,0.03)' }}>G</span>
           <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded" style={{
             background: isAirRaid ? 'rgba(220,38,38,0.4)' : 'rgba(255,255,255,0.05)',
             color: isAirRaid ? '#fca5a5' : '#9ca3af',
@@ -112,13 +115,6 @@ export const TopBar = React.memo(function TopBar({
           </span>
           {buildingsDestroyed > 0 && <span style={{ color: '#ef4444' }}>🏚️ {buildingsDestroyed}</span>}
           {radarActive && <span style={{ color: '#06b6d4' }}>📡</span>}
-          <span className="text-xs px-1.5 py-0.5 rounded" style={{
-            background: 'rgba(255,255,255,0.05)',
-            color: '#6b7280',
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}>
-            📷 {cameraMode === 'free' ? 'Вільна' : cameraMode === 'follow' ? 'Слідкувати' : cameraMode === 'overview' ? 'Огляд' : 'Кіно'}
-          </span>
         </div>
       </div>
     </div>

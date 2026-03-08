@@ -12,11 +12,15 @@ interface TrainModelProps {
   onClick?: (id: string) => void;
 }
 
-// Procedural metro wagon — long axis along LOCAL Z so atan2(dx,dz) works directly
-function ProceduralTrain({ lineColor }: { lineColor: string }) {
+function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string; fillRatio: number; isNight: boolean }) {
+  // Color-coded capacity: green=empty, yellow=half, red=full
+  const capacityColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
+  const windowOpacity = isNight ? 0.9 : 0.6;
+  const windowEmissive = isNight ? '#ffcc88' : '#88ccff';
+
   return (
     <group>
-      {/* Main body — long axis = Z */}
+      {/* Main body */}
       <mesh castShadow>
         <boxGeometry args={[1.1, 0.9, 3.2]} />
         <meshStandardMaterial color={lineColor} metalness={0.6} roughness={0.25} />
@@ -30,14 +34,24 @@ function ProceduralTrain({ lineColor }: { lineColor: string }) {
       {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
         <mesh key={`wl${i}`} position={[0.56, 0.15, zOff]}>
           <planeGeometry args={[0.01, 0.3]} />
-          <meshBasicMaterial color="#88ccff" transparent opacity={0.8} />
+          <meshStandardMaterial
+            color={windowEmissive}
+            emissive={windowEmissive}
+            emissiveIntensity={isNight ? 1.5 : 0.3}
+            transparent opacity={windowOpacity}
+          />
         </mesh>
       ))}
       {/* Windows - right */}
       {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
         <mesh key={`wr${i}`} position={[-0.56, 0.15, zOff]}>
           <planeGeometry args={[0.01, 0.3]} />
-          <meshBasicMaterial color="#88ccff" transparent opacity={0.8} />
+          <meshStandardMaterial
+            color={windowEmissive}
+            emissive={windowEmissive}
+            emissiveIntensity={isNight ? 1.5 : 0.3}
+            transparent opacity={windowOpacity}
+          />
         </mesh>
       ))}
       {/* Front face */}
@@ -53,6 +67,11 @@ function ProceduralTrain({ lineColor }: { lineColor: string }) {
       <mesh position={[-0.25, 0.25, 1.63]}>
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
+      </mesh>
+      {/* Capacity indicator strip */}
+      <mesh position={[0, -0.3, 0]}>
+        <boxGeometry args={[1.12, 0.06, 3.0 * Math.max(0.1, fillRatio)]} />
+        <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.5} transparent opacity={0.7} />
       </mesh>
       {/* Undercarriage */}
       <mesh position={[0, -0.5, 0]}>
@@ -77,6 +96,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const smoothPos = useRef(new THREE.Vector3(0, 0.7, 0));
   const smoothAngle = useRef<number | null>(null);
   const lastMovementAngle = useRef<number>(0);
+  const shieldMeshRef = useRef<THREE.Mesh>(null);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
@@ -95,7 +115,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     smoothPos.current.lerp(targetPos, lerpFactor);
     groupRef.current.position.copy(smoothPos.current);
 
-    // Compute rotation only when moving
     if (!t.isDwelling) {
       const route = getActiveLineStations(state, t.line);
       if (route.length >= 2) {
@@ -106,14 +125,11 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         if (curSt && nextSt && curSt.id !== nextSt.id) {
           const [cx, , cz] = toWorld(curSt.x, curSt.y);
           const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
-          // atan2(dx, dz) gives angle where 0 = +Z direction
-          // Train long axis is along Z, so this is correct now
           lastMovementAngle.current = Math.atan2(nx - cx, nz - cz);
         }
       }
     }
 
-    // Smooth rotation — faster lerp for snappier turns
     const targetAngle = lastMovementAngle.current;
     if (smoothAngle.current === null) smoothAngle.current = targetAngle;
     let diff = targetAngle - smoothAngle.current;
@@ -122,20 +138,36 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     smoothAngle.current += diff * 0.25;
     groupRef.current.rotation.y = smoothAngle.current;
 
-    // Dwell bob
     if (t.isDwelling) {
       groupRef.current.position.y = 0.7 + Math.sin(Date.now() * 0.005) * 0.04;
+    }
+
+    // Shield visual
+    if (shieldMeshRef.current) {
+      shieldMeshRef.current.visible = t.shieldTimer > 0;
+      if (t.shieldTimer > 0) {
+        (shieldMeshRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(Date.now() * 0.004) * 0.08;
+        shieldMeshRef.current.rotation.y += delta * 0.8;
+      }
     }
   });
 
   const isSelected = stateRef.current.selectedTrain === trainId;
+  const fillRatio = train.passengers.length / train.capacity;
+  const isNight = stateRef.current.isNight;
 
   return (
     <group
       ref={groupRef}
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
     >
-      <ProceduralTrain lineColor={lineColor} />
+      <ProceduralTrain lineColor={lineColor} fillRatio={fillRatio} isNight={isNight} />
+
+      {/* Shield sphere */}
+      <mesh ref={shieldMeshRef} visible={false}>
+        <sphereGeometry args={[2.5, 12, 12]} />
+        <meshBasicMaterial color="#3b82f6" transparent opacity={0.12} side={THREE.DoubleSide} />
+      </mesh>
 
       {/* Selection ring */}
       {isSelected && (
@@ -162,8 +194,9 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         </Billboard>
       )}
 
-      {/* Headlights */}
-      <pointLight color={lineColor} intensity={1.0} distance={4} position={[0, 0.3, 1.6]} />
+      {/* Headlights + interior glow at night */}
+      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 2.0 : 1.0} distance={isNight ? 8 : 4} position={[0, 0.3, 1.6]} />
+      {isNight && <pointLight color="#ffaa66" intensity={0.5} distance={3} position={[0, 0.2, 0]} />}
     </group>
   );
 }
