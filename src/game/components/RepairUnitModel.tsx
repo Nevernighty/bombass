@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GameState } from '../types';
 import { toWorld } from '../constants';
 
-export function RepairUnitsLayer({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+function RepairUnitsLayerInner({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame(() => {
@@ -57,3 +57,7 @@ export function RepairUnitsLayer({ stateRef }: { stateRef: React.MutableRefObjec
     </group>
   );
 }
+
+export const RepairUnitsLayer = React.forwardRef<THREE.Group, { stateRef: React.MutableRefObject<GameState> }>(
+  (props, ref) => <RepairUnitsLayerInner {...props} />
+);
