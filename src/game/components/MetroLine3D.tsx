@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GameState } from '../types';
-import { METRO_LINES, STATIONS, toWorld } from '../constants';
+import { METRO_LINES, STATION_MAP, toWorld } from '../constants';
 import { getActiveLineStations } from '../GameEngine';
 
 interface MetroLine3DProps {
@@ -29,7 +29,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
       const points: THREE.Vector3[] = [];
       activeIds.forEach(id => {
-        const st = STATIONS.find(s => s.id === id);
+        const st = STATION_MAP.get(id);
         if (st) {
           const [wx, , wz] = toWorld(st.x, st.y);
           points.push(new THREE.Vector3(wx, 0.2, wz));

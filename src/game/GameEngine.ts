@@ -1,9 +1,16 @@
-import { STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES } from './constants';
+import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES } from './constants';
 import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification } from './types';
 import { AudioEngine } from './AudioEngine';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
+
+// O(1) index into state.stations array by station ID
+const STATION_IDX = new Map<string, number>(STATIONS.map((s, i) => [s.id, i]));
+export function getStation(state: GameState, id: string) {
+  const idx = STATION_IDX.get(id);
+  return idx !== undefined ? state.stations[idx] : undefined;
+}
 
 const SHAPES: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
 const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5'];
@@ -54,7 +61,7 @@ export function createInitialState(): GameState {
   (['red', 'blue', 'green'] as const).forEach(line => {
     const lineStartStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
     if (lineStartStations.length < 2) return;
-    const st = stations.find(s => s.id === lineStartStations[0])!;
+    const st = STATION_MAP.get(lineStartStations[0])!;
     trains.push({
       id: uid(),
       line,
@@ -117,9 +124,9 @@ export function createInitialState(): GameState {
 }
 
 export function getActiveLineStations(state: GameState, line: string): string[] {
-  return STATIONS
-    .filter(s => s.line === line && state.activeStationIds.includes(s.id))
-    .map(s => s.id);
+  const lineIds = LINE_STATIONS[line];
+  if (!lineIds) return [];
+  return lineIds.filter(id => state.activeStationIds.includes(id));
 }
 
 function addNotification(state: GameState, text: string, x: number, y: number, color = '#fff') {
@@ -198,8 +205,8 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
         }
       }
       // Stay at current station during dwell
-      const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
-      if (curStation) { t.x = curStation.x; t.y = curStation.y; }
+      const curStData = STATION_MAP.get(route[t.routeIndex]);
+      if (curStData) { t.x = curStData.x; t.y = curStData.y; }
       return t;
     }
 
@@ -211,20 +218,20 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       t.direction = (t.direction * -1) as 1 | -1;
       t.isDwelling = true;
       t.dwellTimer = GAME_CONFIG.DWELL_TIME;
-      const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
-      if (curStation) { t.x = curStation.x; t.y = curStation.y; }
+      const curStData2 = STATION_MAP.get(route[t.routeIndex]);
+      if (curStData2) { t.x = curStData2.x; t.y = curStData2.y; }
       return t;
     }
 
     t.progress += (t.speed * realDt) / 2500;
 
     // Interpolate position between current and next station
-    const curStation = s.stations.find(st => st.id === route[t.routeIndex]);
-    const nextStation = s.stations.find(st => st.id === route[nextIdx]);
-    if (curStation && nextStation) {
+    const curStConst = STATION_MAP.get(route[t.routeIndex]);
+    const nextStConst = STATION_MAP.get(route[nextIdx]);
+    if (curStConst && nextStConst) {
       const eased = easeInOutQuad(Math.min(t.progress, 1));
-      t.x = curStation.x + (nextStation.x - curStation.x) * eased;
-      t.y = curStation.y + (nextStation.y - curStation.y) * eased;
+      t.x = curStConst.x + (nextStConst.x - curStConst.x) * eased;
+      t.y = curStConst.y + (nextStConst.y - curStConst.y) * eased;
     }
 
     if (t.progress >= 1) {
@@ -235,14 +242,15 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
       t.dwellTimer = GAME_CONFIG.DWELL_TIME;
 
       // Snap to destination
-      const station = s.stations.find(st => st.id === route[t.routeIndex]);
-      if (station) {
-        t.x = station.x;
-        t.y = station.y;
+      const arrStation = s.stations.find(st => st.id === route[t.routeIndex]);
+      if (arrStation) {
+        t.x = arrStation.x;
+        t.y = arrStation.y;
       }
 
       // Load/unload passengers at arrival station
-      if (station && !station.isDestroyed) {
+      if (arrStation && !arrStation.isDestroyed) {
+        const station = arrStation;
         const matching = t.passengers.filter(p => p.shape === station.shape);
         if (matching.length > 0) {
           const earned = Math.round(matching.length * s.combo);

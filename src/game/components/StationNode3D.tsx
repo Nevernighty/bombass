@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, GameStation } from '../types';
-import { METRO_LINES, SHAPE_COLORS, toWorld, GAME_CONFIG } from '../constants';
+import { METRO_LINES, SHAPE_COLORS, STATION_MAP, toWorld, GAME_CONFIG } from '../constants';
 
 interface StationNode3DProps {
   stationId: string;

@@ -1,4 +1,4 @@
-import React, { useRef, useState, Suspense, useMemo } from 'react';
+import React, { useRef, Suspense } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -14,6 +14,7 @@ import { RiverPlane } from './components/RiverPlane';
 import { ExplosionsLayer } from './components/ExplosionEffect';
 import { RepairUnitsLayer } from './components/RepairUnitModel';
 import { NotificationsLayer } from './components/NotificationsLayer';
+import { CityBuildings } from './components/CityBuildings';
 
 interface SceneContentProps {
   stateRef: React.MutableRefObject<GameState>;
@@ -39,7 +40,6 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     ortho.zoom = 10 * cam.zoom;
     ortho.updateProjectionMatrix();
 
-    // Isometric angle positioned to see the full map nicely
     const baseX = 25;
     const baseY = 45;
     const baseZ = 25;
@@ -80,60 +80,60 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
   return null;
 }
 
-// Procedural buildings — seeded, deterministic, avoid metro stations
-function CityBuildings() {
-  const buildings = useMemo(() => {
-    const result: { x: number; z: number; w: number; h: number; d: number; color: string; emissive: string }[] = [];
-    const rng = (seed: number) => {
-      let s = seed;
-      return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
-    };
-    const rand = rng(42);
+// Manages dynamic entity lists via refs — no React state re-renders
+function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHover }: {
+  stateRef: React.MutableRefObject<GameState>;
+  onStationClick: (id: string) => void;
+  onTrainClick: (id: string) => void;
+  onStationHover: (id: string | null) => void;
+}) {
+  const stationGroupRef = useRef<THREE.Group>(null);
+  const trainGroupRef = useRef<THREE.Group>(null);
+  const droneGroupRef = useRef<THREE.Group>(null);
+  const prevStationsRef = useRef('');
+  const prevTrainsRef = useRef('');
+  const prevDronesRef = useRef('');
+  const [activeStations, setActiveStations] = React.useState<string[]>(stateRef.current.activeStationIds);
+  const [trainIds, setTrainIds] = React.useState<string[]>(stateRef.current.trains.map(t => t.id));
+  const [droneIds, setDroneIds] = React.useState<string[]>([]);
 
-    for (let i = 0; i < 120; i++) {
-      const nx = rand();
-      const ny = rand();
-      const [wx, , wz] = toWorld(nx, ny);
-
-      // Skip if too close to metro stations
-      const tooClose = STATIONS.some(s => {
-        const [sx, , sz] = toWorld(s.x, s.y);
-        const dx = wx - sx;
-        const dz = wz - sz;
-        return Math.sqrt(dx * dx + dz * dz) < 3.5;
-      });
-      if (tooClose) continue;
-
-      const h = 0.3 + rand() * 5;
-      const w = 0.5 + rand() * 1.8;
-      const d = 0.5 + rand() * 1.8;
-      const hue = 200 + Math.floor(rand() * 40);
-      const sat = 5 + Math.floor(rand() * 15);
-      const lightness = 12 + Math.floor(rand() * 18);
-      const color = `hsl(${hue}, ${sat}%, ${lightness}%)`;
-      // Some buildings have lit windows
-      const hasLight = rand() > 0.6;
-      const emissive = hasLight ? `hsl(45, 80%, ${5 + Math.floor(rand() * 10)}%)` : '#000000';
-      result.push({ x: wx, z: wz, w, h, d, color, emissive });
+  useFrame(() => {
+    const state = stateRef.current;
+    const stKey = state.activeStationIds.join(',');
+    if (stKey !== prevStationsRef.current) {
+      prevStationsRef.current = stKey;
+      setActiveStations([...state.activeStationIds]);
     }
-    return result;
-  }, []);
+    const tKey = state.trains.map(t => t.id).join(',');
+    if (tKey !== prevTrainsRef.current) {
+      prevTrainsRef.current = tKey;
+      setTrainIds(state.trains.map(t => t.id));
+    }
+    const dKey = state.drones.filter(d => !d.isDestroyed).map(d => d.id).join(',');
+    if (dKey !== prevDronesRef.current) {
+      prevDronesRef.current = dKey;
+      setDroneIds(state.drones.filter(d => !d.isDestroyed).map(d => d.id));
+    }
+  });
 
   return (
-    <group>
-      {buildings.map((b, i) => (
-        <mesh key={i} position={[b.x, b.h / 2, b.z]} castShadow receiveShadow>
-          <boxGeometry args={[b.w, b.h, b.d]} />
-          <meshStandardMaterial
-            color={b.color}
-            emissive={b.emissive}
-            emissiveIntensity={0.3}
-            metalness={0.15}
-            roughness={0.85}
-          />
-        </mesh>
-      ))}
-    </group>
+    <>
+      <group ref={stationGroupRef}>
+        {activeStations.map(id => (
+          <StationNode3D key={id} stationId={id} stateRef={stateRef} onClick={onStationClick} onHover={onStationHover} />
+        ))}
+      </group>
+      <group ref={trainGroupRef}>
+        {trainIds.map(id => (
+          <TrainModel key={id} trainId={id} stateRef={stateRef} onClick={onTrainClick} />
+        ))}
+      </group>
+      <group ref={droneGroupRef}>
+        {droneIds.map(id => (
+          <DroneModel key={id} droneId={id} stateRef={stateRef} />
+        ))}
+      </group>
+    </>
   );
 }
 
@@ -141,21 +141,7 @@ function SceneContent({
   stateRef, audioRef, onStateChange,
   onStationClick, onTrainClick, onStationHover,
 }: SceneContentProps) {
-  const [tick, setTick] = useState(0);
-  const lastTickRef = useRef(0);
-
-  useFrame((_, delta) => {
-    lastTickRef.current += delta;
-    if (lastTickRef.current > 0.25) {
-      lastTickRef.current = 0;
-      setTick(t => t + 1);
-    }
-  });
-
   const state = stateRef.current;
-  const activeStationIds = state.activeStationIds;
-  const trainIds = state.trains.map(t => t.id);
-  const droneIds = state.drones.filter(d => !d.isDestroyed).map(d => d.id);
 
   // Dynamic lighting based on day/night and air raid
   const ambientIntensity = state.isNight ? 0.2 : 0.5;
@@ -167,38 +153,17 @@ function SceneContent({
 
   return (
     <>
-      <OrthographicCamera
-        makeDefault
-        position={[25, 45, 25]}
-        zoom={10}
-        near={-1000}
-        far={1000}
-      />
+      <OrthographicCamera makeDefault position={[25, 45, 25]} zoom={10} near={-1000} far={1000} />
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
       <fog attach="fog" args={[fogColor, 50, 130]} />
 
-      {/* Lighting */}
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
-      <directionalLight
-        position={[20, 40, 10]}
-        intensity={dirIntensity}
-        color={dirColor}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-      {state.isNight && (
-        <hemisphereLight args={['#112244', '#000011', 0.12]} />
-      )}
+      <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+      {state.isNight && <hemisphereLight args={['#112244', '#000011', 0.12]} />}
       {state.isAirRaid && (
-        <pointLight
-          position={[0, 30, 0]}
-          color="#ff2200"
-          intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25}
-          distance={120}
-        />
+        <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25} distance={120} />
       )}
 
       {/* Ground */}
@@ -206,7 +171,6 @@ function SceneContent({
         <planeGeometry args={[160, 130]} />
         <meshStandardMaterial color={groundColor} metalness={0.05} roughness={0.95} />
       </mesh>
-
       <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
 
       <RiverPlane />
@@ -217,35 +181,13 @@ function SceneContent({
       <MetroLine3D line="blue" stateRef={stateRef} />
       <MetroLine3D line="green" stateRef={stateRef} />
 
-      {/* Stations */}
-      {activeStationIds.map(id => (
-        <StationNode3D
-          key={id}
-          stationId={id}
-          stateRef={stateRef}
-          onClick={onStationClick}
-          onHover={onStationHover}
-        />
-      ))}
-
-      {/* Trains */}
-      {trainIds.map(id => (
-        <TrainModel
-          key={id}
-          trainId={id}
-          stateRef={stateRef}
-          onClick={onTrainClick}
-        />
-      ))}
-
-      {/* Drones */}
-      {droneIds.map(id => (
-        <DroneModel
-          key={id}
-          droneId={id}
-          stateRef={stateRef}
-        />
-      ))}
+      {/* Dynamic entities with smart re-render */}
+      <DynamicEntities
+        stateRef={stateRef}
+        onStationClick={onStationClick}
+        onTrainClick={onTrainClick}
+        onStationHover={onStationHover}
+      />
 
       <ExplosionsLayer stateRef={stateRef} />
       <RepairUnitsLayer stateRef={stateRef} />

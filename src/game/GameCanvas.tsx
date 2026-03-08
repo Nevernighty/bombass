@@ -3,8 +3,11 @@ import { Canvas } from '@react-three/fiber';
 import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity } from './GameEngine';
 import { GameState } from './types';
 import { AudioEngine } from './AudioEngine';
-import { METRO_LINES, GAME_CONFIG } from './constants';
+import { GAME_CONFIG } from './constants';
 import SceneContent from './Scene3D';
+import { TopBar } from './ui/TopBar';
+import { StationPanel } from './ui/StationPanel';
+import { ActionBar } from './ui/ActionBar';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -168,53 +171,48 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   const state = hudState;
 
-  const handleBuyTrain = (line: 'red' | 'blue' | 'green') => {
+  // Memoized handlers
+  const handleBuyTrain = useCallback((line: 'red' | 'blue' | 'green') => {
     stateRef.current = purchaseTrain({ ...stateRef.current }, line);
     setHudState({ ...stateRef.current });
-  };
-  const handleDeployAA = () => {
+  }, []);
+  const handleDeployAA = useCallback(() => {
     const sid = selectedStation || state.hoveredStation;
     if (sid) { stateRef.current = deployAntiAir({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
-  };
-  const handleShield = () => {
+  }, [selectedStation, state.hoveredStation]);
+  const handleShield = useCallback(() => {
     const sid = selectedStation || state.hoveredStation;
     if (sid) { stateRef.current = activateShield({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
-  };
-  const handleReinforcements = () => {
+  }, [selectedStation, state.hoveredStation]);
+  const handleReinforcements = useCallback(() => {
     stateRef.current = callReinforcements({ ...stateRef.current });
     setHudState({ ...stateRef.current });
-  };
-  const handleUpgradeStation = () => {
+  }, []);
+  const handleUpgradeStation = useCallback(() => {
     const sid = selectedStation || state.hoveredStation;
     if (sid) { stateRef.current = upgradeStation({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
-  };
-  const handleEvacuate = () => {
+  }, [selectedStation, state.hoveredStation]);
+  const handleEvacuate = useCallback(() => {
     const sid = selectedStation || state.hoveredStation;
     if (sid) { stateRef.current = evacuateStation({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
-  };
-  const handleToggleStation = () => {
+  }, [selectedStation, state.hoveredStation]);
+  const handleToggleStation = useCallback(() => {
     const sid = selectedStation || state.hoveredStation;
     if (sid) { stateRef.current = toggleStationOpen({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
-  };
-  const handleUpgradeTrain = () => {
+  }, [selectedStation, state.hoveredStation]);
+  const handleUpgradeTrain = useCallback(() => {
     if (state.selectedTrain) {
       stateRef.current = upgradeTrainCapacity({ ...stateRef.current }, state.selectedTrain);
       setHudState({ ...stateRef.current });
     }
-  };
-  const handleSpeedChange = (mult: number) => {
+  }, [state.selectedTrain]);
+  const handleSpeedChange = useCallback((mult: number) => {
     stateRef.current = setSpeedMultiplier({ ...stateRef.current }, mult);
     setHudState({ ...stateRef.current });
-  };
+  }, []);
 
   const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
-
-  const formatTime = (ms: number) => {
-    const totalSec = Math.floor(ms / 1000);
-    const m = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
+  const selectedTrainLevel = state.selectedTrain ? (state.trains.find(t => t.id === state.selectedTrain)?.level || 1) : 1;
 
   return (
     <div
@@ -229,11 +227,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <Canvas
-        shadows
-        gl={{ antialias: true, alpha: false }}
-        style={{ background: '#060a14' }}
-      >
+      <Canvas shadows gl={{ antialias: true, alpha: false }} style={{ background: '#060a14' }}>
         <Suspense fallback={null}>
           <SceneContent
             stateRef={stateRef}
@@ -277,7 +271,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             <h2 className="text-3xl font-bold mb-4" style={{ color: '#ef4444' }}>ГАМОВЕР</h2>
             <div className="grid grid-cols-2 gap-3 text-sm mb-6" style={{ color: '#9ca3af' }}>
               <div>Рахунок: <span className="text-white font-bold">{state.score}</span></div>
-              <div>Час: <span className="text-white font-bold">{formatTime(state.elapsedTime)}</span></div>
+              <div>Час: <span className="text-white font-bold">{Math.floor(state.elapsedTime / 60000)}:{String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}</span></div>
               <div>Пасажирів: <span className="text-white font-bold">{state.passengersDelivered}</span></div>
               <div>Дронів збито: <span className="text-white font-bold">{state.dronesIntercepted}/{state.totalDrones}</span></div>
               <div>Макс. комбо: <span className="text-white font-bold">x{state.maxCombo.toFixed(1)}</span></div>
@@ -297,41 +291,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       {/* HUD */}
       {state.gameStarted && !state.gameOver && (
         <>
-          {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-2 pointer-events-none">
-            <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-white font-bold text-base">{Math.round(state.score)}</span>
-                <span style={{ color: '#eab308' }}>x{(Math.round(state.combo * 10) / 10).toFixed(1)}</span>
-                <span style={{ color: '#22c55e' }}>💰{state.money}</span>
-                <span>{'❤️'.repeat(state.lives)}{'🖤'.repeat(Math.max(0, 3 - state.lives))}</span>
-              </div>
-              <div className="flex gap-1 mt-1">
-                {[1, 2, 5, 10].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => handleSpeedChange(s)}
-                    className="px-2 py-0.5 rounded text-xs font-bold transition-colors"
-                    style={state.speedMultiplier === s
-                      ? { background: '#eab308', color: '#1a1a2e' }
-                      : { background: 'rgba(255,255,255,0.05)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }
-                    }
-                  >
-                    {s}x
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="flex items-center gap-3 text-xs" style={{ color: '#9ca3af' }}>
-                <span>⏱ {formatTime(state.elapsedTime)}</span>
-                <span>🚇 {state.passengersDelivered}</span>
-                <span>🎯 {state.dronesIntercepted}/{state.totalDrones}</span>
-                <span>📊 {state.networkEfficiency}%</span>
-                <span>{state.isNight ? '🌙' : '☀️'}</span>
-              </div>
-            </div>
-          </div>
+          <TopBar
+            score={state.score}
+            combo={state.combo}
+            money={state.money}
+            lives={state.lives}
+            speedMultiplier={state.speedMultiplier}
+            elapsedTime={state.elapsedTime}
+            passengersDelivered={state.passengersDelivered}
+            dronesIntercepted={state.dronesIntercepted}
+            totalDrones={state.totalDrones}
+            networkEfficiency={state.networkEfficiency}
+            isNight={state.isNight}
+            onSpeedChange={handleSpeedChange}
+          />
 
           {/* Air Raid Banner */}
           {state.isAirRaid && (
@@ -351,14 +324,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 <div className="w-48 h-2 rounded-full overflow-hidden mx-auto" style={{ background: '#374151' }}>
                   <div className="h-full transition-all rounded-full" style={{ width: `${(state.qteTimer / 2000) * 100}%`, background: '#eab308' }} />
                 </div>
-                {state.qteDroneId && (() => {
-                  const drone = state.drones.find(d => d.id === state.qteDroneId);
-                  return drone ? (
-                    <p className="text-xs mt-2" style={{ color: '#9ca3af' }}>
-                      {drone.droneType.toUpperCase()} • HP: {drone.hp}/{drone.maxHp}
-                    </p>
-                  ) : null;
-                })()}
               </div>
             </div>
           )}
@@ -372,106 +337,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
           {/* Station panel */}
           {selStation && (
-            <div className="absolute bottom-20 left-3 px-3 py-2 rounded-lg text-xs pointer-events-auto max-w-xs" style={{ background: 'rgba(10,15,30,0.92)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div className="flex justify-between items-center mb-1">
-                <p className="text-white font-bold text-sm">{selStation.nameUa}</p>
-                <button onClick={() => setSelectedStation(null)} className="text-xs hover:text-white" style={{ color: '#6b7280' }}>✕</button>
-              </div>
-              <p className="mb-2" style={{ color: '#9ca3af' }}>
-                {selStation.line === 'red' ? 'M1' : selStation.line === 'blue' ? 'M2' : 'M3'} •
-                {selStation.depth === 'deep' ? ' Глибока' : ' Мілка'} •
-                Рівень {selStation.level} •
-                HP {selStation.hp}/{selStation.maxHp}
-                {selStation.isOnFire ? ' 🔥' : ''}
-                {selStation.isDestroyed ? ' 💀' : ''}
-                {selStation.hasAntiAir ? ' 🛡️' : ''}
-              </p>
-              {/* HP bar */}
-              <div className="w-full h-1.5 rounded-full mb-2" style={{ background: '#374151' }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${(selStation.hp / selStation.maxHp) * 100}%`, background: selStation.hp > 50 ? '#22c55e' : '#ef4444' }} />
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                <button onClick={handleDeployAA} disabled={state.money < GAME_CONFIG.ANTI_AIR_COST || selStation.hasAntiAir}
-                  className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                  style={{ color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
-                  🛡️ ПРО ({GAME_CONFIG.ANTI_AIR_COST}💰)
-                </button>
-                <button onClick={handleShield} disabled={state.money < GAME_CONFIG.SHIELD_COST || selStation.shieldTimer > 0}
-                  className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                  style={{ color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
-                  ⚡ Щит ({GAME_CONFIG.SHIELD_COST}💰)
-                </button>
-                <button onClick={handleUpgradeStation} disabled={state.money < GAME_CONFIG.UPGRADE_COST * selStation.level || selStation.level >= 3}
-                  className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                  style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
-                  ⬆️ Рівень ({GAME_CONFIG.UPGRADE_COST * selStation.level}💰)
-                </button>
-                <button onClick={handleEvacuate} disabled={selStation.passengers.length === 0}
-                  className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                  style={{ color: '#f97316', border: '1px solid rgba(249,115,22,0.3)' }}>
-                  🚨 Евак
-                </button>
-                <button onClick={handleToggleStation}
-                  className="px-2 py-1 rounded text-xs transition-colors"
-                  style={{ color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
-                  {selStation.isOpen ? '🔒 Закр' : '🔓 Відкр'}
-                </button>
-              </div>
-            </div>
+            <StationPanel
+              station={selStation}
+              money={state.money}
+              onClose={() => setSelectedStation(null)}
+              onDeployAA={handleDeployAA}
+              onShield={handleShield}
+              onUpgrade={handleUpgradeStation}
+              onEvacuate={handleEvacuate}
+              onToggle={handleToggleStation}
+            />
           )}
 
-          {/* Bottom action bar */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-auto">
-            <div className="flex gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(10,15,30,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              {(['red', 'blue', 'green'] as const).map(line => (
-                <button
-                  key={line}
-                  onClick={() => handleBuyTrain(line)}
-                  className="px-2 py-1 rounded text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-30"
-                  style={{ background: METRO_LINES[line].color, color: '#fff' }}
-                  disabled={state.money < GAME_CONFIG.TRAIN_COST}
-                  title={`Купити потяг (${GAME_CONFIG.TRAIN_COST}💰)`}
-                >
-                  🚇+ {GAME_CONFIG.TRAIN_COST}💰
-                </button>
-              ))}
-              <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)' }} />
-              <button onClick={handleReinforcements} disabled={state.money < GAME_CONFIG.REINFORCEMENT_COST}
-                className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                style={{ color: '#f97316', border: '1px solid rgba(249,115,22,0.2)' }}>
-                🚒 ДСНС ({GAME_CONFIG.REINFORCEMENT_COST}💰)
-              </button>
-              {state.selectedTrain && (
-                <button onClick={handleUpgradeTrain}
-                  disabled={state.money < GAME_CONFIG.UPGRADE_COST * (state.trains.find(t => t.id === state.selectedTrain)?.level || 1)}
-                  className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
-                  style={{ color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)' }}>
-                  ⬆️ Потяг
-                </button>
-              )}
-            </div>
-          </div>
+          <ActionBar
+            money={state.money}
+            selectedTrain={state.selectedTrain}
+            selectedTrainLevel={selectedTrainLevel}
+            onBuyTrain={handleBuyTrain}
+            onReinforcements={handleReinforcements}
+            onUpgradeTrain={handleUpgradeTrain}
+          />
 
           {/* Zoom controls */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
             <button
               onClick={() => { stateRef.current.camera.targetZoom = Math.min(4, stateRef.current.camera.targetZoom * 1.3); }}
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              +
-            </button>
+              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
             <button
               onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.3, stateRef.current.camera.targetZoom * 0.7); }}
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              −
-            </button>
+              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>−</button>
             <button
               onClick={() => { stateRef.current.camera.targetX = 0; stateRef.current.camera.targetY = 0; stateRef.current.camera.targetZoom = 1; }}
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              ⌂
-            </button>
+              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>⌂</button>
           </div>
         </>
       )}

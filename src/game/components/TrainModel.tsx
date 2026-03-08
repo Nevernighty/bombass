@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF, Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from '../types';
-import { METRO_LINES, STATIONS, toWorld } from '../constants';
+import { METRO_LINES, STATION_MAP, toWorld } from '../constants';
 import { getActiveLineStations, easeInOutQuad } from '../GameEngine';
 
 interface TrainModelProps {
@@ -84,8 +84,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       if (route.length >= 2) {
         const curIdx = t.routeIndex;
         const nextIdx = Math.max(0, Math.min(route.length - 1, curIdx + t.direction));
-        const curSt = STATIONS.find(s => s.id === route[curIdx]);
-        const nextSt = STATIONS.find(s => s.id === route[nextIdx]);
+        const curSt = STATION_MAP.get(route[curIdx]);
+        const nextSt = STATION_MAP.get(route[nextIdx]);
         if (curSt && nextSt && curSt.id !== nextSt.id) {
           const [cx, , cz] = toWorld(curSt.x, curSt.y);
           const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
