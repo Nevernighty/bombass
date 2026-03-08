@@ -13,6 +13,7 @@ import { CameraControls } from './ui/CameraControls';
 import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
+import { TrainPanel } from './ui/TrainPanel';
 import { Achievement } from './types';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
@@ -97,7 +98,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   const handleTrainClick = useCallback((trainId: string) => {
     audioRef.current.playClick();
-    stateRef.current = reverseTrain({ ...stateRef.current }, trainId);
     stateRef.current.selectedTrain = trainId;
     setHudState({ ...stateRef.current });
   }, []);
