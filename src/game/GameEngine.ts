@@ -610,7 +610,7 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
           speed: config.speed, angle: 0, isDestroyed: false,
           wobble: Math.random() * Math.PI * 2,
           droneType, hp: config.hp, maxHp: config.hp,
-          targetBuildingIdx: -1,
+          targetBuildingIdx: -1, isStunned: false, stunTimer: 0,
         });
         s.totalDrones++;
         s.raidDronesSpawned++;
@@ -1143,7 +1143,7 @@ export function purchaseTrain(state: GameState, line: 'red' | 'blue' | 'green'):
   state.trains.push({
     id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
     speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-    x: startStation.x, y: startStation.y, dwellTimer: 0, isDwelling: false, level: 1,
+    x: startStation.x, y: startStation.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
   });
   return state;
 }
