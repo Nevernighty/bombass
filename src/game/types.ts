@@ -279,6 +279,8 @@ export interface GameState {
   passiveIncomeTimer: number;
   victoryLapActive: boolean;
   swarmWarningTimer: number;
+  // Phase 17
+  closedSegments: { line: string; from: string; to: string; timer: number }[];
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }
