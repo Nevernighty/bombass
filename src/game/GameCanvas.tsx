@@ -611,13 +611,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             ]).map(cm => (
               <button key={cm.mode} onClick={() => setCameraMode(cm.mode)}
                 title={cm.label}
-                className="w-10 h-10 rounded-lg flex flex-col items-center justify-center text-sm transition-all"
+                className="game-btn-hover w-10 h-10 rounded-xl flex flex-col items-center justify-center text-sm"
                 style={{
-                  background: state.camera.mode === cm.mode ? 'rgba(234,179,8,0.3)' : 'rgba(10,15,30,0.85)',
-                  border: `1px solid ${state.camera.mode === cm.mode ? 'rgba(234,179,8,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  background: state.camera.mode === cm.mode ? 'rgba(234,179,8,0.25)' : 'rgba(8,12,28,0.9)',
+                  border: `1px solid ${state.camera.mode === cm.mode ? 'rgba(234,179,8,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                  boxShadow: state.camera.mode === cm.mode ? '0 0 10px rgba(234,179,8,0.2)' : 'none',
                 }}>
                 <span>{cm.icon}</span>
-                <span className="text-[7px]" style={{ color: '#6b7280' }}>{cm.key}</span>
+                <span className="text-[7px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{cm.key}</span>
               </button>
             ))}
             <div className="h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
