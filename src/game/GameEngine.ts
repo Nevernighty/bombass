@@ -1035,6 +1035,12 @@ function updatePhysics(s: GameState, realDt: number): void {
     return e.alpha > 0;
   });
 
+  // Closed segments decay
+  s.closedSegments = s.closedSegments.filter(seg => {
+    seg.timer -= realDt;
+    return seg.timer > 0;
+  });
+
   if (s.speedBoostTimer > 0) {
     s.speedBoostTimer -= realDt;
     if (s.speedBoostTimer <= 0) {
