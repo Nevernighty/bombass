@@ -1,32 +1,14 @@
-import React, { useRef, useMemo, Suspense } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, Billboard, Text } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, DroneType } from '../types';
-import { DRONE_TYPES, toWorld } from '../constants';
+import { DRONE_TYPES, STATION_MAP, toWorld } from '../constants';
 
 interface DroneModelProps {
   droneId: string;
   stateRef: React.MutableRefObject<GameState>;
 }
-
-const DRONE_GLB: Record<DroneType, string> = {
-  shahed: '/models/shahed_136.glb',
-  molniya: '/models/molniya_uav.glb',
-  gerbera: '/models/uav_gerbera_low-poly.glb',
-};
-
-const DRONE_SCALE: Record<DroneType, number> = {
-  shahed: 3.5,
-  molniya: 2.0,
-  gerbera: 3.0,
-};
-
-const DRONE_ROTATION_OFFSET: Record<DroneType, [number, number, number]> = {
-  shahed: [0, Math.PI, 0],
-  molniya: [0, 0, 0],
-  gerbera: [0, Math.PI, 0],
-};
 
 const DRONE_FLY_HEIGHT: Record<DroneType, number> = {
   shahed: 6,
@@ -34,24 +16,82 @@ const DRONE_FLY_HEIGHT: Record<DroneType, number> = {
   gerbera: 5,
 };
 
-function DroneGLB({ droneType }: { droneType: DroneType }) {
-  const { scene } = useGLTF(DRONE_GLB[droneType]);
-  const cloned = useMemo(() => scene.clone(), [scene]);
-  const scale = DRONE_SCALE[droneType];
-  const rot = DRONE_ROTATION_OFFSET[droneType];
-  return <primitive object={cloned} scale={scale} rotation={rot} />;
-}
+const DRONE_BODY_COLOR: Record<DroneType, string> = {
+  shahed: '#4a4a4a',
+  molniya: '#666666',
+  gerbera: '#3a3a3a',
+};
 
-function DroneFallback({ droneType }: { droneType: DroneType }) {
+// Lightweight procedural drone — no GLB loading, fast render
+function ProceduralDrone({ droneType }: { droneType: DroneType }) {
+  const bodyColor = DRONE_BODY_COLOR[droneType];
+
+  if (droneType === 'shahed') {
+    // Delta wing shape
+    return (
+      <group>
+        {/* Fuselage */}
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.12, 0.25, 2.5, 6]} />
+          <meshStandardMaterial color={bodyColor} metalness={0.7} roughness={0.3} />
+        </mesh>
+        {/* Delta wings */}
+        <mesh rotation={[0, 0, 0]}>
+          <boxGeometry args={[0.06, 2.2, 0.03]} />
+          <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
+        </mesh>
+        {/* Tail */}
+        <mesh position={[-1.1, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <boxGeometry args={[0.04, 0.8, 0.5]} />
+          <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
+        </mesh>
+        {/* Engine glow */}
+        <mesh position={[-1.3, 0, 0]}>
+          <sphereGeometry args={[0.15, 6, 6]} />
+          <meshBasicMaterial color="#ff4400" transparent opacity={0.6} />
+        </mesh>
+      </group>
+    );
+  }
+
+  if (droneType === 'molniya') {
+    // Small fast drone
+    return (
+      <group>
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.08, 0.15, 1.5, 6]} />
+          <meshStandardMaterial color={bodyColor} metalness={0.8} roughness={0.2} />
+        </mesh>
+        <mesh>
+          <boxGeometry args={[0.04, 1.6, 0.02]} />
+          <meshStandardMaterial color="#777" metalness={0.5} roughness={0.3} />
+        </mesh>
+        <mesh position={[-0.7, 0, 0]}>
+          <sphereGeometry args={[0.1, 6, 6]} />
+          <meshBasicMaterial color="#ff6600" transparent opacity={0.5} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // gerbera — heavy bomber
   return (
     <group>
       <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.15, 0.4, 2.5, 6]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.7} roughness={0.3} />
+        <cylinderGeometry args={[0.2, 0.35, 3.0, 6]} />
+        <meshStandardMaterial color={bodyColor} metalness={0.6} roughness={0.35} />
       </mesh>
       <mesh>
-        <boxGeometry args={[0.08, 2.8, 0.04]} />
-        <meshStandardMaterial color="#555" />
+        <boxGeometry args={[0.08, 3.0, 0.04]} />
+        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <mesh position={[-1.4, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <boxGeometry args={[0.06, 1.0, 0.6]} />
+        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <mesh position={[-1.6, 0, 0]}>
+        <sphereGeometry args={[0.2, 6, 6]} />
+        <meshBasicMaterial color="#ff3300" transparent opacity={0.5} />
       </mesh>
     </group>
   );
@@ -87,49 +127,41 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
     smoothPos.current.lerp(targetPos, Math.min(1, delta * 6));
     groupRef.current.position.copy(smoothPos.current);
 
-    // Smooth rotation toward target
-    const target = state.stations.find(s => s.id === d.targetStationId);
-    if (target) {
-      const [tx, , tz] = toWorld(target.x, target.y);
+    // Smooth rotation toward target station
+    const targetSt = STATION_MAP.get(d.targetStationId);
+    if (targetSt) {
+      const [tx, , tz] = toWorld(targetSt.x, targetSt.y);
       const targetAngle = Math.atan2(tx - smoothPos.current.x, tz - smoothPos.current.z);
 
       if (smoothAngle.current === null) smoothAngle.current = targetAngle;
       let diff = targetAngle - smoothAngle.current;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
-      smoothAngle.current += diff * 0.06;
+      smoothAngle.current += diff * 0.08;
       groupRef.current.rotation.y = smoothAngle.current;
     }
 
-    // Wobble
-    groupRef.current.rotation.z = Math.sin(d.wobble) * 0.06;
-    groupRef.current.rotation.x = Math.sin(d.wobble * 0.7) * 0.03;
+    // Subtle wobble
+    groupRef.current.rotation.z = Math.sin(d.wobble) * 0.04;
+    groupRef.current.rotation.x = Math.sin(d.wobble * 0.7) * 0.02;
   });
 
   return (
     <group ref={groupRef}>
-      <Suspense fallback={<DroneFallback droneType={drone.droneType} />}>
-        <DroneGLB droneType={drone.droneType} />
-      </Suspense>
+      <ProceduralDrone droneType={drone.droneType} />
 
       {/* Danger glow */}
-      <pointLight color="#ff0000" intensity={1.5} distance={6} />
+      <pointLight color="#ff0000" intensity={1.0} distance={5} />
 
-      {/* Engine trail */}
-      <mesh position={[-0.8, 0, 0]}>
-        <sphereGeometry args={[0.3, 6, 6]} />
-        <meshBasicMaterial color="#ff4400" transparent opacity={0.4} />
-      </mesh>
-
-      {/* HP indicator */}
+      {/* HP for multi-HP drones */}
       {drone.maxHp > 1 && (
         <Billboard>
           <Text
             position={[0, 2, 0]}
-            fontSize={0.5}
+            fontSize={0.45}
             color={drone.hp > 1 ? '#ffaa00' : '#ff0000'}
             anchorX="center"
-            outlineWidth={0.04}
+            outlineWidth={0.03}
             outlineColor="#000"
           >
             {`HP ${drone.hp}/${drone.maxHp}`}
@@ -140,8 +172,8 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
       {/* Type label */}
       <Billboard>
         <Text
-          position={[0, -1.5, 0]}
-          fontSize={0.4}
+          position={[0, -1.2, 0]}
+          fontSize={0.35}
           color="#ff4444"
           anchorX="center"
           outlineWidth={0.03}
@@ -153,7 +185,3 @@ export function DroneModel({ droneId, stateRef }: DroneModelProps) {
     </group>
   );
 }
-
-try { useGLTF.preload('/models/shahed_136.glb'); } catch {}
-try { useGLTF.preload('/models/molniya_uav.glb'); } catch {}
-try { useGLTF.preload('/models/uav_gerbera_low-poly.glb'); } catch {}
