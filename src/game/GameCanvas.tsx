@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, globalEventBus } from './GameEngine';
-import { GameState, GameMode } from './types';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, globalEventBus } from './GameEngine';
+import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
 import { SCENARIOS } from './config/scenarios';
@@ -9,7 +9,6 @@ import SceneContent from './Scene3D';
 import { TopBar } from './ui/TopBar';
 import { StationPanel } from './ui/StationPanel';
 import { ActionBar } from './ui/ActionBar';
-import { Minimap } from './ui/Minimap';
 import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Achievement } from './types';
@@ -38,6 +37,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const stateRef = useRef<GameState>(createInitialState());
   const audioRef = useRef<AudioEngine>(new AudioEngine());
   const isPanningRef = useRef(false);
+  const isRotatingRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const [hudState, setHudState] = useState<GameState>(stateRef.current);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
@@ -70,7 +70,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   }, []);
 
   const handleStateChange = useCallback((state: GameState) => {
-    // Check for new achievements
     const unlocked = state.achievements.filter(a => a.unlocked);
     if (unlocked.length > prevAchCountRef.current) {
       const newest = unlocked[unlocked.length - 1];
@@ -110,9 +109,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     setHudState({ ...stateRef.current });
   }, []);
 
-  const handleMinimapPan = useCallback((nx: number, ny: number) => {
-    stateRef.current.camera.targetX = (0.5 - nx) * 100;
-    stateRef.current.camera.targetY = (0.5 - ny) * 80;
+  const setCameraMode = useCallback((mode: CameraMode) => {
+    stateRef.current.camera.mode = mode;
+    if (mode === 'overview') {
+      stateRef.current.camera.targetX = 0;
+      stateRef.current.camera.targetY = 0;
+      stateRef.current.camera.targetZoom = 0.4;
+    } else if (mode === 'free') {
+      stateRef.current.camera.targetZoom = 1;
+    }
+    setHudState({ ...stateRef.current });
   }, []);
 
   useEffect(() => {
@@ -126,16 +132,34 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === '2') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 2); setHudState({ ...stateRef.current }); }
       if (e.key === '3') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 5); setHudState({ ...stateRef.current }); }
       if (e.key === '4') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 10); setHudState({ ...stateRef.current }); }
+      // Camera mode shortcuts
+      if (e.key === 'f' || e.key === 'F') setCameraMode('follow');
+      if (e.key === 'o' || e.key === 'O') setCameraMode('overview');
+      if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
+      if (e.key === 'Escape') setCameraMode('free');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [setCameraMode]);
 
   const containerRef = useWheelHandler(stateRef);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => { isPanningRef.current = true; panStartRef.current = { x: e.clientX, y: e.clientY }; }, []);
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 2) {
+      // Right-click: start rotation
+      isRotatingRef.current = true;
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+    } else {
+      isPanningRef.current = true;
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+    }
+  }, []);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanningRef.current) {
+    if (isRotatingRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      stateRef.current.camera.orbitAngle += dx * 0.005;
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+    } else if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       const zoom = stateRef.current.camera.zoom;
@@ -145,7 +169,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       panStartRef.current = { x: e.clientX, y: e.clientY };
     }
   }, []);
-  const handleMouseUp = useCallback(() => { isPanningRef.current = false; }, []);
+  const handleMouseUp = useCallback(() => { isPanningRef.current = false; isRotatingRef.current = false; }, []);
   const handleContextMenu = useCallback((e: React.MouseEvent) => { e.preventDefault(); }, []);
 
   const touchStartRef = useRef<{ x: number; y: number; dist: number } | null>(null);
@@ -217,6 +241,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         }} />
       )}
 
+      {/* Rain overlay */}
+      {state.isRaining && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'linear-gradient(180deg, rgba(100,150,200,0.03) 0%, rgba(50,80,120,0.08) 100%)',
+          backgroundSize: '3px 15px',
+        }} />
+      )}
+
       {/* Achievement toast */}
       <AchievementToast achievement={lastAchievement} onDismiss={() => setLastAchievement(null)} />
 
@@ -241,8 +273,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               ))}
             </div>
             <div className="text-xs space-y-0.5" style={{ color: '#6b7280' }}>
-              <p>🖱️ Перетягуйте — камера | Колесо — зум | 🎯 Клік по дрону — атакувати</p>
-              <p>⏸️ Пробіл — пауза | 1-4 — швидкість</p>
+              <p>🖱️ Перетягуйте — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону — атакувати</p>
+              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F — слідкувати | O — огляд | C — кінематограф</p>
             </div>
           </div>
         </div>
@@ -263,7 +295,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               <div>Макс. комбо: <span className="text-white font-bold">x{state.maxCombo.toFixed(1)}</span></div>
               <div>Будівлі знищено: <span className="text-white font-bold">{state.buildingsDestroyed}</span></div>
             </div>
-            {/* Achievements earned */}
             {state.achievements.filter(a => a.unlocked).length > 0 && (
               <div className="mb-4">
                 <p className="text-xs mb-1" style={{ color: '#eab308' }}>Досягнення:</p>
@@ -296,6 +327,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             rushHourActive={state.rushHourActive} radarActive={state.radarActive}
             satisfactionRate={state.satisfactionRate} buildingsDestroyed={state.buildingsDestroyed}
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
+            cameraMode={state.camera.mode} isRaining={state.isRaining}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
 
@@ -334,6 +366,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onSpeedBoost={() => act(s => emergencySpeedBoost(s, selStation.line))}
               onExpressLine={() => act(s => activateExpressLine(s, selStation.line))}
               onStationMagnet={() => act(s => activateStationMagnet(s, selStation.id))}
+              onBuySAM={() => act(s => buySAMBattery(s, selStation.id))}
+              onBuyAATurret={() => act(s => buyAATurret(s, selStation.id))}
+              onLaunchInterceptor={() => act(s => launchInterceptor(s, selStation.id))}
             />
           )}
 
@@ -361,18 +396,33 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onEmergencyFund={() => act(s => emergencyFund(s))}
           />
 
-          <Minimap stateRef={stateRef} onPanTo={handleMinimapPan} />
-
-          {/* Zoom controls */}
+          {/* Camera mode toolbar */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
+            {([
+              { mode: 'free' as CameraMode, icon: '🖱️', label: 'Вільна (Esc)' },
+              { mode: 'follow' as CameraMode, icon: '🚇', label: 'Слідкувати (F)' },
+              { mode: 'overview' as CameraMode, icon: '🗺️', label: 'Огляд (O)' },
+              { mode: 'cinematic' as CameraMode, icon: '🎬', label: 'Кіно (C)' },
+            ]).map(cm => (
+              <button key={cm.mode} onClick={() => setCameraMode(cm.mode)}
+                title={cm.label}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-sm transition-all"
+                style={{
+                  background: state.camera.mode === cm.mode ? 'rgba(234,179,8,0.3)' : 'rgba(10,15,30,0.85)',
+                  border: `1px solid ${state.camera.mode === cm.mode ? 'rgba(234,179,8,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                }}>
+                {cm.icon}
+              </button>
+            ))}
+            <div className="h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
             <button onClick={() => { stateRef.current.camera.targetZoom = Math.min(4, stateRef.current.camera.targetZoom * 1.3); }}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
             <button onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.3, stateRef.current.camera.targetZoom * 0.7); }}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>−</button>
-            <button onClick={() => { stateRef.current.camera.targetX = 0; stateRef.current.camera.targetY = 0; stateRef.current.camera.targetZoom = 1; }}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs"
+            <button onClick={() => { stateRef.current.camera.targetX = 0; stateRef.current.camera.targetY = 0; stateRef.current.camera.targetZoom = 1; stateRef.current.camera.orbitAngle = 0; setCameraMode('free'); }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>⌂</button>
           </div>
         </>

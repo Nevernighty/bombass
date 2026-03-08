@@ -757,6 +757,122 @@ function updatePhase5Timers(s: GameState, realDt: number): void {
   }
 }
 
+// ==================== SYSTEM: Phase 6 (Interceptors, SAM, Weather, Auto-repair) ====================
+function updatePhase6Systems(s: GameState, realDt: number, events: EventBus): void {
+  // --- Interceptor drones chase enemy drones ---
+  s.interceptorDrones = s.interceptorDrones.filter(iDrone => {
+    const target = s.drones.find(d => d.id === iDrone.targetDroneId && !d.isDestroyed);
+    if (!target) return false;
+    const dx = target.x - iDrone.x, dy = target.y - iDrone.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.015) {
+      target.hp -= 2;
+      if (target.hp <= 0) {
+        target.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 20;
+        s.money += 12;
+        s.explosions.push({ x: target.x, y: target.y, radius: 0, maxRadius: 30, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: target.x, y: target.y });
+        addNotification(s, '🛩️ Перехоплення!', target.x, target.y, '#22c55e');
+      }
+      return false;
+    }
+    const moveSpeed = iDrone.speed * realDt / 1000;
+    iDrone.x += (dx / dist) * moveSpeed * 0.05;
+    iDrone.y += (dy / dist) * moveSpeed * 0.05;
+    return true;
+  });
+
+  // --- SAM Battery auto-fire ---
+  for (const st of s.stations) {
+    if (!st.hasSAM || st.isDestroyed) continue;
+    if (st.samCooldown > 0) { st.samCooldown -= realDt; continue; }
+    const nearestDrone = s.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+      const dx = st.x - d.x, dy = st.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.2 && (!best || dist < best.dist)) return { drone: d, dist };
+      return best;
+    }, null as { drone: Drone; dist: number } | null);
+    if (nearestDrone) {
+      nearestDrone.drone.hp--;
+      st.samCooldown = 2000;
+      s.tracerLines.push({
+        id: uid(), fromX: st.x, fromY: st.y,
+        toX: nearestDrone.drone.x, toY: nearestDrone.drone.y,
+        timer: 500, color: '#00ff88',
+      });
+      addNotification(s, '🚀', nearestDrone.drone.x, nearestDrone.drone.y, '#22c55e');
+      if (nearestDrone.drone.hp <= 0) {
+        nearestDrone.drone.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 15;
+        s.money += 10;
+        s.explosions.push({ x: nearestDrone.drone.x, y: nearestDrone.drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: nearestDrone.drone.x, y: nearestDrone.drone.y });
+      }
+    }
+  }
+
+  // --- AA Turret fast fire ---
+  for (const st of s.stations) {
+    if (!st.hasAATurret || st.isDestroyed) continue;
+    if (st.turretCooldown > 0) { st.turretCooldown -= realDt; continue; }
+    const nearestDrone = s.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+      const dx = st.x - d.x, dy = st.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.1 && (!best || dist < best.dist)) return { drone: d, dist };
+      return best;
+    }, null as { drone: Drone; dist: number } | null);
+    if (nearestDrone) {
+      nearestDrone.drone.hp--;
+      st.turretCooldown = 1000;
+      s.tracerLines.push({
+        id: uid(), fromX: st.x, fromY: st.y,
+        toX: nearestDrone.drone.x, toY: nearestDrone.drone.y,
+        timer: 300, color: '#ffaa00',
+      });
+      if (nearestDrone.drone.hp <= 0) {
+        nearestDrone.drone.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 10;
+        s.money += 8;
+        s.explosions.push({ x: nearestDrone.drone.x, y: nearestDrone.drone.y, radius: 0, maxRadius: 20, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: nearestDrone.drone.x, y: nearestDrone.drone.y });
+      }
+    }
+  }
+
+  // --- Tracer lines decay ---
+  s.tracerLines = s.tracerLines.filter(t => {
+    t.timer -= realDt;
+    return t.timer > 0;
+  });
+
+  // --- Weather system ---
+  s.weatherTimer -= realDt;
+  if (s.weatherTimer <= 0) {
+    s.isRaining = !s.isRaining;
+    s.weatherTimer = s.isRaining ? (15000 + Math.random() * 30000) : (30000 + Math.random() * 60000);
+    if (s.isRaining) {
+      addNotification(s, '🌧️ Дощ: дрони -20% швидкість', 0.5, 0.3, '#6b7280');
+    }
+  }
+
+  // --- Auto-repair: stations regenerate 1 HP/5s when not under attack ---
+  s.autoRepairTimer += realDt;
+  if (s.autoRepairTimer >= 5000) {
+    s.autoRepairTimer = 0;
+    const activeSet = new Set(s.activeStationIds);
+    for (const st of s.stations) {
+      if (!activeSet.has(st.id) || st.isDestroyed || st.isOnFire) continue;
+      if (st.hp < st.maxHp) {
+        st.hp = Math.min(st.maxHp, st.hp + 1);
+      }
+    }
+  }
+}
+
 // ==================== SYSTEM: Achievements ====================
 function updateAchievements(s: GameState): void {
   function unlock(id: string) {
