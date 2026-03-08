@@ -5,16 +5,15 @@ import { STATIONS, toWorld } from '../constants';
 import { GameState } from '../types';
 
 const BUILDING_COUNT = 120;
+const STREETLIGHT_COUNT = 40;
 const tempObject = new THREE.Object3D();
 const tempColor = new THREE.Color();
 
-// Deterministic RNG
 function makeRng(seed: number) {
   let s = seed;
   return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
 
-// Generate building data deterministically — shared between component and GameEngine
 export function generateBuildingData() {
   const rand = makeRng(42);
   const buildings: { x: number; y: number; h: number; w: number; d: number; wx: number; wz: number }[] = [];
@@ -42,6 +41,26 @@ export function generateBuildingData() {
 
 const BUILDING_DATA = generateBuildingData();
 
+// Generate streetlight positions
+function generateStreetlights() {
+  const rand = makeRng(77);
+  const lights: { wx: number; wz: number }[] = [];
+  for (let i = 0; i < 80 && lights.length < STREETLIGHT_COUNT; i++) {
+    const nx = rand();
+    const ny = rand();
+    const [wx, , wz] = toWorld(nx, ny);
+    const tooClose = STATIONS.some(s => {
+      const [sx, , sz] = toWorld(s.x, s.y);
+      return Math.sqrt((wx - sx) ** 2 + (wz - sz) ** 2) < 3;
+    });
+    if (tooClose) continue;
+    lights.push({ wx, wz });
+  }
+  return lights;
+}
+
+const STREETLIGHT_DATA = generateStreetlights();
+
 interface CityBuildingsProps {
   stateRef?: React.MutableRefObject<GameState>;
 }
@@ -49,6 +68,8 @@ interface CityBuildingsProps {
 export function CityBuildings({ stateRef }: CityBuildingsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const windowMeshRef = useRef<THREE.InstancedMesh>(null);
+  const lightPoleRef = useRef<THREE.InstancedMesh>(null);
+  const lightGlowRef = useRef<THREE.InstancedMesh>(null);
   const initialized = useRef(false);
 
   const { baseColors } = useMemo(() => {
@@ -63,7 +84,7 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     return { baseColors: cols };
   }, []);
 
-  // Initialize instances
+  // Initialize building instances
   useEffect(() => {
     if (!meshRef.current) return;
     BUILDING_DATA.forEach((b, i) => {
@@ -75,6 +96,41 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     });
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+
+    // Initialize window glow instances
+    if (windowMeshRef.current) {
+      BUILDING_DATA.forEach((b, i) => {
+        // Windows on front face
+        tempObject.position.set(b.wx, b.h * 0.6, b.wz + b.d / 2 + 0.01);
+        tempObject.scale.set(b.w * 0.8, b.h * 0.5, 0.05);
+        tempObject.updateMatrix();
+        windowMeshRef.current!.setMatrixAt(i, tempObject.matrix);
+      });
+      windowMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Initialize streetlight poles
+    if (lightPoleRef.current) {
+      STREETLIGHT_DATA.forEach((l, i) => {
+        tempObject.position.set(l.wx, 1.5, l.wz);
+        tempObject.scale.set(0.08, 3, 0.08);
+        tempObject.updateMatrix();
+        lightPoleRef.current!.setMatrixAt(i, tempObject.matrix);
+      });
+      lightPoleRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Initialize streetlight glow spheres
+    if (lightGlowRef.current) {
+      STREETLIGHT_DATA.forEach((l, i) => {
+        tempObject.position.set(l.wx, 3.2, l.wz);
+        tempObject.scale.set(0.3, 0.3, 0.3);
+        tempObject.updateMatrix();
+        lightGlowRef.current!.setMatrixAt(i, tempObject.matrix);
+      });
+      lightGlowRef.current.instanceMatrix.needsUpdate = true;
+    }
+
     initialized.current = true;
   }, [baseColors]);
 
@@ -103,7 +159,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
         tempObject.scale.set(b.w, h, b.d);
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
-        // Darken damaged buildings
         tempColor.copy(baseColors[i]).lerp(new THREE.Color('#331100'), 1 - ratio);
         meshRef.current!.setColorAt(i, tempColor);
         needsUpdate = true;
@@ -117,12 +172,11 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
 
   return (
     <group>
+      {/* Buildings */}
       <instancedMesh
         ref={meshRef}
         args={[undefined, undefined, BUILDING_DATA.length]}
-        castShadow
-        receiveShadow
-        frustumCulled={false}
+        castShadow receiveShadow frustumCulled={false}
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
@@ -130,6 +184,49 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
           roughness={0.85}
           emissive="#332200"
           emissiveIntensity={0.15}
+        />
+      </instancedMesh>
+
+      {/* Window glow layer */}
+      <instancedMesh
+        ref={windowMeshRef}
+        args={[undefined, undefined, BUILDING_DATA.length]}
+        frustumCulled={false}
+      >
+        <planeGeometry args={[1, 1]} />
+        <meshStandardMaterial
+          color="#000000"
+          emissive="#ffaa44"
+          emissiveIntensity={0.6}
+          transparent
+          opacity={0.4}
+          side={THREE.DoubleSide}
+        />
+      </instancedMesh>
+
+      {/* Streetlight poles */}
+      <instancedMesh
+        ref={lightPoleRef}
+        args={[undefined, undefined, STREETLIGHT_DATA.length]}
+        frustumCulled={false}
+      >
+        <cylinderGeometry args={[1, 1, 1, 4]} />
+        <meshStandardMaterial color="#2a2a30" metalness={0.5} roughness={0.8} />
+      </instancedMesh>
+
+      {/* Streetlight glow */}
+      <instancedMesh
+        ref={lightGlowRef}
+        args={[undefined, undefined, STREETLIGHT_DATA.length]}
+        frustumCulled={false}
+      >
+        <sphereGeometry args={[1, 6, 6]} />
+        <meshStandardMaterial
+          color="#ffcc66"
+          emissive="#ffaa33"
+          emissiveIntensity={1.5}
+          transparent
+          opacity={0.8}
         />
       </instancedMesh>
     </group>

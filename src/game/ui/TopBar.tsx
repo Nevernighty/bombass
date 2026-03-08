@@ -18,6 +18,10 @@ interface TopBarProps {
   maxPower: number;
   rushHourActive: boolean;
   radarActive: boolean;
+  satisfactionRate: number;
+  buildingsDestroyed: number;
+  gameMode: string;
+  winConditionMet: boolean;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -33,6 +37,7 @@ export const TopBar = React.memo(function TopBar({
   elapsedTime, passengersDelivered, dronesIntercepted, totalDrones,
   networkEfficiency, isNight, waveIndex, isAirRaid,
   powerGrid, maxPower, rushHourActive, radarActive,
+  satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
   onSpeedChange,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
@@ -48,15 +53,12 @@ export const TopBar = React.memo(function TopBar({
         </div>
         <div className="flex gap-1 mt-1 items-center flex-wrap">
           {[1, 2, 5, 10].map(s => (
-            <button
-              key={s}
-              onClick={() => onSpeedChange(s)}
+            <button key={s} onClick={() => onSpeedChange(s)}
               className="px-2 py-0.5 rounded text-xs font-bold transition-colors"
               style={speedMultiplier === s
                 ? { background: '#eab308', color: '#1a1a2e' }
                 : { background: 'rgba(255,255,255,0.05)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }
-              }
-            >
+              }>
               {s}x
             </button>
           ))}
@@ -69,11 +71,21 @@ export const TopBar = React.memo(function TopBar({
           </span>
           {rushHourActive && (
             <span className="text-xs font-bold px-2 py-0.5 rounded animate-pulse" style={{
-              background: 'rgba(234,179,8,0.3)',
-              color: '#fbbf24',
-              border: '1px solid rgba(234,179,8,0.5)',
+              background: 'rgba(234,179,8,0.3)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.5)',
             }}>
-              🚇 ГОДИНА ПІК
+              🚇 ПІК
+            </span>
+          )}
+          {gameMode !== 'classic' && (
+            <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}>
+              {gameMode === 'rush_hour' ? '🚇' : gameMode === 'siege' ? '💣' : gameMode === 'blackout' ? '🌑' : '🌉'}
+            </span>
+          )}
+          {winConditionMet && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded animate-pulse" style={{
+              background: 'rgba(34,197,94,0.3)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.5)',
+            }}>
+              🎉 ПЕРЕМОГА
             </span>
           )}
         </div>
@@ -90,6 +102,10 @@ export const TopBar = React.memo(function TopBar({
           <span style={{ color: powerPct < 20 ? '#ef4444' : powerPct < 50 ? '#f59e0b' : '#22c55e' }}>
             ⚡ {powerPct}%
           </span>
+          <span style={{ color: satisfactionRate > 80 ? '#22c55e' : satisfactionRate > 50 ? '#f59e0b' : '#ef4444' }}>
+            😊 {satisfactionRate}%
+          </span>
+          {buildingsDestroyed > 0 && <span style={{ color: '#ef4444' }}>🏚️ {buildingsDestroyed}</span>}
           {radarActive && <span style={{ color: '#06b6d4' }}>📡</span>}
         </div>
       </div>
