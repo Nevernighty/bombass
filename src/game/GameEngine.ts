@@ -1734,13 +1734,36 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
         addNotification(s, '⭐ VIP пасажир!', station.x, station.y, '#fbbf24');
         s.eventLog.push('VIP пасажир з\'явився!');
       }
-    } else if (roll < 0.75) {
+    } else if (roll < 0.65) {
       // Power Flicker — visual only, brief
       s.activeEvents.push({ id: nextId, type: 'power_flicker', timer: 3000 });
       s.screenPulseTimer = 1000;
       s.screenPulseColor = '#6366f1';
       addNotification(s, '⚡ Коливання напруги!', 0.5, 0.5, '#818cf8');
       s.eventLog.push('Коливання напруги');
+    } else if (roll < 0.8) {
+      // Power Surge — all stations get +10 HP
+      s.activeEvents.push({ id: nextId, type: 'power_surge' as any, timer: 5000 });
+      const activeSet = new Set(s.activeStationIds);
+      for (const st of s.stations) {
+        if (activeSet.has(st.id) && !st.isDestroyed) {
+          st.hp = Math.min(st.maxHp, st.hp + 10);
+        }
+      }
+      addNotification(s, '⚡ Енергосплеск! +10HP всім!', 0.5, 0.5, '#22c55e');
+      s.eventLog.push('Енергосплеск: +10HP');
+    } else if (roll < 0.9) {
+      // Tunnel Flood — close random segment for 20s
+      const lines = ['red', 'blue', 'green'];
+      const line = lines[Math.floor(Math.random() * lines.length)];
+      const lineStations = s._cachedLineStations[line];
+      if (lineStations && lineStations.length >= 2) {
+        const idx = Math.floor(Math.random() * (lineStations.length - 1));
+        s.closedSegments.push({ line, from: lineStations[idx], to: lineStations[idx + 1], timer: 20000 });
+        s.activeEvents.push({ id: nextId, type: 'emergency_evac', timer: 20000 });
+        addNotification(s, '🌊 Затоплення тунелю!', 0.5, 0.5, '#3b82f6');
+        s.eventLog.push('Затоплення тунелю!');
+      }
     } else {
       // Emergency Evac — overflow one station
       const activeSet = new Set(s.activeStationIds);
