@@ -70,6 +70,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
     isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
     hasSAM: false, samCooldown: 0, hasAATurret: false, turretCooldown: 0, stationIncome: 0,
+    isFortified: false, empCooldown: 0, panicTimer: 0, passiveIncomeAccum: 0,
   }));
 
   const trains: Train[] = [];
@@ -83,7 +84,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
       });
       trainsCreated++;
     }
@@ -97,7 +98,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: -1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
       });
     }
     trainsCreated++;
@@ -105,7 +106,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
-    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3 },
+    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3, tiltAngle: 0.65, keysDown: new Set<string>() },
     score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
@@ -149,6 +150,14 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     isRaining: false,
     weatherTimer: 30000 + Math.random() * 60000,
     autoRepairTimer: 0,
+    // Phase 7
+    floatingScores: [],
+    killFlashTimer: 0,
+    screenPulseTimer: 0,
+    screenPulseColor: '#22c55e',
+    passiveIncomeTimer: 0,
+    victoryLapActive: false,
+    swarmWarningTimer: 0,
     _cachedLineStations: {},
   };
 }
@@ -529,7 +538,16 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
       return false;
     }
 
-    const moveSpeed = d.speed * jammerMult * realDt / 1000;
+    // Stunned drones don't move
+    if (d.isStunned) {
+      d.stunTimer -= realDt;
+      if (d.stunTimer <= 0) { d.isStunned = false; }
+      return true;
+    }
+
+    // Rain slows drones
+    const rainMult = s.isRaining ? 0.8 : 1;
+    const moveSpeed = d.speed * jammerMult * rainMult * realDt / 1000;
     d.x += (dx / dist) * moveSpeed * 0.03;
     d.y += (dy / dist) * moveSpeed * 0.03;
     return true;
@@ -601,7 +619,7 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
           speed: config.speed, angle: 0, isDestroyed: false,
           wobble: Math.random() * Math.PI * 2,
           droneType, hp: config.hp, maxHp: config.hp,
-          targetBuildingIdx: -1,
+          targetBuildingIdx: -1, isStunned: false, stunTimer: 0,
         });
         s.totalDrones++;
         s.raidDronesSpawned++;
@@ -873,6 +891,26 @@ function updatePhase6Systems(s: GameState, realDt: number, events: EventBus): vo
   }
 }
 
+// ==================== SYSTEM: Phase 7 ====================
+function updatePhase7Systems(s: GameState, realDt: number): void {
+  s.passiveIncomeTimer += realDt;
+  if (s.passiveIncomeTimer >= 10000) {
+    s.passiveIncomeTimer = 0;
+    const activeSet = new Set(s.activeStationIds);
+    const activeCount = s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed).length;
+    s.money += activeCount;
+  }
+  for (const t of s.trains) { if (t.shieldTimer > 0) t.shieldTimer -= realDt; }
+  for (const st of s.stations) {
+    if (st.empCooldown > 0) st.empCooldown -= realDt;
+    if (st.panicTimer > 0) st.panicTimer -= realDt;
+  }
+  if (s.killFlashTimer > 0) s.killFlashTimer -= realDt;
+  if (s.screenPulseTimer > 0) s.screenPulseTimer -= realDt;
+  if (s.swarmWarningTimer > 0) s.swarmWarningTimer -= realDt;
+  s.floatingScores = s.floatingScores.filter(fs => { fs.timer -= realDt; fs.y -= realDt * 0.003; return fs.timer > 0; });
+}
+
 // ==================== SYSTEM: Achievements ====================
 function updateAchievements(s: GameState): void {
   function unlock(id: string) {
@@ -1076,6 +1114,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateComboRewards(s);
   updatePhase5Timers(s, realDt);
   updatePhase6Systems(s, realDt, globalEventBus);
+  updatePhase7Systems(s, realDt);
   updateAchievements(s);
   updateWinConditions(s);
   updatePhysics(s, realDt);
@@ -1096,10 +1135,18 @@ export function attackDrone(state: GameState, droneId: string): GameState {
   if (drone.hp <= 0) {
     drone.isDestroyed = true;
     state.dronesIntercepted++;
-    state.score += Math.round(10 * state.combo);
+    const earned = Math.round(10 * state.combo);
+    state.score += earned;
     state.money += 15;
     state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
-    addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
+    addNotification(state, `🎯 +${earned}`, drone.x, drone.y, '#f1c40f');
+    state.killFlashTimer = 300;
+    state.floatingScores.push({ id: uid(), text: `+${earned}`, x: 50, y: 40, color: '#fbbf24', timer: 1500, scale: 1.2 });
+    // Critical hit chance
+    if (Math.random() < 0.1) {
+      state.score += earned;
+      state.floatingScores.push({ id: uid(), text: 'КРИТ!', x: 52, y: 35, color: '#ef4444', timer: 1200, scale: 1.5 });
+    }
     globalEventBus.emit({ type: 'DRONE_DESTROYED', x: drone.x, y: drone.y });
     state.selectedDroneId = null;
   } else {
@@ -1134,7 +1181,7 @@ export function purchaseTrain(state: GameState, line: 'red' | 'blue' | 'green'):
   state.trains.push({
     id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
     speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-    x: startStation.x, y: startStation.y, dwellTimer: 0, isDwelling: false, level: 1,
+    x: startStation.x, y: startStation.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
   });
   return state;
 }
@@ -1437,6 +1484,46 @@ export function launchInterceptor(state: GameState, stationId: string): GameStat
     sourceStationId: stationId,
   });
   addNotification(state, '🛩️ Перехоплювач запущено!', station.x, station.y, '#22c55e');
+  return state;
+}
+
+// ===== Phase 7 Actions =====
+export function fortifyStation(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.isFortified || state.money < 100) return state;
+  state.money -= 100;
+  station.isFortified = true;
+  station.maxHp *= 2;
+  station.hp = station.maxHp;
+  addNotification(state, '🏰 Укріплено!', station.x, station.y, '#9ca3af');
+  return state;
+}
+
+export function activateDroneEMP(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || state.money < 60 || station.empCooldown > 0) return state;
+  state.money -= 60;
+  station.empCooldown = 45000;
+  let stunned = 0;
+  for (const d of state.drones) {
+    if (d.isDestroyed) continue;
+    const dx = station.x - d.x, dy = station.y - d.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 0.15) {
+      d.isStunned = true;
+      d.stunTimer = 3000;
+      stunned++;
+    }
+  }
+  addNotification(state, `⚡ ЕМІ! ${stunned} дронів оглушено!`, station.x, station.y, '#a855f7');
+  return state;
+}
+
+export function activateTrainShield(state: GameState, trainId: string): GameState {
+  const train = state.trains.find(t => t.id === trainId);
+  if (!train || state.money < 30 || train.shieldTimer > 0) return state;
+  state.money -= 30;
+  train.shieldTimer = 15000;
+  addNotification(state, '🛡️ Щит потяга!', train.x, train.y, '#3b82f6');
   return state;
 }
 

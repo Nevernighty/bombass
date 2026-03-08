@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, globalEventBus } from './GameEngine';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -20,8 +20,9 @@ const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
+      // Logarithmic zoom
       const zoomDelta = e.deltaY > 0 ? 0.92 : 1.08;
-      stateRef.current.camera.targetZoom = Math.max(0.3, Math.min(4, stateRef.current.camera.targetZoom * zoomDelta));
+      stateRef.current.camera.targetZoom = Math.max(0.2, Math.min(5, stateRef.current.camera.targetZoom * zoomDelta));
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
@@ -114,15 +115,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     if (mode === 'overview') {
       stateRef.current.camera.targetX = 0;
       stateRef.current.camera.targetY = 0;
-      stateRef.current.camera.targetZoom = 0.4;
+      stateRef.current.camera.targetZoom = 0.35;
     } else if (mode === 'free') {
       stateRef.current.camera.targetZoom = 1;
     }
     setHudState({ ...stateRef.current });
   }, []);
 
+  // Keyboard shortcuts — WASD + game controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // WASD camera panning (add to keysDown set)
+      if (['w','a','s','d','W','A','S','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+        stateRef.current.camera.keysDown.add(e.key);
+        return;
+      }
+
       if (e.key === ' ') {
         e.preventDefault();
         stateRef.current = { ...stateRef.current, isPaused: !stateRef.current.isPaused };
@@ -137,16 +145,58 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === 'o' || e.key === 'O') setCameraMode('overview');
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
       if (e.key === 'Escape') setCameraMode('free');
+      // Game action shortcuts
+      if (e.key === 'q' || e.key === 'Q') {
+        // Quick buy train — cycle lines
+        const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+        const counts = lines.map(l => stateRef.current.trains.filter(t => t.line === l).length);
+        const minLine = lines[counts.indexOf(Math.min(...counts))];
+        act(s => purchaseTrain(s, minLine));
+      }
+      if (e.key === 'e' || e.key === 'E') act(s => {
+        // Deploy AA at hovered/selected station
+        const sid = s.hoveredStation || selectedStation;
+        return sid ? deployAntiAir(s, sid) : s;
+      });
+      if (e.key === 'r' || e.key === 'R') act(s => callReinforcements(s));
+      if (e.key === 't' || e.key === 'T') act(s => placeDecoy(s));
+      if (e.key === 'g' || e.key === 'G') {
+        // Cycle game speed
+        const speeds = [1, 2, 5, 10];
+        const cur = stateRef.current.speedMultiplier;
+        const idx = speeds.indexOf(cur);
+        const next = speeds[(idx + 1) % speeds.length];
+        stateRef.current = setSpeedMultiplier({ ...stateRef.current }, next);
+        setHudState({ ...stateRef.current });
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        // Cycle stations
+        const ids = stateRef.current.activeStationIds;
+        if (ids.length > 0) {
+          const curIdx = selectedStation ? ids.indexOf(selectedStation) : -1;
+          const nextIdx = (curIdx + 1) % ids.length;
+          setSelectedStation(ids[nextIdx]);
+        }
+      }
     };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      stateRef.current.camera.keysDown.delete(e.key);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setCameraMode]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [setCameraMode, selectedStation]);
 
   const containerRef = useWheelHandler(stateRef);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 2) {
-      // Right-click: start rotation
       isRotatingRef.current = true;
       panStartRef.current = { x: e.clientX, y: e.clientY };
     } else {
@@ -157,7 +207,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isRotatingRef.current) {
       const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
       stateRef.current.camera.orbitAngle += dx * 0.005;
+      // Tilt with vertical mouse movement
+      stateRef.current.camera.tiltAngle = Math.max(0.2, Math.min(1.4, stateRef.current.camera.tiltAngle - dy * 0.003));
       panStartRef.current = { x: e.clientX, y: e.clientY };
     } else if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.x;
@@ -197,7 +250,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (touchStartRef.current.dist > 0) {
         const scale = dist / touchStartRef.current.dist;
-        stateRef.current.camera.targetZoom = Math.max(0.3, Math.min(4, stateRef.current.camera.targetZoom * scale));
+        stateRef.current.camera.targetZoom = Math.max(0.2, Math.min(5, stateRef.current.camera.targetZoom * scale));
       }
       touchStartRef.current = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2, dist };
     }
@@ -227,6 +280,38 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         </Suspense>
       </Canvas>
 
+      {/* Kill flash */}
+      {state.killFlashTimer > 0 && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none" style={{
+          border: '3px solid rgba(255,255,255,0.6)',
+          borderRadius: '4px',
+          opacity: Math.min(1, state.killFlashTimer / 200),
+        }} />
+      )}
+
+      {/* Screen pulse */}
+      {state.screenPulseTimer > 0 && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none" style={{
+          border: `4px solid ${state.screenPulseColor}`,
+          borderRadius: '4px',
+          opacity: Math.min(0.6, state.screenPulseTimer / 500),
+        }} />
+      )}
+
+      {/* Lives warning — red edge glow */}
+      {state.lives <= 1 && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none animate-pulse" style={{
+          boxShadow: 'inset 0 0 60px rgba(239,68,68,0.4)',
+        }} />
+      )}
+
+      {/* Swarm warning */}
+      {state.swarmWarningTimer > 0 && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none animate-pulse" style={{
+          boxShadow: 'inset 0 0 80px rgba(245,158,11,0.3)',
+        }} />
+      )}
+
       {/* Air raid vignette */}
       {state.isAirRaid && state.gameStarted && !state.gameOver && (
         <div className="absolute inset-0 pointer-events-none" style={{
@@ -245,14 +330,49 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       {state.isRaining && state.gameStarted && !state.gameOver && (
         <div className="absolute inset-0 pointer-events-none" style={{
           background: 'linear-gradient(180deg, rgba(100,150,200,0.03) 0%, rgba(50,80,120,0.08) 100%)',
-          backgroundSize: '3px 15px',
         }} />
+      )}
+
+      {/* Floating score numbers */}
+      {state.gameStarted && !state.gameOver && state.floatingScores.map(fs => (
+        <div key={fs.id} className="absolute pointer-events-none font-bold"
+          style={{
+            left: `${fs.x}%`,
+            top: `${fs.y}%`,
+            color: fs.color,
+            fontSize: `${14 + fs.scale * 8}px`,
+            opacity: Math.min(1, fs.timer / 500),
+            transform: `translateX(-50%) translateY(-${(1 - fs.timer / 1500) * 40}px) scale(${0.8 + fs.scale * 0.4})`,
+            textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+            transition: 'none',
+          }}>
+          {fs.text}
+        </div>
+      ))}
+
+      {/* Combo streak bar */}
+      {state.gameStarted && !state.gameOver && state.combo > 1.5 && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-none" style={{ width: '200px' }}>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.5)' }}>
+            <div className="h-full rounded-full transition-all duration-300" style={{
+              width: `${Math.min(100, (state.combo / 5) * 100)}%`,
+              background: state.combo >= 3 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #22c55e, #4ade80)',
+              boxShadow: state.combo >= 3 ? '0 0 10px rgba(245,158,11,0.5)' : 'none',
+            }} />
+          </div>
+          <div className="text-center text-xs font-bold mt-0.5" style={{
+            color: state.combo >= 3 ? '#fbbf24' : '#4ade80',
+            textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+          }}>
+            x{state.combo.toFixed(1)} КОМБО
+          </div>
+        </div>
       )}
 
       {/* Achievement toast */}
       <AchievementToast achievement={lastAchievement} onDismiss={() => setLastAchievement(null)} />
 
-      {/* START SCREEN with Mode Selector */}
+      {/* START SCREEN */}
       {!state.gameStarted && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
           <div className="text-center p-6 rounded-2xl max-w-2xl w-full mx-4" style={{ background: 'rgba(15,22,42,0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -273,8 +393,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               ))}
             </div>
             <div className="text-xs space-y-0.5" style={{ color: '#6b7280' }}>
-              <p>🖱️ Перетягуйте — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону — атакувати</p>
-              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F — слідкувати | O — огляд | C — кінематограф</p>
+              <p>🖱️ Перетягуйте / WASD — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону — атакувати</p>
+              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F — слідкувати | O — огляд | C — кіно</p>
+              <p>Q — потяг | E — ППО | R — підкріплення | T — приманка | G — швидкість | Tab — станції</p>
             </div>
           </div>
         </div>
@@ -328,6 +449,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             satisfactionRate={state.satisfactionRate} buildingsDestroyed={state.buildingsDestroyed}
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
             cameraMode={state.camera.mode} isRaining={state.isRaining}
+            passiveIncome={state.activeStationIds.length}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
 
@@ -369,6 +491,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onBuySAM={() => act(s => buySAMBattery(s, selStation.id))}
               onBuyAATurret={() => act(s => buyAATurret(s, selStation.id))}
               onLaunchInterceptor={() => act(s => launchInterceptor(s, selStation.id))}
+              onFortify={() => act(s => fortifyStation(s, selStation.id))}
+              onEMP={() => act(s => activateDroneEMP(s, selStation.id))}
             />
           )}
 
@@ -394,35 +518,44 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
             onDroneJammer={() => act(s => activateDroneJammer(s))}
             onEmergencyFund={() => act(s => emergencyFund(s))}
+            onTrainShield={() => state.selectedTrain ? act(s => activateTrainShield(s, state.selectedTrain!)) : undefined}
           />
 
           {/* Camera mode toolbar */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
             {([
-              { mode: 'free' as CameraMode, icon: '🖱️', label: 'Вільна (Esc)' },
-              { mode: 'follow' as CameraMode, icon: '🚇', label: 'Слідкувати (F)' },
-              { mode: 'overview' as CameraMode, icon: '🗺️', label: 'Огляд (O)' },
-              { mode: 'cinematic' as CameraMode, icon: '🎬', label: 'Кіно (C)' },
+              { mode: 'free' as CameraMode, icon: '🖱️', label: 'Вільна (Esc)', key: 'Esc' },
+              { mode: 'follow' as CameraMode, icon: '🚇', label: 'Слідкувати (F)', key: 'F' },
+              { mode: 'overview' as CameraMode, icon: '🗺️', label: 'Огляд (O)', key: 'O' },
+              { mode: 'cinematic' as CameraMode, icon: '🎬', label: 'Кіно (C)', key: 'C' },
             ]).map(cm => (
               <button key={cm.mode} onClick={() => setCameraMode(cm.mode)}
                 title={cm.label}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-sm transition-all"
+                className="w-10 h-10 rounded-lg flex flex-col items-center justify-center text-sm transition-all"
                 style={{
                   background: state.camera.mode === cm.mode ? 'rgba(234,179,8,0.3)' : 'rgba(10,15,30,0.85)',
                   border: `1px solid ${state.camera.mode === cm.mode ? 'rgba(234,179,8,0.5)' : 'rgba(255,255,255,0.1)'}`,
                 }}>
-                {cm.icon}
+                <span>{cm.icon}</span>
+                <span className="text-[7px]" style={{ color: '#6b7280' }}>{cm.key}</span>
               </button>
             ))}
             <div className="h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
-            <button onClick={() => { stateRef.current.camera.targetZoom = Math.min(4, stateRef.current.camera.targetZoom * 1.3); }}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+            <button onClick={() => { stateRef.current.camera.targetZoom = Math.min(5, stateRef.current.camera.targetZoom * 1.3); }}
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
-            <button onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.3, stateRef.current.camera.targetZoom * 0.7); }}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+            <button onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.2, stateRef.current.camera.targetZoom * 0.7); }}
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>−</button>
-            <button onClick={() => { stateRef.current.camera.targetX = 0; stateRef.current.camera.targetY = 0; stateRef.current.camera.targetZoom = 1; stateRef.current.camera.orbitAngle = 0; setCameraMode('free'); }}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs"
+            <button onClick={() => {
+              stateRef.current.camera.targetX = 0;
+              stateRef.current.camera.targetY = 0;
+              stateRef.current.camera.targetZoom = 1;
+              stateRef.current.camera.orbitAngle = 0;
+              stateRef.current.camera.tiltAngle = 0.65;
+              setCameraMode('free');
+            }}
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs"
               style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>⌂</button>
           </div>
         </>

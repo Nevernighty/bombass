@@ -33,6 +33,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
   const fireRef = useRef<THREE.PointLight>(null);
   const shieldRef = useRef<THREE.Mesh>(null);
+  const turretRef = useRef<THREE.Group>(null);
+  const pulseRef = useRef<THREE.Mesh>(null);
 
   const station = useMemo(() => {
     return stateRef.current.stations.find(s => s.id === stationId);
@@ -65,7 +67,6 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         matRef.current.emissive.set('#ff4400');
         matRef.current.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
       } else if (st.hp < st.maxHp) {
-        // Damaged tint — lerp toward red based on damage
         const hpRatio = st.hp / st.maxHp;
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(hpRatio < 0.5 ? '#cc2200' : lineColor);
@@ -76,7 +77,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       } else {
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(lineColor);
-        matRef.current.emissiveIntensity = s.isNight ? 0.6 : 0.25;
+        matRef.current.emissiveIntensity = s.isNight ? 1.0 : 0.25;
       }
     }
 
@@ -95,6 +96,37 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         shieldRef.current.rotation.y += delta * 0.5;
       }
     }
+
+    // Turret rotation toward nearest drone
+    if (turretRef.current && (st.hasAATurret || st.hasSAM)) {
+      turretRef.current.visible = true;
+      const nearestDrone = s.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+        const ddx = st.x - d.x, ddy = st.y - d.y;
+        const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+        if (!best || dist < best.dist) return { d, dist };
+        return best;
+      }, null as { d: any; dist: number } | null);
+      if (nearestDrone && nearestDrone.dist < 0.2) {
+        const [dx, , dz] = toWorld(nearestDrone.d.x, nearestDrone.d.y);
+        const angle = Math.atan2(dx - px, dz - pz);
+        turretRef.current.rotation.y += (angle - turretRef.current.rotation.y) * 0.1;
+      }
+    } else if (turretRef.current) {
+      turretRef.current.visible = false;
+    }
+
+    // Pulse ring when passengers waiting
+    if (pulseRef.current) {
+      if (st.passengers.length > 0 && !st.isDestroyed) {
+        pulseRef.current.visible = true;
+        const pulseScale = 1 + Math.sin(Date.now() * 0.003) * 0.15;
+        pulseRef.current.scale.set(pulseScale, pulseScale, 1);
+        (pulseRef.current.material as THREE.MeshBasicMaterial).opacity =
+          0.2 + (st.passengers.length / st.maxPassengers) * 0.3;
+      } else {
+        pulseRef.current.visible = false;
+      }
+    }
   });
 
   const size = 1.5;
@@ -107,6 +139,12 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       onPointerEnter={() => onHover?.(stationId)}
       onPointerLeave={() => onHover?.(null)}
     >
+      {/* Pulse ring for waiting passengers */}
+      <mesh ref={pulseRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]} visible={false}>
+        <ringGeometry args={[size * 1.0, size * 1.3, 24]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
       {/* Platform ring */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
         <ringGeometry args={[size * 0.7, size * 1.0, 24]} />
@@ -133,6 +171,14 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         />
       </mesh>
 
+      {/* Fortification walls */}
+      {station.isFortified && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+          <ringGeometry args={[size + 0.4, size + 0.7, 8]} />
+          <meshStandardMaterial color="#555555" emissive="#333333" emissiveIntensity={0.1} metalness={0.5} roughness={0.6} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
       {/* Transfer ring */}
       {station.isTransfer && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
@@ -141,11 +187,33 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         </mesh>
       )}
 
-      {/* Anti-air indicator */}
-      {station.hasAntiAir && (
+      {/* AA turret / SAM visual */}
+      <group ref={turretRef} position={[0, size + 0.3, 0]} visible={false}>
+        {/* Turret base */}
+        <mesh position={[0, 0, 0]}>
+          <cylinderGeometry args={[0.2, 0.3, 0.3, 6]} />
+          <meshStandardMaterial color="#3a3a4a" metalness={0.7} roughness={0.3} />
+        </mesh>
+        {/* Turret barrel */}
+        <mesh position={[0, 0.1, 0.3]} rotation={[-Math.PI / 6, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.6, 4]} />
+          <meshStandardMaterial color="#2a2a3a" metalness={0.8} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* Anti-air indicator (old style) */}
+      {station.hasAntiAir && !station.hasAATurret && !station.hasSAM && (
         <mesh position={[0, size + 0.8, 0]}>
           <coneGeometry args={[0.25, 0.5, 4]} />
           <meshStandardMaterial color="#3498db" emissive="#3498db" emissiveIntensity={0.5} />
+        </mesh>
+      )}
+
+      {/* Shelter dome */}
+      {station.isSheltering && (
+        <mesh position={[0, 0, 0]}>
+          <sphereGeometry args={[size + 0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshBasicMaterial color="#4488aa" transparent opacity={0.15} side={THREE.DoubleSide} />
         </mesh>
       )}
 
@@ -158,7 +226,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Fire light */}
       <pointLight ref={fireRef} color="#ff4400" intensity={0} distance={6} position={[0, 1.5, 0]} visible={false} />
 
-      {/* Station name — positioned higher to avoid overlap */}
+      {/* Station name */}
       <Billboard>
         <Text
           position={[0, size + 1.8, 0]}
@@ -174,7 +242,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         </Text>
       </Billboard>
 
-      {/* Compact passenger count — only when >0 */}
+      {/* Passenger count */}
       <Billboard>
         <Text
           position={[0, size + 1.3, 0]}
@@ -188,6 +256,20 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           {station.passengers.length > 0 ? `${station.passengers.length}/${station.maxPassengers}` : ''}
         </Text>
       </Billboard>
+
+      {/* HP bar when damaged */}
+      {station.hp < station.maxHp && !station.isDestroyed && (
+        <Billboard>
+          <mesh position={[0, size + 0.9, 0]}>
+            <planeGeometry args={[2, 0.15]} />
+            <meshBasicMaterial color="#333333" transparent opacity={0.7} />
+          </mesh>
+          <mesh position={[(station.hp / station.maxHp - 1) * 1, size + 0.9, 0.01]}>
+            <planeGeometry args={[2 * (station.hp / station.maxHp), 0.12]} />
+            <meshBasicMaterial color={station.hp / station.maxHp > 0.5 ? '#22c55e' : '#ef4444'} />
+          </mesh>
+        </Billboard>
+      )}
     </group>
   );
 }

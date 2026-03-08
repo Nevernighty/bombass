@@ -22,13 +22,15 @@ interface StationPanelProps {
   onBuySAM: () => void;
   onBuyAATurret: () => void;
   onLaunchInterceptor: () => void;
+  onFortify: () => void;
+  onEMP: () => void;
 }
 
 export const StationPanel = React.memo(function StationPanel({
   station, money, isAirRaid, speedBoostCooldown, stationMagnetTimer,
   onClose, onDeployAA, onShield, onUpgrade, onEvacuate, onToggle,
   onShelter, onSealTunnel, onSpeedBoost, onExpressLine, onStationMagnet,
-  onBuySAM, onBuyAATurret, onLaunchInterceptor,
+  onBuySAM, onBuyAATurret, onLaunchInterceptor, onFortify, onEMP,
 }: StationPanelProps) {
   const hpPct = (station.hp / station.maxHp) * 100;
   const hpColor = hpPct > 60 ? '#22c55e' : hpPct > 30 ? '#f59e0b' : '#ef4444';
@@ -43,6 +45,7 @@ export const StationPanel = React.memo(function StationPanel({
         {station.line === 'red' ? 'M1' : station.line === 'blue' ? 'M2' : 'M3'} •
         {station.depth === 'deep' ? ' Глибока' : ' Мілка'} •
         Рівень {station.level}
+        {station.isFortified ? ' 🏰' : ''}
         {station.isOnFire ? ' 🔥' : ''}
         {station.isDestroyed ? ' 💀' : ''}
         {station.hasAntiAir ? ' 🛡️' : ''}
@@ -51,7 +54,7 @@ export const StationPanel = React.memo(function StationPanel({
         {station.isSheltering ? ' 🏠' : ''}
         {station.tunnelSealTimer > 0 ? ' 🚧' : ''}
       </p>
-      {/* HP bar with gradient */}
+      {/* HP bar */}
       <div className="w-full h-2 rounded-full mb-1 overflow-hidden" style={{ background: '#374151' }}>
         <div className="h-full rounded-full transition-all duration-300" style={{
           width: `${hpPct}%`,
@@ -60,7 +63,7 @@ export const StationPanel = React.memo(function StationPanel({
       </div>
       <p className="text-xs mb-1" style={{ color: hpColor }}>{station.hp}/{station.maxHp} HP • 🚶 {station.passengers.length}/{station.maxPassengers} • 💰 {station.stationIncome}</p>
 
-      {/* Passenger shapes preview */}
+      {/* Passenger shapes */}
       {station.passengers.length > 0 && (
         <div className="flex gap-0.5 mb-1.5 flex-wrap">
           {station.passengers.slice(0, 12).map((p, i) => (
@@ -75,7 +78,7 @@ export const StationPanel = React.memo(function StationPanel({
         </div>
       )}
 
-      {/* Defense section */}
+      {/* Defense */}
       <p className="text-xs mb-0.5 mt-1" style={{ color: '#6b7280' }}>🛡️ Оборона</p>
       <div className="flex gap-1 flex-wrap mb-1.5">
         <button onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir}
@@ -97,6 +100,14 @@ export const StationPanel = React.memo(function StationPanel({
         <button onClick={onShield} disabled={money < GAME_CONFIG.SHIELD_COST || station.shieldTimer > 0}
           className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
           ⚡ Щит ({GAME_CONFIG.SHIELD_COST})
+        </button>
+        <button onClick={onFortify} disabled={money < 100 || station.isFortified}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#9ca3af', border: '1px solid rgba(255,255,255,0.2)' }}>
+          🏰 Форт (100)
+        </button>
+        <button onClick={onEMP} disabled={money < 60 || station.empCooldown > 0}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>
+          ⚡ ЕМІ (60)
         </button>
       </div>
 

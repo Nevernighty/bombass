@@ -35,6 +35,11 @@ export interface GameStation {
   hasAATurret: boolean;
   turretCooldown: number;
   stationIncome: number;
+  // Phase 7
+  isFortified: boolean;
+  empCooldown: number;
+  panicTimer: number;
+  passiveIncomeAccum: number;
 }
 
 export interface Passenger {
@@ -61,6 +66,7 @@ export interface Train {
   dwellTimer: number;
   isDwelling: boolean;
   level: number;
+  shieldTimer: number;
 }
 
 export interface Drone {
@@ -76,6 +82,8 @@ export interface Drone {
   hp: number;
   maxHp: number;
   targetBuildingIdx: number;
+  isStunned: boolean;
+  stunTimer: number;
 }
 
 export interface SurfaceVehicle {
@@ -121,6 +129,8 @@ export interface Camera {
   mode: CameraMode;
   orbitAngle: number;
   orbitSpeed: number;
+  tiltAngle: number;
+  keysDown: Set<string>;
 }
 
 export interface BuildingState {
@@ -171,6 +181,16 @@ export interface Achievement {
   condition: string;
   unlocked: boolean;
   unlockedAt?: number;
+}
+
+export interface FloatingScore {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  color: string;
+  timer: number;
+  scale: number;
 }
 
 export interface GameState {
@@ -251,6 +271,14 @@ export interface GameState {
   isRaining: boolean;
   weatherTimer: number;
   autoRepairTimer: number;
+  // Phase 7
+  floatingScores: FloatingScore[];
+  killFlashTimer: number;
+  screenPulseTimer: number;
+  screenPulseColor: string;
+  passiveIncomeTimer: number;
+  victoryLapActive: boolean;
+  swarmWarningTimer: number;
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }
