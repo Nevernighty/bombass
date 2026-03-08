@@ -25,7 +25,7 @@ export interface GameStation {
   shelterCount: number;
   hasAntiAir: boolean;
   shieldTimer: number;
-  level: number; // upgrade level 1-3
+  level: number;
 }
 
 export interface Passenger {
@@ -33,6 +33,7 @@ export interface Passenger {
   shape: PassengerShape;
   spawnTime: number;
   stationId: string;
+  patience: number; // ms remaining before leaving
 }
 
 export type DroneType = 'shahed' | 'molniya' | 'gerbera';
@@ -50,7 +51,7 @@ export interface Train {
   y: number;
   dwellTimer: number;
   isDwelling: boolean;
-  level: number; // 1-3, affects capacity
+  level: number;
 }
 
 export interface Drone {
@@ -121,6 +122,7 @@ export interface GameState {
   maxCombo: number;
   money: number;
   passengersDelivered: number;
+  passengersAbandoned: number;
   dronesIntercepted: number;
   totalDrones: number;
   stationsDestroyed: number;
@@ -132,6 +134,7 @@ export interface GameState {
   isAirRaid: boolean;
   airRaidTimer: number;
   nextRaidTime: number;
+  raidDronesSpawned: number;
   screenShake: number;
   gameOver: boolean;
   gameStarted: boolean;
@@ -148,6 +151,9 @@ export interface GameState {
   qteKey: string;
   qteTimer: number;
   notifications: GameNotification[];
+  waveIndex: number;
+  // cached per-tick (avoid recompute)
+  _cachedLineStations: Record<string, string[]>;
 }
 
 export interface GameNotification {
