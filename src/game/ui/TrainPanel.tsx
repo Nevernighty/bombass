@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { METRO_LINES, GAME_CONFIG, STATION_MAP } from '../constants';
 import { Train, GameStation } from '../types';
-import { X, ArrowLeftRight, Merge, DollarSign, ArrowUp, Shield, RotateCcw } from 'lucide-react';
+import { X, ArrowLeftRight, Merge, DollarSign, ArrowUp, Shield, RotateCcw, Train as TrainIcon } from 'lucide-react';
+import { ProgressRing } from './ProgressRing';
 
 interface TrainPanelProps {
   train: Train;
@@ -26,7 +27,6 @@ export const TrainPanel = React.memo(function TrainPanel({
   const upgradeCost = GAME_CONFIG.UPGRADE_COST * train.level;
   const fillRatio = train.passengers.length / train.capacity;
 
-  // Find nearby trains on same line for merge
   const nearbyTrains = trains.filter(t =>
     t.id !== train.id && t.line === train.line &&
     Math.abs(t.x - train.x) < 0.05 && Math.abs(t.y - train.y) < 0.05
@@ -34,26 +34,35 @@ export const TrainPanel = React.memo(function TrainPanel({
 
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
 
+  // Mini train visualization — wagons
+  const wagonCount = train.level;
+
   return (
     <div className="absolute top-20 right-3 z-50 pointer-events-auto animate-in slide-in-from-right-4 duration-200"
-      style={{ width: '260px' }}>
+      style={{ width: '270px' }}>
       <div className="rounded-xl p-4 backdrop-blur-md"
         style={{
           background: 'rgba(8, 12, 24, 0.97)',
           border: `1px solid ${lineColor}40`,
           boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 20px ${lineColor}15`,
         }}>
-        {/* Header */}
+        {/* Header with HP ring */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-black"
-              style={{ background: `${lineColor}25`, border: `2px solid ${lineColor}`, color: lineColor }}>
-              {train.line === 'red' ? 'M1' : train.line === 'blue' ? 'M2' : 'M3'}
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              <ProgressRing progress={fillRatio} size={40} strokeWidth={2.5}
+                color={fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#f59e0b' : '#4ade80'} />
+              <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-black"
+                style={{ background: `${lineColor}25`, border: `2px solid ${lineColor}`, color: lineColor }}>
+                {train.line === 'red' ? 'M1' : train.line === 'blue' ? 'M2' : 'M3'}
+              </div>
             </div>
             <div>
-              <p className="text-[13px] font-bold" style={{ color: lineColor }}>{lineName.split(' ')[0]} {lineName.split(' ')[1]}</p>
-              <p className="text-[10px]" style={{ color: 'rgba(180,190,210,0.7)' }}>
-                Рівень {train.level} · {train.passengers.length}/{train.capacity} пас.
+              <p className="text-[13px] font-bold" style={{ color: lineColor }}>
+                {lineName.split(' ').slice(0, 2).join(' ')}
+              </p>
+              <p className="text-[10px]" style={{ color: 'rgba(180,190,210,0.6)' }}>
+                Рів.{train.level} · {train.passengers.length}/{train.capacity} пас.
               </p>
             </div>
           </div>
@@ -62,34 +71,46 @@ export const TrainPanel = React.memo(function TrainPanel({
           </button>
         </div>
 
-        {/* Capacity bar */}
-        <div className="h-1.5 rounded-full overflow-hidden mb-4" style={{ background: 'rgba(255,255,255,0.08)' }}>
-          <div className="h-full rounded-full transition-all duration-300" style={{
-            width: `${fillRatio * 100}%`,
-            background: fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#f59e0b' : '#4ade80',
-          }} />
+        {/* Mini train visualization */}
+        <div className="flex items-center gap-1 mb-3 justify-center">
+          {Array.from({ length: wagonCount }).map((_, i) => (
+            <div key={i} className="rounded-sm flex items-center justify-center"
+              style={{
+                width: i === 0 ? '32px' : '24px',
+                height: '14px',
+                background: `${lineColor}${i === 0 ? '50' : '30'}`,
+                border: `1.5px solid ${lineColor}`,
+              }}>
+              {i === 0 && <TrainIcon size={8} style={{ color: lineColor }} />}
+            </div>
+          ))}
+          <span className="text-[9px] ml-1" style={{ color: 'rgba(180,190,210,0.4)' }}>
+            {wagonCount} ваг.
+          </span>
         </div>
 
-        {/* Reroute */}
+        {/* Visual line picker for rerouting */}
         <div className="mb-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgba(180,190,210,0.5)' }}>
-            <ArrowLeftRight size={10} className="inline mr-1" />Перемаршрутити
+          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgba(180,190,210,0.4)' }}>
+            <ArrowLeftRight size={9} className="inline mr-1" />Перемаршрутити
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1">
             {lines.map(l => {
               const c = METRO_LINES[l].color;
               const isCurrent = train.line === l;
               return (
                 <button key={l} onClick={() => !isCurrent && onReroute(l)}
                   disabled={isCurrent}
-                  className={`flex-1 py-2 rounded-md text-[12px] font-black transition-all
-                    ${isCurrent ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}`}
+                  className={`flex-1 h-8 rounded-md flex items-center justify-center gap-1 transition-all
+                    ${isCurrent ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}`}
                   style={{
-                    background: isCurrent ? `${c}10` : `${c}20`,
-                    border: `1.5px solid ${isCurrent ? c + '30' : c}`,
-                    color: c,
+                    background: isCurrent ? `${c}08` : `${c}18`,
+                    border: `2px solid ${isCurrent ? c + '30' : c}`,
                   }}>
-                  {l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3'}
+                  <div className="w-4 h-1 rounded-full" style={{ background: c }} />
+                  <span className="text-[11px] font-black" style={{ color: c }}>
+                    {l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3'}
+                  </span>
                 </button>
               );
             })}
@@ -101,7 +122,8 @@ export const TrainPanel = React.memo(function TrainPanel({
           <PanelBtn icon={<RotateCcw size={12} />} label="Розворот" onClick={onReverse} color="#94a3b8" />
           <PanelBtn icon={<ArrowUp size={12} />} label={`Апгрейд $${upgradeCost}`} onClick={onUpgrade}
             disabled={money < upgradeCost || train.level >= 3} color="#c084fc" />
-          <PanelBtn icon={<Shield size={12} />} label="Щит $30" onClick={onShield}
+          <PanelBtn icon={<Shield size={12} />} label={`Щит${train.shieldTimer > 0 ? ` ${Math.ceil(train.shieldTimer / 1000)}с` : ' $30'}`}
+            onClick={onShield}
             disabled={money < 30 || train.shieldTimer > 0}
             active={train.shieldTimer > 0} color="#38bdf8" />
           <PanelBtn icon={<DollarSign size={12} />} label="Продати +$25" onClick={onSell} color="#ef4444" />
@@ -119,7 +141,7 @@ export const TrainPanel = React.memo(function TrainPanel({
                   color: '#a855f7',
                 }}>
                 <Merge size={12} />
-                Об'єднати з потягом ({nt.passengers.length}/{nt.capacity})
+                Об'єднати ({nt.passengers.length}/{nt.capacity})
               </button>
             ))}
           </div>

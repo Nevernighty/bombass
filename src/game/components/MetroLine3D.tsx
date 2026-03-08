@@ -11,10 +11,10 @@ interface MetroLine3DProps {
   stateRef: React.MutableRefObject<GameState>;
 }
 
-const TUBE_RADIUS = 0.25;
-const GLOW_RADIUS = 0.45;
-const BASE_HEIGHT = 0.3;
-const BRIDGE_HEIGHT = 3.5;
+const TUBE_RADIUS = 0.30;
+const GLOW_RADIUS = 0.50;
+const BASE_HEIGHT = 1.0;
+const BRIDGE_HEIGHT = 4.5;
 
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -29,9 +29,6 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
   const { color } = METRO_LINES[line];
   const lineName = line === 'red' ? 'M1' : line === 'blue' ? 'M2' : 'M3';
-
-  // Closed segment markers
-  const closedMarkerRefs = useRef<THREE.Mesh[]>([]);
 
   useFrame(({ clock }) => {
     const state = stateRef.current;
@@ -81,21 +78,24 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     if (meshRef.current) meshRef.current.visible = true;
     if (glowRef.current) glowRef.current.visible = true;
 
-    // Hover emissive boost
     const hoverBoost = isHoveredRef.current ? 0.5 : 0;
 
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.3 + hoverBoost * 0.1 : 0.15 + hoverBoost * 0.1;
+      mat.opacity = state.isNight ? 0.35 + hoverBoost * 0.15 : 0.2 + hoverBoost * 0.15;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = (state.isNight ? 0.8 : 0.5) + hoverBoost;
+      mat.emissiveIntensity = (state.isNight ? 1.0 : 0.7) + hoverBoost;
     }
 
-    // Show hover label
     if (hoverLabelRef.current) {
       hoverLabelRef.current.visible = isHoveredRef.current;
+      if (isHoveredRef.current && curveRef.current) {
+        const mid = curveRef.current.getPoint(0.5);
+        hoverLabelRef.current.position.copy(mid);
+        hoverLabelRef.current.position.y += 4;
+      }
     }
 
     // Animated energy pulse
@@ -104,7 +104,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
       const pos = curveRef.current.getPoint(t);
       pulseRef.current.position.copy(pos);
       pulseRef.current.visible = true;
-      const scale = 0.4 + Math.sin(clock.elapsedTime * 6) * 0.12;
+      const scale = 0.5 + Math.sin(clock.elapsedTime * 6) * 0.15;
       pulseRef.current.scale.set(scale, scale, scale);
     }
   });
@@ -132,7 +132,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
   return (
     <group>
-      {/* Main tube — render on top of buildings */}
+      {/* Main tube — depthTest false ensures always on top */}
       <mesh
         ref={meshRef}
         visible={false}
@@ -144,20 +144,23 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.5}
+          emissiveIntensity={0.7}
           metalness={0.4}
           roughness={0.3}
+          depthTest={false}
+          depthWrite={false}
         />
       </mesh>
 
-      {/* Glow tube — render on top of buildings */}
+      {/* Glow tube */}
       <mesh ref={glowRef} visible={false} renderOrder={10}>
         <tubeGeometry args={[initCurve, 4, GLOW_RADIUS, 8, false]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={0.15}
+          opacity={0.2}
           side={THREE.DoubleSide}
+          depthTest={false}
           depthWrite={false}
         />
       </mesh>
@@ -165,14 +168,14 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
       {/* Energy pulse */}
       <mesh ref={pulseRef} visible={false} renderOrder={12}>
         <sphereGeometry args={[1, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} />
+        <meshBasicMaterial color={color} transparent opacity={0.8} depthTest={false} />
       </mesh>
 
       {/* Hover label */}
       <group ref={hoverLabelRef} visible={false}>
-        <Billboard position={[0, 5, 0]}>
-          <Text fontSize={1.2} color={color} anchorX="center" anchorY="middle"
-            outlineWidth={0.08} outlineColor="#000000" fontWeight="bold">
+        <Billboard>
+          <Text fontSize={1.4} color={color} anchorX="center" anchorY="middle"
+            outlineWidth={0.1} outlineColor="#000000" fontWeight="bold">
             {lineName}
           </Text>
         </Billboard>
@@ -181,19 +184,17 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
       {/* Closed segment X markers */}
       {closedSegmentPositions.map((pos, i) => (
         <group key={`closed-${i}`} position={pos}>
-          {/* Red X cross */}
           <mesh rotation={[0, 0, Math.PI / 4]} renderOrder={15}>
             <boxGeometry args={[2.5, 0.3, 0.3]} />
-            <meshBasicMaterial color="#ef4444" />
+            <meshBasicMaterial color="#ef4444" depthTest={false} />
           </mesh>
           <mesh rotation={[0, 0, -Math.PI / 4]} renderOrder={15}>
             <boxGeometry args={[2.5, 0.3, 0.3]} />
-            <meshBasicMaterial color="#ef4444" />
+            <meshBasicMaterial color="#ef4444" depthTest={false} />
           </mesh>
-          {/* Pulsing red ring */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} renderOrder={14}>
             <ringGeometry args={[1.5, 2.0, 12]} />
-            <meshBasicMaterial color="#ef4444" transparent opacity={0.4} side={THREE.DoubleSide} />
+            <meshBasicMaterial color="#ef4444" transparent opacity={0.4} side={THREE.DoubleSide} depthTest={false} />
           </mesh>
           <Billboard>
             <Text fontSize={0.6} color="#ef4444" position={[0, 1.5, 0]} anchorX="center" outlineWidth={0.04} outlineColor="#000">

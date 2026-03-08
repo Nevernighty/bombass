@@ -23,7 +23,6 @@ const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
-      // Logarithmic zoom
       const zoomDelta = e.deltaY > 0 ? 0.92 : 1.08;
       stateRef.current.camera.targetZoom = Math.max(0.2, Math.min(5, stateRef.current.camera.targetZoom * zoomDelta));
     };
@@ -47,6 +46,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [lastAchievement, setLastAchievement] = useState<Achievement | null>(null);
   const prevAchCountRef = useRef(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
@@ -124,15 +124,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     setHudState({ ...stateRef.current });
   }, []);
 
-  // Keyboard shortcuts — WASD + game controls
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // WASD camera panning (add to keysDown set)
       if (['w','a','s','d','W','A','S','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
         stateRef.current.camera.keysDown.add(e.key);
         return;
       }
-
       if (e.key === ' ') {
         e.preventDefault();
         stateRef.current = { ...stateRef.current, isPaused: !stateRef.current.isPaused };
@@ -142,28 +140,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === '2') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 2); setHudState({ ...stateRef.current }); }
       if (e.key === '3') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 5); setHudState({ ...stateRef.current }); }
       if (e.key === '4') { stateRef.current = setSpeedMultiplier({ ...stateRef.current }, 10); setHudState({ ...stateRef.current }); }
-      // Camera mode shortcuts
       if (e.key === 'f' || e.key === 'F') setCameraMode('follow');
       if (e.key === 'o' || e.key === 'O') setCameraMode('overview');
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
       if (e.key === 'Escape') { setCameraMode('free'); stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }
-      // Game action shortcuts
       if (e.key === 'q' || e.key === 'Q') {
-        // Quick buy train — cycle lines
         const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
         const counts = lines.map(l => stateRef.current.trains.filter(t => t.line === l).length);
         const minLine = lines[counts.indexOf(Math.min(...counts))];
         act(s => purchaseTrain(s, minLine));
       }
       if (e.key === 'e' || e.key === 'E') act(s => {
-        // Deploy AA at hovered/selected station
         const sid = s.hoveredStation || selectedStation;
         return sid ? deployAntiAir(s, sid) : s;
       });
       if (e.key === 'r' || e.key === 'R') act(s => callReinforcements(s));
       if (e.key === 't' || e.key === 'T') act(s => placeDecoy(s));
       if (e.key === 'g' || e.key === 'G') {
-        // Cycle game speed
         const speeds = [1, 2, 5, 10];
         const cur = stateRef.current.speedMultiplier;
         const idx = speeds.indexOf(cur);
@@ -173,7 +166,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       }
       if (e.key === 'Tab') {
         e.preventDefault();
-        // Cycle stations
         const ids = stateRef.current.activeStationIds;
         if (ids.length > 0) {
           const curIdx = selectedStation ? ids.indexOf(selectedStation) : -1;
@@ -207,11 +199,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     }
   }, []);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
     if (isRotatingRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       stateRef.current.camera.orbitAngle += dx * 0.005;
-      // Tilt with vertical mouse movement
       stateRef.current.camera.tiltAngle = Math.max(0.2, Math.min(1.4, stateRef.current.camera.tiltAngle - dy * 0.003));
       panStartRef.current = { x: e.clientX, y: e.clientY };
     } else if (isPanningRef.current) {
@@ -301,7 +293,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         }} />
       )}
 
-      {/* Lives warning — red edge glow */}
+      {/* Lives warning */}
       {state.lives <= 1 && state.gameStarted && !state.gameOver && (
         <div className="absolute inset-0 pointer-events-none animate-pulse" style={{
           boxShadow: 'inset 0 0 60px rgba(239,68,68,0.4)',
@@ -336,7 +328,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         }} />
       )}
 
-      {/* Floating score numbers with CSS animation */}
+      {/* Floating score numbers */}
       {state.gameStarted && !state.gameOver && state.floatingScores.map(fs => {
         const isCrit = fs.text.includes('КРИТ');
         return (
@@ -422,7 +414,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               ))}
             </div>
 
-            {/* How to Play tutorial */}
             <div className="mb-4 p-3 rounded-lg text-left" style={{
               background: 'hsla(var(--muted), 0.2)',
               border: '1px solid hsl(var(--border))',
@@ -448,7 +439,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       {/* GAME OVER / VICTORY */}
       {(state.gameOver || state.winConditionMet) && state.gameStarted && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
-          {/* Victory confetti */}
           {state.winConditionMet && (
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               {Array.from({ length: 24 }).map((_, i) => (
@@ -535,7 +525,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
 
-          {/* Event Ticker — scrolling recent events */}
+          {/* Event Ticker */}
           {state.eventLog.length > 0 && (
             <div className="absolute top-11 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ maxWidth: '500px' }}>
               <div className="flex gap-4 animate-marquee text-[11px] font-bold whitespace-nowrap" style={{ color: 'hsl(var(--game-accent))' }}>
@@ -548,53 +538,68 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
           )}
 
-          {/* Active Events indicators */}
+          {/* Active Events — full-width sliding banners */}
           {state.activeEvents.length > 0 && (
-            <div className="absolute top-14 left-4 flex flex-col gap-1 pointer-events-none">
-              {state.activeEvents.map(ev => (
-                <div key={ev.id} className="text-[11px] font-bold px-3 py-1 rounded-lg animate-pulse"
-                  style={{
-                    background: ev.type === 'rush_surge' ? 'rgba(245,158,11,0.85)' :
-                      ev.type === 'vip_passenger' ? 'rgba(251,191,36,0.85)' :
-                      ev.type === 'power_flicker' ? 'rgba(99,102,241,0.85)' :
-                      'rgba(239,68,68,0.85)',
-                    color: ev.type === 'rush_surge' || ev.type === 'vip_passenger' ? '#1a1a2e' : '#fff',
-                  }}>
-                  {ev.type === 'rush_surge' && '🚇 Хвиля пасажирів'}
-                  {ev.type === 'vip_passenger' && '⭐ VIP пасажир'}
-                  {ev.type === 'power_flicker' && '⚡ Коливання'}
-                  {ev.type === 'emergency_evac' && '🚨 Евакуація'}
-                  <span className="ml-2 font-mono text-[10px]">{Math.ceil(ev.timer / 1000)}с</span>
-                </div>
-              ))}
+            <div className="absolute top-14 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none">
+              {state.activeEvents.map(ev => {
+                const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
+                  rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
+                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир' },
+                  power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
+                  emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
+                };
+                const c = configs[ev.type] || configs.rush_surge;
+                const timerPct = Math.min(100, (ev.timer / 15000) * 100);
+                return (
+                  <div key={ev.id} className="rounded-lg px-4 py-1.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
+                    style={{ background: c.bg, color: c.fg, minWidth: '240px' }}>
+                    <span className="text-base">{c.icon}</span>
+                    <span className="text-[12px] font-bold flex-1">{c.text}</span>
+                    <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.6)' }} />
+                    </div>
+                    <span className="text-[10px] font-mono font-bold">{Math.ceil(ev.timer / 1000)}с</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* Hover Tooltip — follows elements */}
+          {/* Cursor-following tooltip */}
           {state.hoveredElement && (
-            <div className="absolute top-16 right-4 pointer-events-none z-50 animate-in fade-in-0 duration-100"
-              style={{ minWidth: '180px' }}>
-              <div className="rounded-lg px-3 py-2 backdrop-blur-md"
+            <div className="fixed pointer-events-none z-[100] animate-in fade-in-0 duration-75"
+              style={{
+                left: mousePos.x + 16,
+                top: mousePos.y - 8,
+                maxWidth: '200px',
+              }}>
+              <div className="rounded-lg px-2.5 py-1.5 backdrop-blur-md"
                 style={{
                   background: 'rgba(8, 12, 24, 0.95)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
                 }}>
-                <div className="text-[12px] font-bold" style={{
+                <div className="text-[11px] font-bold" style={{
                   color: state.hoveredElement.type === 'station' ? '#e0e0e0' :
                     state.hoveredElement.type === 'train' ? '#fbbf24' :
                     state.hoveredElement.type === 'building' ? '#94a3b8' : '#ef4444',
                 }}>
-                  {state.hoveredElement.type === 'station' && '📍 '}
-                  {state.hoveredElement.type === 'train' && '🚇 '}
-                  {state.hoveredElement.type === 'building' && '🏢 '}
-                  {state.hoveredElement.type === 'drone' && '🎯 '}
                   {state.hoveredElement.name || state.hoveredElement.id}
                 </div>
                 {state.hoveredElement.details && (
-                  <div className="text-[10px] mt-0.5" style={{ color: 'rgba(180,190,210,0.8)' }}>
+                  <div className="text-[9px] mt-0.5" style={{ color: 'rgba(180,190,210,0.7)' }}>
                     {state.hoveredElement.details}
                   </div>
+                )}
+                {/* Contextual action hint */}
+                {state.hoveredElement.type === 'station' && state.isAirRaid && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Щит / Оборона</div>
+                )}
+                {state.hoveredElement.type === 'building' && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Ремонт $10</div>
+                )}
+                {state.hoveredElement.type === 'drone' && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>Клік → Збити</div>
                 )}
               </div>
             </div>
@@ -635,7 +640,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onSpeedBoost={() => act(s => emergencySpeedBoost(s, selStation.line))}
               onExpressLine={() => act(s => activateExpressLine(s, selStation.line))}
               onStationMagnet={() => act(s => activateStationMagnet(s, selStation.id))}
-              onBuySAM={() => act(s => buySAMBattery(s, selStation.id))}
+              onBuySAM={() => act(s => busSAMBattery(s, selStation.id))}
               onBuyAATurret={() => act(s => buyAATurret(s, selStation.id))}
               onLaunchInterceptor={() => act(s => launchInterceptor(s, selStation.id))}
               onFortify={() => act(s => fortifyStation(s, selStation.id))}
