@@ -169,6 +169,8 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     isDrawingLine: false,
     drawLineFrom: null,
     drawLineTo: null,
+    drawLineColor: null,
+    drawMouseWorldPos: null,
     trainSpawnEffects: [],
     _cachedLineStations: {},
   };
@@ -1675,15 +1677,77 @@ export function repairBuilding(state: GameState, buildingIdx: number): GameState
 }
 
 // ===== Phase 20: Connect pending station =====
+
+// Get end stations (first and last active) for a given line
+export function getLineEndStations(state: GameState, line: string): string[] {
+  const lineIds = LINE_STATIONS[line];
+  if (!lineIds) return [];
+  const activeSet = new Set(state.activeStationIds);
+  const activeOnLine = lineIds.filter(id => activeSet.has(id));
+  if (activeOnLine.length === 0) return [];
+  const ends: string[] = [];
+  if (activeOnLine.length === 1) return [activeOnLine[0]];
+  ends.push(activeOnLine[0], activeOnLine[activeOnLine.length - 1]);
+  return ends;
+}
+
+// Check if a station is an end station on any line
+export function isEndStation(state: GameState, stationId: string): { isEnd: boolean; line: string | null } {
+  for (const line of ['red', 'blue', 'green']) {
+    const ends = getLineEndStations(state, line);
+    if (ends.includes(stationId)) return { isEnd: true, line };
+  }
+  return { isEnd: false, line: null };
+}
+
+// Get which pending station can be connected from a given end station
+export function getValidPendingTargets(state: GameState, fromStationId: string): string[] {
+  const { isEnd, line } = isEndStation(state, fromStationId);
+  if (!isEnd || !line) return [];
+  
+  const lineIds = LINE_STATIONS[line];
+  const activeSet = new Set(state.activeStationIds);
+  const activeOnLine = lineIds.filter(id => activeSet.has(id));
+  if (activeOnLine.length === 0) return [];
+  
+  const firstActive = activeOnLine[0];
+  const lastActive = activeOnLine[activeOnLine.length - 1];
+  const firstIdx = lineIds.indexOf(firstActive);
+  const lastIdx = lineIds.indexOf(lastActive);
+  
+  const targets: string[] = [];
+  const pendingSet = new Set(state.pendingStations);
+  
+  // If fromStation is the first active, check the station before it
+  if (fromStationId === firstActive && firstIdx > 0) {
+    const prevId = lineIds[firstIdx - 1];
+    if (pendingSet.has(prevId)) targets.push(prevId);
+  }
+  // If fromStation is the last active, check the station after it
+  if (fromStationId === lastActive && lastIdx < lineIds.length - 1) {
+    const nextId = lineIds[lastIdx + 1];
+    if (pendingSet.has(nextId)) targets.push(nextId);
+  }
+  
+  return targets;
+}
+
 export function connectStation(state: GameState, pendingStationId: string, fromStationId: string): GameState {
   if (!state.pendingStations.includes(pendingStationId)) return state;
   if (!state.activeStationIds.includes(fromStationId)) return state;
+  
+  // Validate: fromStation must be end station and pendingStation must be adjacent
+  const validTargets = getValidPendingTargets(state, fromStationId);
+  if (!validTargets.includes(pendingStationId)) return state;
+  
   state.pendingStations = state.pendingStations.filter(id => id !== pendingStationId);
   state.activeStationIds.push(pendingStationId);
   const st = getStation(state, pendingStationId);
+  const { line } = isEndStation(state, fromStationId);
+  const lineName = line === 'red' ? 'M1' : line === 'blue' ? 'M2' : 'M3';
   if (st) {
-    st.jellyVel.y = -5; st.jellyVel.x = 3;
-    addNotification(state, '✅ Станцію підключено!', st.x, st.y, '#4ade80');
+    st.jellyVel.y = -8; st.jellyVel.x = 5;
+    addNotification(state, `✅ Підключено до ${lineName}!`, st.x, st.y, '#4ade80');
   }
   // Recache
   const activeSet = new Set(state.activeStationIds);
@@ -1695,6 +1759,8 @@ export function connectStation(state: GameState, pendingStationId: string, fromS
   state.isDrawingLine = false;
   state.drawLineFrom = null;
   state.drawLineTo = null;
+  state.drawLineColor = null;
+  state.drawMouseWorldPos = null;
   return state;
 }
 

@@ -1,6 +1,7 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus } from './GameEngine';
+import { METRO_LINES } from './constants';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -88,24 +89,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     audioRef.current.playClick();
     const state = stateRef.current;
 
-    // Line drawing: if we're drawing and clicked a pending station, connect it
+    // If we're drawing and clicked a pending station that's a valid target, connect it
     if (state.isDrawingLine && state.drawLineFrom && state.pendingStations.includes(stationId)) {
-      stateRef.current = connectStation({ ...state }, stationId, state.drawLineFrom);
-      setHudState({ ...stateRef.current });
-      return;
-    }
-
-    // Start drawing line from an active end-of-line station
-    if (state.pendingStations.length > 0 && state.activeStationIds.includes(stationId)) {
-      stateRef.current = { ...state, isDrawingLine: true, drawLineFrom: stationId, hoveredStation: stationId };
-      setSelectedStation(stationId);
-      setHudState({ ...stateRef.current });
-      return;
+      const validTargets = getValidPendingTargets(state, state.drawLineFrom);
+      if (validTargets.includes(stationId)) {
+        stateRef.current = connectStation({ ...state }, stationId, state.drawLineFrom);
+        setHudState({ ...stateRef.current });
+        return;
+      }
     }
 
     // If drawing and clicked something else, cancel
     if (state.isDrawingLine) {
-      stateRef.current = { ...state, isDrawingLine: false, drawLineFrom: null, drawLineTo: null };
+      stateRef.current = { ...state, isDrawingLine: false, drawLineFrom: null, drawLineTo: null, drawLineColor: null, drawMouseWorldPos: null };
+      setHudState({ ...stateRef.current });
+      return;
+    }
+
+    // Check if this station is an end station and there are pending stations to connect
+    if (state.pendingStations.length > 0) {
+      const { isEnd, line } = isEndStation(state, stationId);
+      if (isEnd && line) {
+        const validTargets = getValidPendingTargets(state, stationId);
+        if (validTargets.length > 0) {
+          const lineColor = METRO_LINES[line as keyof typeof METRO_LINES].color;
+          stateRef.current = { ...state, isDrawingLine: true, drawLineFrom: stationId, drawLineColor: lineColor, drawMouseWorldPos: null, hoveredStation: stationId };
+          setSelectedStation(stationId);
+          setHudState({ ...stateRef.current });
+          return;
+        }
+      }
     }
 
     const station = state.stations.find(s => s.id === stationId);
@@ -221,13 +234,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   }, []);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
+    
+    // Update draw line world position when drawing
+    if (stateRef.current.isDrawingLine) {
+      // Store screen coordinates — Scene3D will do the raycasting
+      stateRef.current.drawMouseWorldPos = { x: e.clientX, z: e.clientY };
+    }
+    
     if (isRotatingRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       stateRef.current.camera.orbitAngle += dx * 0.005;
       stateRef.current.camera.tiltAngle = Math.max(0.2, Math.min(1.4, stateRef.current.camera.tiltAngle - dy * 0.003));
       panStartRef.current = { x: e.clientX, y: e.clientY };
-    } else if (isPanningRef.current) {
+    } else if (isPanningRef.current && !stateRef.current.isDrawingLine) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       const zoom = stateRef.current.camera.zoom;
@@ -644,8 +664,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           {/* Line Drawing Mode indicator */}
           {state.isDrawingLine && (
             <div className="absolute top-24 left-1/2 -translate-x-1/2 px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse pointer-events-none"
-              style={{ background: 'rgba(156,163,175,0.9)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(156,163,175,0.4)' }}>
-              🔗 Клікни на сіру станцію щоб підключити
+              style={{ background: state.drawLineColor || 'rgba(156,163,175,0.9)', color: '#fff', boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.4)'}` }}>
+              🔗 Тягни до сірої станції щоб підключити
             </div>
           )}
 
@@ -653,7 +673,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           {state.pendingStations.length > 0 && !state.isDrawingLine && (
             <div className="absolute top-24 right-4 px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse pointer-events-none"
               style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
-              🔗 {state.pendingStations.length} станц. чекають підключення
+              🔗 {state.pendingStations.length} станц. чекають · клікни кінцеву станцію
             </div>
           )}
 

@@ -3,9 +3,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from './types';
-import { updateGame, getActiveLineStations } from './GameEngine';
+import { updateGame, getActiveLineStations, getValidPendingTargets } from './GameEngine';
 import { AudioEngine } from './AudioEngine';
-import { STATIONS, toWorld } from './constants';
+import { STATIONS, toWorld, STATION_MAP } from './constants';
 import { StationNode3D } from './components/StationNode3D';
 import { TrainModel } from './components/TrainModel';
 import { DroneModel } from './components/DroneModel';
@@ -572,6 +572,93 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
   );
 }
 
+// Rubber-band line drawing visual
+function DrawingLine({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+  const lineRef = useRef<THREE.Line>(null);
+  const sphereRef = useRef<THREE.Mesh>(null);
+  const { camera, size } = useThree();
+  
+  const lineGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(6);
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return geo;
+  }, []);
+  
+  const lineMat = useMemo(() => new THREE.LineBasicMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity: 0.8,
+    linewidth: 2,
+  }), []);
+  
+  // Raycaster for screen-to-ground conversion
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const mouseNDC = useMemo(() => new THREE.Vector2(), []);
+  const intersectPoint = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(() => {
+    const state = stateRef.current;
+    const isDrawing = state.isDrawingLine && state.drawLineFrom && state.drawMouseWorldPos;
+    
+    if (lineRef.current) lineRef.current.visible = !!isDrawing;
+    if (sphereRef.current) sphereRef.current.visible = !!isDrawing;
+    
+    if (!isDrawing || !lineRef.current || !sphereRef.current) return;
+    
+    const fromStation = state.stations.find(s => s.id === state.drawLineFrom);
+    if (!fromStation) return;
+    
+    const [fx, , fz] = toWorld(fromStation.x, fromStation.y);
+    
+    // Convert screen mouse to world via raycasting onto ground plane
+    const screenPos = state.drawMouseWorldPos!;
+    mouseNDC.set(
+      (screenPos.x / size.width) * 2 - 1,
+      -(screenPos.z / size.height) * 2 + 1 // z stores clientY
+    );
+    raycaster.setFromCamera(mouseNDC, camera);
+    raycaster.ray.intersectPlane(groundPlane, intersectPoint);
+    
+    const tx = intersectPoint.x;
+    const tz = intersectPoint.z;
+    
+    // Rubbery wobble
+    const t = Date.now() * 0.005;
+    const wobbleX = Math.sin(t * 3) * 0.3;
+    const wobbleZ = Math.cos(t * 2.5) * 0.3;
+    
+    // Update line geometry
+    const posArr = lineGeo.getAttribute('position') as THREE.BufferAttribute;
+    posArr.setXYZ(0, fx, 1, fz);
+    posArr.setXYZ(1, tx + wobbleX, 1, tz + wobbleZ);
+    posArr.needsUpdate = true;
+    
+    // Update color
+    const color = state.drawLineColor || '#9ca3af';
+    lineMat.color.set(color);
+    
+    // Update endpoint sphere
+    sphereRef.current.position.set(tx + wobbleX, 1, tz + wobbleZ);
+    (sphereRef.current.material as THREE.MeshBasicMaterial).color.set(color);
+    
+    // Pulse the sphere
+    const pulse = 0.8 + Math.sin(t * 4) * 0.3;
+    sphereRef.current.scale.setScalar(pulse);
+  });
+  
+  return (
+    <>
+      <primitive ref={lineRef} object={new THREE.Line(lineGeo, lineMat)} visible={false} renderOrder={999} />
+      <mesh ref={sphereRef} visible={false} renderOrder={999}>
+        <sphereGeometry args={[1.2, 12, 12]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.6} depthTest={false} />
+      </mesh>
+    </>
+  );
+}
+
 function SceneContent({
   stateRef, audioRef, onStateChange,
   onStationClick, onTrainClick, onStationHover, onDroneClick,
@@ -651,6 +738,7 @@ function SceneContent({
       <ExplosionsLayer stateRef={stateRef} />
       <RepairUnitsLayer stateRef={stateRef} />
       <NotificationsLayer stateRef={stateRef} />
+      <DrawingLine stateRef={stateRef} />
     </>
   );
 }
