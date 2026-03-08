@@ -1400,6 +1400,46 @@ export function emergencyFund(state: GameState): GameState {
   return state;
 }
 
+// ===== Phase 6 Actions =====
+export function buySAMBattery(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.hasSAM || state.money < GAME_CONFIG.SAM_BATTERY_COST) return state;
+  state.money -= GAME_CONFIG.SAM_BATTERY_COST;
+  station.hasSAM = true;
+  addNotification(state, '🚀 ЗРК встановлено!', station.x, station.y, '#22c55e');
+  return state;
+}
+
+export function buyAATurret(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.hasAATurret || state.money < GAME_CONFIG.AA_TURRET_COST) return state;
+  state.money -= GAME_CONFIG.AA_TURRET_COST;
+  station.hasAATurret = true;
+  addNotification(state, '🔫 Турель встановлено!', station.x, station.y, '#f59e0b');
+  return state;
+}
+
+export function launchInterceptor(state: GameState, stationId: string): GameState {
+  if (state.money < GAME_CONFIG.INTERCEPTOR_COST) return state;
+  const station = getStation(state, stationId);
+  if (!station) return state;
+  const nearestDrone = state.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+    const dx = station.x - d.x, dy = station.y - d.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (!best || dist < best.dist) return { drone: d, dist };
+    return best;
+  }, null as { drone: Drone; dist: number } | null);
+  if (!nearestDrone) return state;
+  state.money -= GAME_CONFIG.INTERCEPTOR_COST;
+  state.interceptorDrones.push({
+    id: uid(), x: station.x, y: station.y,
+    targetDroneId: nearestDrone.drone.id, speed: 2.5,
+    sourceStationId: stationId,
+  });
+  addNotification(state, '🛩️ Перехоплювач запущено!', station.x, station.y, '#22c55e');
+  return state;
+}
+
 // Keep for backward compat
 export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   return state;

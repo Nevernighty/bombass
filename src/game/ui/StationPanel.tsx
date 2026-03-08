@@ -19,12 +19,16 @@ interface StationPanelProps {
   onSpeedBoost: () => void;
   onExpressLine: () => void;
   onStationMagnet: () => void;
+  onBuySAM: () => void;
+  onBuyAATurret: () => void;
+  onLaunchInterceptor: () => void;
 }
 
 export const StationPanel = React.memo(function StationPanel({
   station, money, isAirRaid, speedBoostCooldown, stationMagnetTimer,
   onClose, onDeployAA, onShield, onUpgrade, onEvacuate, onToggle,
   onShelter, onSealTunnel, onSpeedBoost, onExpressLine, onStationMagnet,
+  onBuySAM, onBuyAATurret, onLaunchInterceptor,
 }: StationPanelProps) {
   const hpPct = (station.hp / station.maxHp) * 100;
   const hpColor = hpPct > 60 ? '#22c55e' : hpPct > 30 ? '#f59e0b' : '#ef4444';
@@ -42,6 +46,8 @@ export const StationPanel = React.memo(function StationPanel({
         {station.isOnFire ? ' 🔥' : ''}
         {station.isDestroyed ? ' 💀' : ''}
         {station.hasAntiAir ? ' 🛡️' : ''}
+        {station.hasSAM ? ' 🚀' : ''}
+        {station.hasAATurret ? ' 🔫' : ''}
         {station.isSheltering ? ' 🏠' : ''}
         {station.tunnelSealTimer > 0 ? ' 🚧' : ''}
       </p>
@@ -52,7 +58,7 @@ export const StationPanel = React.memo(function StationPanel({
           background: `linear-gradient(90deg, ${hpColor}, ${hpPct > 60 ? '#4ade80' : hpPct > 30 ? '#fbbf24' : '#f87171'})`,
         }} />
       </div>
-      <p className="text-xs mb-1.5" style={{ color: hpColor }}>{station.hp}/{station.maxHp} HP • 🚶 {station.passengers.length}/{station.maxPassengers}</p>
+      <p className="text-xs mb-1" style={{ color: hpColor }}>{station.hp}/{station.maxHp} HP • 🚶 {station.passengers.length}/{station.maxPassengers} • 💰 {station.stationIncome}</p>
 
       {/* Passenger shapes preview */}
       {station.passengers.length > 0 && (
@@ -69,15 +75,34 @@ export const StationPanel = React.memo(function StationPanel({
         </div>
       )}
 
-      <div className="flex gap-1 flex-wrap">
+      {/* Defense section */}
+      <p className="text-xs mb-0.5 mt-1" style={{ color: '#6b7280' }}>🛡️ Оборона</p>
+      <div className="flex gap-1 flex-wrap mb-1.5">
         <button onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir}
           className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
           🛡️ ПРО ({GAME_CONFIG.ANTI_AIR_COST})
+        </button>
+        <button onClick={onBuySAM} disabled={money < GAME_CONFIG.SAM_BATTERY_COST || station.hasSAM}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
+          🚀 ЗРК ({GAME_CONFIG.SAM_BATTERY_COST})
+        </button>
+        <button onClick={onBuyAATurret} disabled={money < GAME_CONFIG.AA_TURRET_COST || station.hasAATurret}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+          🔫 Турель ({GAME_CONFIG.AA_TURRET_COST})
+        </button>
+        <button onClick={onLaunchInterceptor} disabled={money < GAME_CONFIG.INTERCEPTOR_COST}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
+          🛩️ Перехоп ({GAME_CONFIG.INTERCEPTOR_COST})
         </button>
         <button onClick={onShield} disabled={money < GAME_CONFIG.SHIELD_COST || station.shieldTimer > 0}
           className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#06b6d4', border: '1px solid rgba(6,182,212,0.3)' }}>
           ⚡ Щит ({GAME_CONFIG.SHIELD_COST})
         </button>
+      </div>
+
+      {/* Station actions */}
+      <p className="text-xs mb-0.5" style={{ color: '#6b7280' }}>🚇 Станція</p>
+      <div className="flex gap-1 flex-wrap">
         <button onClick={onUpgrade} disabled={money < GAME_CONFIG.UPGRADE_COST * station.level || station.level >= 3}
           className="px-2 py-1 rounded text-xs disabled:opacity-30" style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
           ⬆️ ({GAME_CONFIG.UPGRADE_COST * station.level})
