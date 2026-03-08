@@ -67,14 +67,16 @@ function ShahedDrone() {
         <cylinderGeometry args={[0.02, 0.02, 0.6, 4]} />
         <meshStandardMaterial color="#888" metalness={0.8} />
       </mesh>
+      {/* Engine glow */}
       <mesh position={[-1.5, 0, 0]}>
-        <sphereGeometry args={[0.18, 8, 8]} />
+        <sphereGeometry args={[0.22, 8, 8]} />
         <meshBasicMaterial color="#ff4400" transparent opacity={0.7} />
       </mesh>
-      {[-1.8, -2.2, -2.6, -3.0, -3.5, -4.0].map((x, i) => (
+      {/* Smoke trail - denser (8 particles) */}
+      {[-1.8, -2.1, -2.4, -2.7, -3.1, -3.5, -3.9, -4.4].map((x, i) => (
         <mesh key={i} position={[x, (Math.sin(i * 1.5) * 0.06), (Math.cos(i * 2) * 0.04)]}>
-          <sphereGeometry args={[0.1 - i * 0.012, 6, 6]} />
-          <meshBasicMaterial color="#888888" transparent opacity={0.3 - i * 0.04} />
+          <sphereGeometry args={[0.12 - i * 0.012, 6, 6]} />
+          <meshBasicMaterial color="#888888" transparent opacity={0.35 - i * 0.04} />
         </mesh>
       ))}
     </group>
@@ -223,6 +225,7 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const outlineRef = useRef<THREE.Mesh>(null);
   const reticleRef = useRef<THREE.Mesh>(null);
+  const dangerRingRef = useRef<THREE.Mesh>(null);
   const smoothPos = useRef(new THREE.Vector3());
   const smoothAngle = useRef<number | null>(null);
   const initialized = useRef(false);
@@ -230,6 +233,7 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
   const lastHp = useRef<number | null>(null);
   const scaleRef = useRef(1);
   const isHovered = useRef(false);
+  const stunFlickerRef = useRef(0);
 
   const drone = useMemo(() => stateRef.current.drones.find(d => d.id === droneId), [droneId]);
   if (!drone) return null;
@@ -245,6 +249,15 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
     }
 
     groupRef.current.visible = true;
+
+    // Stunned flicker
+    if (d.isStunned) {
+      stunFlickerRef.current += delta;
+      groupRef.current.visible = Math.sin(stunFlickerRef.current * 30) > 0;
+    } else {
+      stunFlickerRef.current = 0;
+    }
+
     const [wx, , wz] = toWorld(d.x, d.y);
     const flyHeight = DRONE_FLY_HEIGHT[d.droneType] + Math.sin(d.wobble) * 0.4;
     const targetPos = new THREE.Vector3(wx, flyHeight, wz);
@@ -301,72 +314,81 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
         reticleRef.current.scale.set(rPulse, rPulse, rPulse);
       }
     }
+
+    // Danger ring on ground
+    if (dangerRingRef.current) {
+      dangerRingRef.current.position.set(smoothPos.current.x, 0.1, smoothPos.current.z);
+      dangerRingRef.current.visible = true;
+      const ringPulse = 1 + Math.sin(Date.now() * 0.004) * 0.1;
+      dangerRingRef.current.scale.set(ringPulse, ringPulse, 1);
+    }
   });
 
   const isSelected = stateRef.current.selectedDroneId === droneId;
   const outlineSize = drone.droneType === 'gerbera' ? 2.5 : drone.droneType === 'shahed' ? 2.0 : 1.5;
+  const dangerRadius = drone.droneType === 'gerbera' ? 3.0 : drone.droneType === 'shahed' ? 2.0 : 1.5;
 
   return (
-    <group
-      ref={groupRef}
-      onClick={(e) => { e.stopPropagation(); onClick?.(droneId); }}
-      onPointerEnter={(e) => {
-        isHovered.current = true;
-        document.body.style.cursor = 'crosshair';
-      }}
-      onPointerLeave={() => {
-        isHovered.current = false;
-        document.body.style.cursor = 'default';
-      }}
-    >
-      <DroneComponent />
-
-      {/* Danger glow */}
-      <pointLight color="#ff0000" intensity={1.0} distance={5} />
-
-      {/* Hit flash overlay */}
-      {hitFlashRef.current > 0 && (
-        <mesh>
-          <sphereGeometry args={[1.5, 8, 8]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={hitFlashRef.current * 4} />
-        </mesh>
-      )}
-
-      {/* Targeting reticle (hover) */}
-      <mesh ref={reticleRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[outlineSize * 0.8, outlineSize * 1.0, 4]} />
-        <meshBasicMaterial color="#ff2222" transparent opacity={0.7} side={THREE.DoubleSide} />
+    <>
+      {/* Ground danger ring (rendered outside group so it stays on ground) */}
+      <mesh ref={dangerRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]} visible={false}>
+        <ringGeometry args={[dangerRadius * 0.8, dangerRadius, 16]} />
+        <meshBasicMaterial color="#ff2222" transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Selection outline */}
-      <mesh ref={outlineRef} visible={isSelected}>
-        <sphereGeometry args={[outlineSize, 12, 12]} />
-        <meshBasicMaterial color="#ff4444" wireframe transparent opacity={0.6} />
-      </mesh>
+      <group
+        ref={groupRef}
+        onClick={(e) => { e.stopPropagation(); onClick?.(droneId); }}
+        onPointerEnter={() => {
+          isHovered.current = true;
+          document.body.style.cursor = 'crosshair';
+        }}
+        onPointerLeave={() => {
+          isHovered.current = false;
+          document.body.style.cursor = 'default';
+        }}
+      >
+        <DroneComponent />
 
-      {/* Selection ring on ground */}
-      {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.0, 2.5, 16]} />
-          <meshBasicMaterial color="#ff4444" transparent opacity={0.5} side={THREE.DoubleSide} />
+        {/* Danger glow */}
+        <pointLight color="#ff0000" intensity={1.0} distance={5} />
+
+        {/* Hit flash overlay */}
+        {hitFlashRef.current > 0 && (
+          <mesh>
+            <sphereGeometry args={[1.5, 8, 8]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={hitFlashRef.current * 4} />
+          </mesh>
+        )}
+
+        {/* Targeting reticle (hover) */}
+        <mesh ref={reticleRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+          <ringGeometry args={[outlineSize * 0.8, outlineSize * 1.0, 4]} />
+          <meshBasicMaterial color="#ff2222" transparent opacity={0.7} side={THREE.DoubleSide} />
         </mesh>
-      )}
 
-      {/* HP for multi-HP drones */}
-      {drone.maxHp > 1 && (
-        <Billboard>
-          <Text
-            position={[0, 2, 0]}
-            fontSize={0.45}
-            color={drone.hp > 1 ? '#ffaa00' : '#ff0000'}
-            anchorX="center"
-            outlineWidth={0.03}
-            outlineColor="#000"
-          >
-            {`HP ${drone.hp}/${drone.maxHp}`}
-          </Text>
-        </Billboard>
-      )}
-    </group>
+        {/* Selection outline */}
+        <mesh ref={outlineRef} visible={isSelected}>
+          <sphereGeometry args={[outlineSize, 12, 12]} />
+          <meshBasicMaterial color="#ff4444" wireframe transparent opacity={0.6} />
+        </mesh>
+
+        {/* HP for multi-HP drones */}
+        {drone.maxHp > 1 && (
+          <Billboard>
+            <Text
+              position={[0, 2, 0]}
+              fontSize={0.45}
+              color={drone.hp > 1 ? '#ffaa00' : '#ff0000'}
+              anchorX="center"
+              outlineWidth={0.03}
+              outlineColor="#000"
+            >
+              {`HP ${drone.hp}/${drone.maxHp}`}
+            </Text>
+          </Billboard>
+        )}
+      </group>
+    </>
   );
 }

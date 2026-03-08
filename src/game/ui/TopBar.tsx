@@ -26,6 +26,7 @@ interface TopBarProps {
   cameraMode: CameraMode;
   isRaining: boolean;
   passiveIncome: number;
+  mission?: { text: string; progress: number; target: number } | null;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -36,7 +37,6 @@ function formatTime(ms: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-// Animated number that "rolls" when value changes
 function AnimatedValue({ value, color }: { value: number; color?: string }) {
   const [display, setDisplay] = useState(value);
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
@@ -46,7 +46,6 @@ function AnimatedValue({ value, color }: { value: number; color?: string }) {
     if (value !== prevRef.current) {
       setFlash(value > prevRef.current ? 'up' : 'down');
       prevRef.current = value;
-      // Animate to new value
       const start = display;
       const diff = value - start;
       const steps = Math.min(10, Math.abs(diff));
@@ -82,7 +81,7 @@ export const TopBar = React.memo(function TopBar({
   networkEfficiency, isNight, waveIndex, isAirRaid,
   powerGrid, maxPower, rushHourActive, radarActive,
   satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
-  cameraMode, isRaining, passiveIncome,
+  cameraMode, isRaining, passiveIncome, mission,
   onSpeedChange,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
@@ -108,8 +107,14 @@ export const TopBar = React.memo(function TopBar({
   }, [waveIndex]);
 
   return (
-    <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-2 pointer-events-none">
-      <div className="pointer-events-auto px-3 py-2 rounded-xl" style={{ background: 'rgba(8,12,28,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+    <div className="absolute top-0 left-0 right-0 pointer-events-none">
+      <div className="pointer-events-auto mx-2 mt-2 px-3 py-2 rounded-xl flex items-center justify-between gap-2 flex-wrap" style={{
+        background: 'linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(8,12,28,0.88) 100%)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+      }}>
+        {/* LEFT: Primary stats */}
         <div className="flex items-center gap-3 text-sm">
           <span className="font-bold text-base" style={{ color: '#fff' }}>
             <AnimatedValue value={Math.round(score)} />
@@ -123,11 +128,10 @@ export const TopBar = React.memo(function TopBar({
           <span style={{ color: '#22c55e' }}>
             💰<AnimatedValue value={money} color="#22c55e" />
           </span>
-          <span className="text-xs" style={{ color: '#4ade80' }}>+{passiveIncome}/10с</span>
-          <span className={heartPulse ? '' : ''} style={{ display: 'inline-flex', gap: '1px' }}>
+          <span className="text-[10px]" style={{ color: '#4ade80' }}>+{passiveIncome}/10с</span>
+          <span style={{ display: 'inline-flex', gap: '1px' }}>
             {Array.from({ length: Math.min(lives, 5) }).map((_, i) => (
-              <span key={i} className={heartPulse && i === Math.min(lives, 5) - 1 ? 'inline-block' : ''} 
-                style={heartPulse && i === Math.min(lives, 5) - 1 ? { animation: 'heart-pulse 0.4s ease-in-out' } : {}}>
+              <span key={i} style={heartPulse && i === Math.min(lives, 5) - 1 ? { animation: 'heart-pulse 0.4s ease-in-out' } : {}}>
                 ❤️
               </span>
             ))}
@@ -136,10 +140,12 @@ export const TopBar = React.memo(function TopBar({
             ))}
           </span>
         </div>
-        <div className="flex gap-1 mt-1 items-center flex-wrap">
+
+        {/* CENTER: Wave + Speed + Status */}
+        <div className="flex items-center gap-1.5">
           {[1, 2, 5, 10].map(s => (
             <button key={s} onClick={() => onSpeedChange(s)}
-              className="game-btn-hover px-2 py-0.5 rounded text-xs font-bold"
+              className="game-btn-hover px-2 py-0.5 rounded text-[10px] font-bold"
               style={speedMultiplier === s
                 ? { background: '#eab308', color: '#1a1a2e', boxShadow: '0 0 8px rgba(234,179,8,0.4)' }
                 : { background: 'rgba(255,255,255,0.04)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.06)' }
@@ -147,56 +153,69 @@ export const TopBar = React.memo(function TopBar({
               {s}x
             </button>
           ))}
-          <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded transition-all" style={{
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded transition-all" style={{
             background: isAirRaid ? 'rgba(220,38,38,0.4)' : waveFlash ? 'rgba(234,179,8,0.3)' : 'rgba(255,255,255,0.04)',
             color: isAirRaid ? '#fca5a5' : '#9ca3af',
             border: isAirRaid ? '1px solid rgba(220,38,38,0.5)' : '1px solid rgba(255,255,255,0.06)',
             transform: waveFlash ? 'scale(1.1)' : 'scale(1)',
-            transition: 'transform 0.2s, background 0.3s',
           }}>
             Хвиля {waveIndex + 1}
           </span>
           {rushHourActive && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded animate-pulse" style={{
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse" style={{
               background: 'rgba(234,179,8,0.3)', color: '#fbbf24', border: '1px solid rgba(234,179,8,0.5)',
             }}>
               🚇 ПІК
             </span>
           )}
           {gameMode !== 'classic' && (
-            <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}>
+            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}>
               {gameMode === 'rush_hour' ? '🚇' : gameMode === 'siege' ? '💣' : gameMode === 'blackout' ? '🌑' : '🌉'}
             </span>
           )}
           {winConditionMet && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded animate-pulse" style={{
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse" style={{
               background: 'rgba(34,197,94,0.3)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.5)',
             }}>
               🎉 ПЕРЕМОГА
             </span>
           )}
         </div>
-      </div>
-      <div className="pointer-events-auto px-3 py-2 rounded-xl" style={{ background: 'rgba(8,12,28,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-        <div className="flex items-center gap-3 text-xs" style={{ color: '#9ca3af' }}>
+
+        {/* RIGHT: Secondary stats */}
+        <div className="flex items-center gap-2.5 text-[10px]" style={{ color: '#9ca3af' }}>
           <span>⏱ {formatTime(elapsedTime)}</span>
           <span>🚇 <AnimatedValue value={passengersDelivered} color="#9ca3af" /></span>
           <span>🎯 {dronesIntercepted}/{totalDrones}</span>
           <span>📊 {networkEfficiency}%</span>
-          <span>{isNight ? '🌙' : '☀️'}</span>
-          {isRaining && <span>🌧️</span>}
-        </div>
-        <div className="flex items-center gap-2 mt-1 text-xs">
           <span style={{ color: powerPct < 20 ? '#ef4444' : powerPct < 50 ? '#f59e0b' : '#22c55e' }}>
-            ⚡ {powerPct}%
+            ⚡{powerPct}%
           </span>
           <span style={{ color: satisfactionRate > 80 ? '#22c55e' : satisfactionRate > 50 ? '#f59e0b' : '#ef4444' }}>
-            😊 {satisfactionRate}%
+            😊{satisfactionRate}%
           </span>
-          {buildingsDestroyed > 0 && <span style={{ color: '#ef4444' }}>🏚️ {buildingsDestroyed}</span>}
+          {buildingsDestroyed > 0 && <span style={{ color: '#ef4444' }}>🏚️{buildingsDestroyed}</span>}
+          <span>{isNight ? '🌙' : '☀️'}</span>
+          {isRaining && <span>🌧️</span>}
           {radarActive && <span style={{ color: '#06b6d4' }}>📡</span>}
         </div>
       </div>
+
+      {/* Mission tracker */}
+      {mission && (
+        <div className="pointer-events-none mx-auto mt-1 px-3 py-1 rounded-lg text-center max-w-xs" style={{
+          background: 'rgba(8,12,28,0.85)',
+          border: '1px solid rgba(234,179,8,0.2)',
+        }}>
+          <p className="text-[10px] font-bold" style={{ color: '#eab308' }}>{mission.text}</p>
+          <div className="h-1 rounded-full mt-0.5 overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+            <div className="h-full rounded-full transition-all duration-300" style={{
+              width: `${Math.min(100, (mission.progress / mission.target) * 100)}%`,
+              background: 'linear-gradient(90deg, #eab308, #f59e0b)',
+            }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 });

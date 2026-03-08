@@ -18,7 +18,7 @@ function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string;
   const windowEmissive = isNight ? '#ffcc88' : '#88ccff';
 
   return (
-    <group>
+    <group scale={[1.3, 1.3, 1.3]}>
       <mesh castShadow>
         <boxGeometry args={[1.1, 0.9, 3.2]} />
         <meshStandardMaterial color={lineColor} metalness={0.6} roughness={0.25} />
@@ -43,6 +43,7 @@ function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string;
         <boxGeometry args={[0.9, 0.7, 0.05]} />
         <meshStandardMaterial color="#333333" metalness={0.8} roughness={0.2} />
       </mesh>
+      {/* Headlights */}
       <mesh position={[0.25, 0.25, 1.63]}>
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
@@ -51,10 +52,29 @@ function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string;
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
       </mesh>
+      {/* Capacity bar under train */}
       <mesh position={[0, -0.3, 0]}>
         <boxGeometry args={[1.12, 0.06, 3.0 * Math.max(0.1, fillRatio)]} />
         <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.5} transparent opacity={0.7} />
       </mesh>
+      {/* Running lights on sides */}
+      <mesh position={[0.57, 0, 1.0]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.8} />
+      </mesh>
+      <mesh position={[-0.57, 0, 1.0]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.8} />
+      </mesh>
+      <mesh position={[0.57, 0, -1.0]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshBasicMaterial color="#ff2200" transparent opacity={0.6} />
+      </mesh>
+      <mesh position={[-0.57, 0, -1.0]}>
+        <sphereGeometry args={[0.04, 6, 6]} />
+        <meshBasicMaterial color="#ff2200" transparent opacity={0.6} />
+      </mesh>
+      {/* Undercarriage */}
       <mesh position={[0, -0.5, 0]}>
         <boxGeometry args={[0.6, 0.12, 2.8]} />
         <meshStandardMaterial color="#222222" metalness={0.5} roughness={0.6} />
@@ -78,6 +98,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const lastMovementAngle = useRef<number>(0);
   const shieldMeshRef = useRef<THREE.Mesh>(null);
   const hoverGlowRef = useRef<THREE.Mesh>(null);
+  const runLightLRef = useRef<THREE.Mesh>(null);
+  const runLightRRef = useRef<THREE.Mesh>(null);
   const isHoveredRef = useRef(false);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
@@ -121,7 +143,14 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     groupRef.current.rotation.y = smoothAngle.current;
 
     if (t.isDwelling) {
-      groupRef.current.position.y = 0.7 + Math.sin(Date.now() * 0.005) * 0.04;
+      groupRef.current.position.y = 0.7 + Math.sin(Date.now() * 0.005) * 0.06;
+    }
+
+    // Running lights pulse
+    if (runLightLRef.current && runLightRRef.current) {
+      const pulse = 0.5 + Math.sin(Date.now() * 0.006) * 0.5;
+      (runLightLRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+      (runLightRRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
     }
 
     // Shield visual
@@ -147,27 +176,37 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     <group
       ref={groupRef}
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
-      onPointerEnter={() => { isHoveredRef.current = true; }}
-      onPointerLeave={() => { isHoveredRef.current = false; }}
+      onPointerEnter={() => { isHoveredRef.current = true; document.body.style.cursor = 'pointer'; }}
+      onPointerLeave={() => { isHoveredRef.current = false; document.body.style.cursor = 'default'; }}
     >
       <ProceduralTrain lineColor={lineColor} fillRatio={fillRatio} isNight={isNight} />
 
       {/* Hover glow ring */}
       <mesh ref={hoverGlowRef} position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[1.8, 2.2, 16]} />
+        <ringGeometry args={[2.2, 2.8, 16]} />
         <meshBasicMaterial color={lineColor} transparent opacity={0.35} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Running light meshes for animation */}
+      <mesh ref={runLightLRef} position={[0.75, 0, 1.3]}>
+        <sphereGeometry args={[0.06, 6, 6]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.8} />
+      </mesh>
+      <mesh ref={runLightRRef} position={[-0.75, 0, 1.3]}>
+        <sphereGeometry args={[0.06, 6, 6]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.8} />
       </mesh>
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>
-        <sphereGeometry args={[2.5, 12, 12]} />
+        <sphereGeometry args={[3.0, 12, 12]} />
         <meshBasicMaterial color="#3b82f6" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Selection ring */}
       {isSelected && (
         <mesh position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[1.6, 2.0, 20]} />
+          <ringGeometry args={[2.0, 2.5, 20]} />
           <meshBasicMaterial color="#ffcc00" transparent opacity={0.5} side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -176,8 +215,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       {train.passengers.length > 0 && (
         <Billboard>
           <Text
-            position={[0, 1.6, 0]}
-            fontSize={0.5}
+            position={[0, 2.0, 0]}
+            fontSize={0.55}
             color="#ffffff"
             anchorX="center"
             anchorY="middle"
@@ -190,8 +229,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       )}
 
       {/* Headlights + interior glow at night */}
-      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 2.0 : 1.0} distance={isNight ? 8 : 4} position={[0, 0.3, 1.6]} />
-      {isNight && <pointLight color="#ffaa66" intensity={0.5} distance={3} position={[0, 0.2, 0]} />}
+      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 2.5 : 1.0} distance={isNight ? 10 : 5} position={[0, 0.3, 2.0]} />
+      {isNight && <pointLight color="#ffaa66" intensity={0.6} distance={4} position={[0, 0.2, 0]} />}
     </group>
   );
 }

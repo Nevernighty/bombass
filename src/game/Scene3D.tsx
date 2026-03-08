@@ -1,4 +1,4 @@
-import React, { useRef, Suspense, useMemo } from 'react';
+import React, { useRef, Suspense, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -30,23 +30,47 @@ interface SceneContentProps {
 function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const { camera } = useThree();
   const cinematicTimeRef = useRef(0);
+  const autoPanRef = useRef<{ x: number; z: number; timer: number } | null>(null);
 
   useFrame((_, delta) => {
     const state = stateRef.current;
     const cam = state.camera;
 
-    // WASD panning
-    const panSpeed = 25 * delta / Math.max(cam.zoom, 0.3);
+    // WASD panning — faster response
+    const panSpeed = 40 * delta / Math.max(cam.zoom, 0.3);
     const keys = cam.keysDown;
     if (keys.has('w') || keys.has('W') || keys.has('ArrowUp')) cam.targetY += panSpeed;
     if (keys.has('s') || keys.has('S') || keys.has('ArrowDown')) cam.targetY -= panSpeed;
     if (keys.has('a') || keys.has('A') || keys.has('ArrowLeft')) cam.targetX += panSpeed;
     if (keys.has('d') || keys.has('D') || keys.has('ArrowRight')) cam.targetX -= panSpeed;
 
-    // Smooth interpolation
-    cam.zoom += (cam.targetZoom - cam.zoom) * 0.1;
-    cam.x += (cam.targetX - cam.x) * 0.1;
-    cam.y += (cam.targetY - cam.y) * 0.1;
+    // Any user input cancels auto-pan
+    if (keys.size > 0) autoPanRef.current = null;
+
+    // Auto-pan to explosions (only in free mode)
+    if (cam.mode === 'free' && state.explosions.length > 0 && !autoPanRef.current) {
+      const newest = state.explosions[state.explosions.length - 1];
+      if (newest.time < 100) {
+        const [ex, , ez] = toWorld(newest.x, newest.y);
+        autoPanRef.current = { x: -ex, z: -ez, timer: 1.5 };
+      }
+    }
+    if (autoPanRef.current) {
+      autoPanRef.current.timer -= delta;
+      if (autoPanRef.current.timer > 0) {
+        const strength = Math.min(0.03, delta * 2);
+        cam.targetX += (autoPanRef.current.x - cam.targetX) * strength;
+        cam.targetY += (autoPanRef.current.z - cam.targetY) * strength;
+      } else {
+        autoPanRef.current = null;
+      }
+    }
+
+    // Smoother interpolation — snappier
+    const lerpFactor = 0.12;
+    cam.zoom += (cam.targetZoom - cam.zoom) * lerpFactor;
+    cam.x += (cam.targetX - cam.x) * lerpFactor;
+    cam.y += (cam.targetY - cam.y) * lerpFactor;
 
     const ortho = camera as THREE.OrthographicCamera;
     ortho.zoom = 10 * cam.zoom;
@@ -61,6 +85,7 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
         const [wx, , wz] = toWorld(train.x, train.y);
         cam.targetX = -wx;
         cam.targetY = -wz;
+        cam.targetZoom += (1.5 - cam.targetZoom) * 0.03;
       }
     } else if (cam.mode === 'overview') {
       cam.targetX += (0 - cam.targetX) * 0.02;
@@ -69,7 +94,6 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     } else if (cam.mode === 'cinematic') {
       cinematicTimeRef.current += delta * cam.orbitSpeed;
       const t = cinematicTimeRef.current;
-      // Figure-8 path
       const radius = 30;
       const cx = Math.sin(t) * radius;
       const cz = Math.sin(t * 2) * radius * 0.4;
@@ -226,9 +250,10 @@ function CloudLayer({ isNight }: { isNight: boolean }) {
   );
 }
 
-// Stars at night
+// Stars at night — imperative geometry to fix R3F bufferAttribute crash
 function NightSky({ isNight }: { isNight: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
+  const geoRef = useRef<THREE.BufferGeometry>(null);
 
   const positions = useMemo(() => {
     const count = 200;
@@ -244,6 +269,12 @@ function NightSky({ isNight }: { isNight: boolean }) {
     return pos;
   }, []);
 
+  useEffect(() => {
+    if (geoRef.current) {
+      geoRef.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    }
+  }, [positions]);
+
   useFrame(({ clock }) => {
     if (!pointsRef.current) return;
     pointsRef.current.rotation.y = clock.elapsedTime * 0.002;
@@ -254,9 +285,7 @@ function NightSky({ isNight }: { isNight: boolean }) {
   return (
     <>
       <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        </bufferGeometry>
+        <bufferGeometry ref={geoRef} />
         <pointsMaterial size={0.4} color="#ffffff" transparent opacity={0.6} sizeAttenuation={false} />
       </points>
       {/* Moon */}
@@ -269,9 +298,10 @@ function NightSky({ isNight }: { isNight: boolean }) {
   );
 }
 
-// Ambient fireflies at night
+// Ambient fireflies at night — imperative geometry
 function AmbientParticles({ isNight }: { isNight: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
+  const geoRef = useRef<THREE.BufferGeometry>(null);
   const basePositions = useRef<Float32Array | null>(null);
 
   const { positions, colors } = useMemo(() => {
@@ -290,13 +320,18 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
     return { positions: pos, colors: col };
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     basePositions.current = new Float32Array(positions);
-  }, [positions]);
+    if (geoRef.current) {
+      geoRef.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geoRef.current.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    }
+  }, [positions, colors]);
 
   useFrame(({ clock }) => {
-    if (!pointsRef.current || !basePositions.current) return;
-    const posAttr = pointsRef.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+    if (!pointsRef.current || !basePositions.current || !geoRef.current) return;
+    const posAttr = geoRef.current.getAttribute('position') as THREE.BufferAttribute;
+    if (!posAttr) return;
     const base = basePositions.current;
     for (let i = 0; i < posAttr.count; i++) {
       posAttr.setY(i, base[i * 3 + 1] + Math.sin(clock.elapsedTime * 0.5 + i) * 0.5);
@@ -308,10 +343,7 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
 
   return (
     <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
+      <bufferGeometry ref={geoRef} />
       <pointsMaterial size={0.15} vertexColors transparent opacity={0.7} sizeAttenuation />
     </points>
   );
@@ -450,11 +482,12 @@ function InterceptorDronesLayer({ stateRef }: { stateRef: React.MutableRefObject
   );
 }
 
-// Rain particle system
+// Rain particle system — imperative geometry
 function RainEffect({ isRaining }: { isRaining: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
+  const geoRef = useRef<THREE.BufferGeometry>(null);
 
-  const { positions } = useMemo(() => {
+  const positions = useMemo(() => {
     const count = 150;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -462,12 +495,19 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
       pos[i * 3 + 1] = Math.random() * 30;
       pos[i * 3 + 2] = (Math.random() - 0.5) * 100;
     }
-    return { positions: pos };
+    return pos;
   }, []);
 
+  useEffect(() => {
+    if (geoRef.current) {
+      geoRef.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    }
+  }, [positions]);
+
   useFrame(() => {
-    if (!pointsRef.current || !isRaining) return;
-    const posAttr = pointsRef.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+    if (!pointsRef.current || !isRaining || !geoRef.current) return;
+    const posAttr = geoRef.current.getAttribute('position') as THREE.BufferAttribute;
+    if (!posAttr) return;
     for (let i = 0; i < posAttr.count; i++) {
       let y = posAttr.getY(i) - 0.5;
       if (y < 0) y = 25 + Math.random() * 5;
@@ -480,11 +520,34 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
 
   return (
     <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
+      <bufferGeometry ref={geoRef} />
       <pointsMaterial size={0.05} color="#8899bb" transparent opacity={0.4} sizeAttenuation />
     </points>
+  );
+}
+
+// Ground with grid zones
+function GroundPlane({ isNight }: { isNight: boolean }) {
+  const groundColor = isNight ? '#0a1025' : '#0c1220';
+  return (
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
+        <planeGeometry args={[160, 130]} />
+        <meshStandardMaterial
+          color={groundColor}
+          metalness={0.05}
+          roughness={0.95}
+          emissive={isNight ? '#0a0e20' : '#000000'}
+          emissiveIntensity={isNight ? 0.15 : 0}
+        />
+      </mesh>
+      {/* Subtle zone coloring near river */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[5, -0.08, 0]}>
+        <planeGeometry args={[30, 130]} />
+        <meshStandardMaterial color={isNight ? '#0c1230' : '#0e1428'} transparent opacity={0.5} />
+      </mesh>
+      <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
+    </>
   );
 }
 
@@ -499,11 +562,9 @@ function SceneContent({
   const dirIntensity = state.isNight ? 0.35 : 0.7;
   const dirColor = state.isNight ? '#6688cc' : '#ffffee';
   const fogColor = state.isNight ? '#0a1025' : '#0a0e1a';
-  const groundColor = state.isNight ? '#0a1025' : '#0c1220';
 
-  // Sunset/sunrise sky transition
-  const skyHue = state.dayTime > 0.7 && state.dayTime < 0.85 ? '#2a1535' : // sunset
-    state.dayTime > 0.15 && state.dayTime < 0.25 ? '#1a2545' : // sunrise
+  const skyHue = state.dayTime > 0.7 && state.dayTime < 0.85 ? '#2a1535' :
+    state.dayTime > 0.15 && state.dayTime < 0.25 ? '#1a2545' :
     state.isNight ? '#050818' : '#1a3050';
 
   return (
@@ -524,7 +585,6 @@ function SceneContent({
       {state.isAirRaid && (
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25} distance={120} />
       )}
-      {/* Enhanced night lighting */}
       {state.isNight && (
         <>
           <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.5} distance={80} />
@@ -542,21 +602,8 @@ function SceneContent({
         <meshBasicMaterial color={skyHue} side={THREE.BackSide} transparent opacity={0.8} />
       </mesh>
 
-      {/* Night sky: stars + moon */}
       <NightSky isNight={state.isNight} />
-
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
-        <planeGeometry args={[160, 130]} />
-        <meshStandardMaterial
-          color={groundColor}
-          metalness={0.05}
-          roughness={0.95}
-          emissive={state.isNight ? '#0a0e20' : '#000000'}
-          emissiveIntensity={state.isNight ? 0.15 : 0}
-        />
-      </mesh>
-      <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
+      <GroundPlane isNight={state.isNight} />
 
       <RiverPlane />
       <CityBuildings stateRef={stateRef} />
