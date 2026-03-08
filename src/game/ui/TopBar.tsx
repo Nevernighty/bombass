@@ -16,6 +16,7 @@ interface TopBarProps {
   isNight: boolean;
   waveIndex: number;
   isAirRaid: boolean;
+  airRaidTimer: number;
   powerGrid: number;
   maxPower: number;
   rushHourActive: boolean;
@@ -62,7 +63,7 @@ function Divider() {
 export const TopBar = React.memo(function TopBar({
   score, combo, money, lives, speedMultiplier,
   elapsedTime, passengersDelivered, dronesIntercepted, totalDrones,
-  networkEfficiency, isNight, waveIndex, isAirRaid,
+  networkEfficiency, isNight, waveIndex, isAirRaid, airRaidTimer,
   powerGrid, maxPower, rushHourActive, radarActive,
   satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
   cameraMode, isRaining, passiveIncome, mission,
@@ -89,12 +90,14 @@ export const TopBar = React.memo(function TopBar({
           </span>
           <span className="text-[10px]" style={{ color: 'hsl(145, 63%, 60%)' }}>+{passiveIncome}/10с</span>
           <Divider />
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5" style={{
+            animation: lives <= 2 ? 'pulse 1s ease-in-out infinite' : undefined,
+          }}>
             {Array.from({ length: Math.min(lives, 5) }).map((_, i) => (
-              <div key={i} className="w-2 h-2 rounded-full" style={{ background: 'hsl(0, 72%, 51%)' }} />
+              <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(0, 72%, 51%)', boxShadow: lives <= 2 ? '0 0 6px hsla(0, 72%, 51%, 0.6)' : 'none' }} />
             ))}
             {Array.from({ length: Math.max(0, 3 - lives) }).map((_, i) => (
-              <div key={`d${i}`} className="w-2 h-2 rounded-full" style={{ background: 'hsl(var(--muted))' }} />
+              <div key={`d${i}`} className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(var(--muted))' }} />
             ))}
           </div>
         </div>
@@ -119,6 +122,15 @@ export const TopBar = React.memo(function TopBar({
             border: isAirRaid ? '1px solid hsla(0, 72%, 51%, 0.4)' : '1px solid transparent',
           }}>
             W{waveIndex + 1}
+          </span>
+          {isAirRaid && airRaidTimer > 0 && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse" style={{
+              background: 'hsla(0, 72%, 51%, 0.15)',
+              color: 'hsl(0, 72%, 65%)',
+            }}>
+              {Math.ceil(airRaidTimer / 1000)}с
+            </span>
+          )}
           </span>
           {rushHourActive && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse" style={{

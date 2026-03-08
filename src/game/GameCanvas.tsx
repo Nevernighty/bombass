@@ -12,6 +12,7 @@ import { ActionBar } from './ui/ActionBar';
 import { CameraControls } from './ui/CameraControls';
 import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
+import { Minimap } from './ui/Minimap';
 import { Achievement } from './types';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
@@ -394,7 +395,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               color: 'hsl(var(--game-accent))',
               animation: 'title-letter 0.5s ease-out 0.5s both',
             }}>RESILIENCE</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
               {(Object.values(SCENARIOS)).map((sc, idx) => (
                 <button key={sc.id} onClick={() => startGame(sc.id)}
                   className="game-btn-hover p-4 rounded-lg text-left transition-all hover:border-[hsl(var(--game-accent))]/40"
@@ -419,6 +420,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 </button>
               ))}
             </div>
+
+            {/* How to Play tutorial */}
+            <div className="mb-4 p-3 rounded-lg text-left" style={{
+              background: 'hsla(var(--muted), 0.2)',
+              border: '1px solid hsl(var(--border))',
+              animation: 'title-letter 0.4s ease-out 1s both',
+            }}>
+              <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Як грати</p>
+              <div className="grid grid-cols-2 gap-2 text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
+                <p>🚇 Купуй потяги M1/M2/M3 для перевезення пасажирів</p>
+                <p>🏗️ Клікай по станціях для апгрейдів та оборони</p>
+                <p>🎯 Клікай по дронах щоб збивати їх</p>
+                <p>🛡️ Пережий повітряні тривоги та достав пасажирів</p>
+              </div>
+            </div>
+
             <div className="text-[11px] space-y-0.5 font-mono" style={{ color: 'hsl(var(--muted-foreground))', animation: 'title-letter 0.4s ease-out 1.2s both' }}>
               <p>WASD рух · Колесо зум · ПКМ обертання · Клік по дрону</p>
               <p>Пробіл пауза · 1-4 швидкість · F/O/C камера · Q/E/R/T дії</p>
@@ -507,6 +524,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             passengersDelivered={state.passengersDelivered} dronesIntercepted={state.dronesIntercepted}
             totalDrones={state.totalDrones} networkEfficiency={state.networkEfficiency}
             isNight={state.isNight} waveIndex={state.waveIndex} isAirRaid={state.isAirRaid}
+            airRaidTimer={state.airRaidTimer}
             powerGrid={state.powerGrid} maxPower={state.maxPower}
             rushHourActive={state.rushHourActive} radarActive={state.radarActive}
             satisfactionRate={state.satisfactionRate} buildingsDestroyed={state.buildingsDestroyed}
@@ -585,6 +603,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           />
 
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
+
+          <Minimap stateRef={stateRef} state={state} />
         </>
       )}
     </div>
