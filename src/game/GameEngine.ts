@@ -160,6 +160,10 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     swarmWarningTimer: 0,
     // Phase 17
     closedSegments: [],
+    // Phase 18
+    activeEvents: [],
+    hoveredElement: null,
+    eventLog: [],
     _cachedLineStations: {},
   };
 }
