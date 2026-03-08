@@ -32,7 +32,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         const st = STATIONS.find(s => s.id === id);
         if (st) {
           const [wx, , wz] = toWorld(st.x, st.y);
-          points.push(new THREE.Vector3(wx, 0.15, wz));
+          points.push(new THREE.Vector3(wx, 0.2, wz));
         }
       });
 
@@ -42,9 +42,9 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         geometryRef.current?.dispose();
         glowGeometryRef.current?.dispose();
 
-        const segments = Math.max(points.length * 20, 64);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.5, 8, false);
-        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.0, 8, false);
+        const segments = Math.max(points.length * 16, 48);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.3, 6, false);
+        const glowGeo = new THREE.TubeGeometry(curve, segments, 0.7, 6, false);
 
         geometryRef.current = tubeGeo;
         glowGeometryRef.current = glowGeo;
@@ -54,42 +54,36 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
       }
     }
 
-    // Night glow intensity
+    // Night glow
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.4 : 0.18;
+      mat.opacity = state.isNight ? 0.35 : 0.12;
     }
-
-    // Main line emissive pulse
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 0.7 : 0.35;
+      mat.emissiveIntensity = state.isNight ? 0.8 : 0.4;
     }
   });
 
-  // Tiny initial geometry (off-screen, will be replaced on first frame)
   const initCurve = useMemo(() => new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, -100, 0), new THREE.Vector3(1, -100, 0)
   ]), []);
 
   return (
     <group>
-      {/* Main line tube */}
       <mesh ref={meshRef}>
-        <tubeGeometry args={[initCurve, 2, 0.5, 8, false]} />
+        <tubeGeometry args={[initCurve, 2, 0.3, 6, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.35}
-          metalness={0.5}
-          roughness={0.2}
+          emissiveIntensity={0.4}
+          metalness={0.4}
+          roughness={0.3}
         />
       </mesh>
-
-      {/* Glow tube */}
       <mesh ref={glowRef}>
-        <tubeGeometry args={[initCurve, 2, 1.0, 8, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.18} side={THREE.DoubleSide} />
+        <tubeGeometry args={[initCurve, 2, 0.7, 6, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
