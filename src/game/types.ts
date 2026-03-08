@@ -305,6 +305,8 @@ export interface GameState {
   isDrawingLine: boolean;
   drawLineFrom: string | null;
   drawLineTo: string | null;
+  drawLineColor: string | null;
+  drawMouseWorldPos: { x: number; z: number } | null;
   trainSpawnEffects: { id: string; x: number; y: number; timer: number; line: string }[];
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
