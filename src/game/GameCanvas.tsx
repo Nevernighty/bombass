@@ -266,7 +266,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   }, []);
 
   const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
-  const selectedTrainLevel = state.selectedTrain ? (state.trains.find(t => t.id === state.selectedTrain)?.level || 1) : 1;
+  const selTrain = state.selectedTrain ? state.trains.find(t => t.id === state.selectedTrain) : null;
+  const selectedTrainLevel = selTrain?.level || 1;
 
   return (
     <div ref={containerRef} className="relative w-full h-full select-none"
