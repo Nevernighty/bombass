@@ -106,7 +106,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
-    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3, tiltAngle: 0.65, keysDown: new Set<string>() },
+    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3, tiltAngle: 0.55, keysDown: new Set<string>() },
     score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
