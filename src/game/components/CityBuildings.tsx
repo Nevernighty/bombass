@@ -330,8 +330,8 @@ export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps
     if (!bs) return;
 
     // If damaged, try repair
-    if (bs.hp < bs.maxHp && !bs.isDestroyed && onRepairBuilding) {
-      onRepairBuilding(instanceId);
+    if (bs.hp < bs.maxHp && !bs.isDestroyed && stateRef) {
+      stateRef.current = repairBuilding({ ...stateRef.current }, instanceId);
     }
 
     setTooltip(prev =>
