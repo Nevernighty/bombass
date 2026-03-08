@@ -146,7 +146,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === 'f' || e.key === 'F') setCameraMode('follow');
       if (e.key === 'o' || e.key === 'O') setCameraMode('overview');
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
-      if (e.key === 'Escape') setCameraMode('free');
+      if (e.key === 'Escape') { setCameraMode('free'); stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }
       // Game action shortcuts
       if (e.key === 'q' || e.key === 'Q') {
         // Quick buy train — cycle lines
