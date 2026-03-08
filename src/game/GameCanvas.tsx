@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity } from './GameEngine';
+import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, globalEventBus } from './GameEngine';
 import { GameState } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -8,6 +8,7 @@ import SceneContent from './Scene3D';
 import { TopBar } from './ui/TopBar';
 import { StationPanel } from './ui/StationPanel';
 import { ActionBar } from './ui/ActionBar';
+import { AudioFeedback } from './core/AudioFeedback';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +38,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const [hudState, setHudState] = useState<GameState>(stateRef.current);
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
 
+  const audioFeedbackRef = useRef<AudioFeedback | null>(null);
+
   const startGame = useCallback(() => {
     const s = { ...stateRef.current };
     s.gameStarted = true;
@@ -44,6 +47,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     audioRef.current.init();
     audioRef.current.resume();
     audioRef.current.startAmbientMusic();
+    // Wire up EventBus → Audio
+    if (!audioFeedbackRef.current) {
+      audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
+    }
+    setHudState({ ...s });
     setHudState({ ...s });
   }, []);
 
