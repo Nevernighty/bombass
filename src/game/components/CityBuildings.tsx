@@ -4,6 +4,7 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { STATIONS, toWorld } from '../constants';
 import { GameState } from '../types';
+import { repairBuilding } from '../GameEngine';
 
 const BUILDINGS_PER_STATION = 3;
 const tempObject = new THREE.Object3D();
