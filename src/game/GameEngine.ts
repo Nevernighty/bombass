@@ -1114,6 +1114,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateComboRewards(s);
   updatePhase5Timers(s, realDt);
   updatePhase6Systems(s, realDt, globalEventBus);
+  updatePhase7Systems(s, realDt);
   updateAchievements(s);
   updateWinConditions(s);
   updatePhysics(s, realDt);
