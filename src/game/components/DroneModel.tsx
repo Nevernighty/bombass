@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard, Text, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState, DroneType } from '../types';
 import { DRONE_TYPES, STATION_MAP, toWorld } from '../constants';
@@ -17,209 +17,66 @@ const DRONE_FLY_HEIGHT: Record<DroneType, number> = {
   gerbera: 5,
 };
 
-// ===== SHAHED: Delta-wing kamikaze drone with animated propeller =====
-function ShahedDrone() {
-  const propRef = useRef<THREE.Mesh>(null);
-  const warheadRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (propRef.current) propRef.current.rotation.x = clock.elapsedTime * 40;
-    if (warheadRef.current) {
-      (warheadRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(clock.elapsedTime * 6) * 0.3;
-    }
-  });
-
-  return (
-    <group>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.1, 0.22, 2.8, 8]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.7} roughness={0.3} />
-      </mesh>
-      <mesh rotation={[0, 0, 0.05]} position={[-0.2, 0, 0]}>
-        <boxGeometry args={[0.06, 2.6, 0.03]} />
-        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[-0.2, 1.3, -0.08]} rotation={[0.3, 0, 0]}>
-        <boxGeometry args={[0.04, 0.3, 0.15]} />
-        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[-0.2, -1.3, -0.08]} rotation={[-0.3, 0, 0]}>
-        <boxGeometry args={[0.04, 0.3, 0.15]} />
-        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[-1.2, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[0.04, 0.9, 0.6]} />
-        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[-1.2, 0, 0.2]}>
-        <boxGeometry args={[0.04, 0.6, 0.3]} />
-        <meshStandardMaterial color="#555" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[1.4, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <coneGeometry args={[0.1, 0.4, 6]} />
-        <meshStandardMaterial color="#333" metalness={0.8} roughness={0.2} />
-      </mesh>
-      <mesh ref={warheadRef} position={[1.5, 0, 0]}>
-        <sphereGeometry args={[0.12, 8, 8]} />
-        <meshBasicMaterial color="#ff2200" transparent opacity={0.5} />
-      </mesh>
-      <mesh ref={propRef} position={[-1.5, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.6, 4]} />
-        <meshStandardMaterial color="#888" metalness={0.8} />
-      </mesh>
-      {/* Engine glow */}
-      <mesh position={[-1.5, 0, 0]}>
-        <sphereGeometry args={[0.22, 8, 8]} />
-        <meshBasicMaterial color="#ff4400" transparent opacity={0.7} />
-      </mesh>
-      {/* Smoke trail - denser (8 particles) */}
-      {[-1.8, -2.1, -2.4, -2.7, -3.1, -3.5, -3.9, -4.4].map((x, i) => (
-        <mesh key={i} position={[x, (Math.sin(i * 1.5) * 0.06), (Math.cos(i * 2) * 0.04)]}>
-          <sphereGeometry args={[0.12 - i * 0.012, 6, 6]} />
-          <meshBasicMaterial color="#888888" transparent opacity={0.35 - i * 0.04} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-// ===== MOLNIYA: Fast recon with wing tip lights =====
-function MolniyaDrone() {
-  const leftLightRef = useRef<THREE.Mesh>(null);
-  const rightLightRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (leftLightRef.current) {
-      (leftLightRef.current.material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(clock.elapsedTime * 8) * 0.5;
-    }
-    if (rightLightRef.current) {
-      (rightLightRef.current.material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.cos(clock.elapsedTime * 8) * 0.5;
-    }
-  });
-
-  return (
-    <group>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.06, 0.12, 1.8, 8]} />
-        <meshStandardMaterial color="#777" metalness={0.8} roughness={0.2} />
-      </mesh>
-      <mesh rotation={[0, 0.3, 0]}>
-        <boxGeometry args={[0.03, 1.8, 0.02]} />
-        <meshStandardMaterial color="#999" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh ref={leftLightRef} position={[0, 0.9, 0]}>
-        <sphereGeometry args={[0.04, 6, 6]} />
-        <meshBasicMaterial color="#00ff00" transparent opacity={0.8} />
-      </mesh>
-      <mesh ref={rightLightRef} position={[0, -0.9, 0]}>
-        <sphereGeometry args={[0.04, 6, 6]} />
-        <meshBasicMaterial color="#ff0000" transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[0.6, 0, 0]}>
-        <boxGeometry args={[0.02, 0.6, 0.015]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh position={[-0.8, 0, 0.12]}>
-        <boxGeometry args={[0.3, 0.02, 0.25]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      <mesh position={[0.95, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <sphereGeometry args={[0.07, 8, 8]} />
-        <meshStandardMaterial color="#444" metalness={0.9} roughness={0.1} />
-      </mesh>
-      <mesh position={[-1.0, 0, 0]}>
-        <sphereGeometry args={[0.1, 6, 6]} />
-        <meshBasicMaterial color="#4488ff" transparent opacity={0.6} />
-      </mesh>
-      {[-1.3, -1.6, -1.9, -2.2, -2.5, -2.8].map((x, i) => (
-        <mesh key={i} position={[x, Math.sin(i * 1.2) * 0.03, 0]}>
-          <sphereGeometry args={[0.05 - i * 0.006, 6, 6]} />
-          <meshBasicMaterial color="#6699ff" transparent opacity={0.35 - i * 0.05} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-// ===== GERBERA: Heavy bomber with twin rotating propellers =====
-function GerberaDrone() {
-  const prop1Ref = useRef<THREE.Mesh>(null);
-  const prop2Ref = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (prop1Ref.current) prop1Ref.current.rotation.y = clock.elapsedTime * 30;
-    if (prop2Ref.current) prop2Ref.current.rotation.y = clock.elapsedTime * 30;
-  });
-
-  return (
-    <group>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.18, 0.32, 3.2, 8]} />
-        <meshStandardMaterial color="#3a3a3a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      <mesh>
-        <boxGeometry args={[0.06, 3.4, 0.04]} />
-        <meshStandardMaterial color="#4a4a4a" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 0.8, -0.2]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.08, 0.1, 0.5, 6]} />
-        <meshStandardMaterial color="#333" metalness={0.7} roughness={0.3} />
-      </mesh>
-      <mesh ref={prop1Ref} position={[0, 0.8, -0.35]}>
-        <boxGeometry args={[0.6, 0.04, 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.8} />
-      </mesh>
-      <mesh position={[0, -0.8, -0.2]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.08, 0.1, 0.5, 6]} />
-        <meshStandardMaterial color="#333" metalness={0.7} roughness={0.3} />
-      </mesh>
-      <mesh ref={prop2Ref} position={[0, -0.8, -0.35]}>
-        <boxGeometry args={[0.6, 0.04, 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.8} />
-      </mesh>
-      <mesh position={[-1.4, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[0.06, 1.2, 0.7]} />
-        <meshStandardMaterial color="#444" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[-1.4, 0, 0.25]}>
-        <boxGeometry args={[0.06, 0.8, 0.4]} />
-        <meshStandardMaterial color="#444" metalness={0.5} roughness={0.4} />
-      </mesh>
-      <mesh position={[0.2, 0, -0.3]}>
-        <boxGeometry args={[1.0, 0.6, 0.04]} />
-        <meshStandardMaterial color="#1a1a1a" metalness={0.3} roughness={0.8} />
-      </mesh>
-      <mesh position={[1.65, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <coneGeometry args={[0.18, 0.5, 6]} />
-        <meshStandardMaterial color="#333" metalness={0.8} roughness={0.2} />
-      </mesh>
-      <mesh position={[-1.7, 0, 0]}>
-        <sphereGeometry args={[0.22, 8, 8]} />
-        <meshBasicMaterial color="#ff3300" transparent opacity={0.6} />
-      </mesh>
-      <mesh position={[-0.3, 0.8, -0.2]}>
-        <sphereGeometry args={[0.06, 6, 6]} />
-        <meshBasicMaterial color="#ff4400" transparent opacity={0.4} />
-      </mesh>
-      <mesh position={[-0.3, -0.8, -0.2]}>
-        <sphereGeometry args={[0.06, 6, 6]} />
-        <meshBasicMaterial color="#ff4400" transparent opacity={0.4} />
-      </mesh>
-      {[-2.0, -2.5, -3.0, -3.5, -4.0, -4.6].map((x, i) => (
-        <mesh key={i} position={[x, Math.sin(i * 0.8) * 0.08, Math.cos(i * 1.3) * 0.05]}>
-          <sphereGeometry args={[0.12 - i * 0.015, 6, 6]} />
-          <meshBasicMaterial color="#555555" transparent opacity={0.35 - i * 0.05} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-const DRONE_COMPONENTS: Record<DroneType, React.FC> = {
-  shahed: ShahedDrone,
-  molniya: MolniyaDrone,
-  gerbera: GerberaDrone,
+const DRONE_MODEL_PATHS: Record<DroneType, string> = {
+  shahed: '/models/shahed_136.glb',
+  molniya: '/models/molniya_uav.glb',
+  gerbera: '/models/uav_gerbera_low-poly.glb',
 };
+
+const DRONE_SCALES: Record<DroneType, number> = {
+  shahed: 1.2,
+  molniya: 0.8,
+  gerbera: 1.5,
+};
+
+function GLBDrone({ droneType }: { droneType: DroneType }) {
+  const { scene } = useGLTF(DRONE_MODEL_PATHS[droneType]);
+  const cloned = useMemo(() => {
+    const s = scene.clone(true);
+    s.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        // Ensure materials are not shared across clones
+        if (mesh.material) {
+          mesh.material = (mesh.material as THREE.Material).clone();
+        }
+      }
+    });
+    return s;
+  }, [scene]);
+
+  const scale = DRONE_SCALES[droneType];
+  return <primitive object={cloned} scale={[scale, scale, scale]} />;
+}
+
+// Preload all drone models
+useGLTF.preload('/models/shahed_136.glb');
+useGLTF.preload('/models/molniya_uav.glb');
+useGLTF.preload('/models/uav_gerbera_low-poly.glb');
+
+// Smoke trail particles (kept from procedural version)
+function SmokeTrail({ droneType }: { droneType: DroneType }) {
+  const count = droneType === 'gerbera' ? 6 : droneType === 'shahed' ? 8 : 6;
+  const color = droneType === 'molniya' ? '#6699ff' : droneType === 'gerbera' ? '#555555' : '#888888';
+  const baseSize = droneType === 'gerbera' ? 0.12 : 0.1;
+
+  return (
+    <group>
+      {Array.from({ length: count }).map((_, i) => (
+        <mesh key={i} position={[-(1.5 + i * 0.4), Math.sin(i * 1.5) * 0.06, Math.cos(i * 2) * 0.04]}>
+          <sphereGeometry args={[baseSize - i * 0.012, 6, 6]} />
+          <meshBasicMaterial color={color} transparent opacity={0.35 - i * 0.04} />
+        </mesh>
+      ))}
+      {/* Engine glow */}
+      <mesh position={[-1.2, 0, 0]}>
+        <sphereGeometry args={[0.18, 8, 8]} />
+        <meshBasicMaterial color={droneType === 'molniya' ? '#4488ff' : '#ff4400'} transparent opacity={0.6} />
+      </mesh>
+    </group>
+  );
+}
 
 export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -238,8 +95,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
   const drone = useMemo(() => stateRef.current.drones.find(d => d.id === droneId), [droneId]);
   if (!drone) return null;
 
-  const DroneComponent = DRONE_COMPONENTS[drone.droneType];
-
   useFrame((_, delta) => {
     const state = stateRef.current;
     const d = state.drones.find(dr => dr.id === droneId);
@@ -250,7 +105,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
 
     groupRef.current.visible = true;
 
-    // Stunned flicker
     if (d.isStunned) {
       stunFlickerRef.current += delta;
       groupRef.current.visible = Math.sin(stunFlickerRef.current * 30) > 0;
@@ -270,7 +124,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
     smoothPos.current.lerp(targetPos, Math.min(1, delta * 6));
     groupRef.current.position.copy(smoothPos.current);
 
-    // Hit flash with scale pop
     if (lastHp.current !== null && d.hp < lastHp.current) {
       hitFlashRef.current = 0.15;
       scaleRef.current = 1.3;
@@ -280,7 +133,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
     scaleRef.current += (1 - scaleRef.current) * 0.1;
     groupRef.current.scale.setScalar(scaleRef.current);
 
-    // Smooth rotation
     const targetSt = STATION_MAP.get(d.targetStationId);
     if (targetSt) {
       const [tx, , tz] = toWorld(targetSt.x, targetSt.y);
@@ -305,7 +157,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
       }
     }
 
-    // Targeting reticle on hover
     if (reticleRef.current) {
       reticleRef.current.visible = isHovered.current;
       if (isHovered.current) {
@@ -315,7 +166,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
       }
     }
 
-    // Danger ring on ground
     if (dangerRingRef.current) {
       dangerRingRef.current.position.set(smoothPos.current.x, 0.1, smoothPos.current.z);
       dangerRingRef.current.visible = true;
@@ -330,7 +180,6 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
 
   return (
     <>
-      {/* Ground danger ring (rendered outside group so it stays on ground) */}
       <mesh ref={dangerRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]} visible={false}>
         <ringGeometry args={[dangerRadius * 0.8, dangerRadius, 16]} />
         <meshBasicMaterial color="#ff2222" transparent opacity={0.15} side={THREE.DoubleSide} />
@@ -339,21 +188,14 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
       <group
         ref={groupRef}
         onClick={(e) => { e.stopPropagation(); onClick?.(droneId); }}
-        onPointerEnter={() => {
-          isHovered.current = true;
-          document.body.style.cursor = 'crosshair';
-        }}
-        onPointerLeave={() => {
-          isHovered.current = false;
-          document.body.style.cursor = 'default';
-        }}
+        onPointerEnter={() => { isHovered.current = true; document.body.style.cursor = 'crosshair'; }}
+        onPointerLeave={() => { isHovered.current = false; document.body.style.cursor = 'default'; }}
       >
-        <DroneComponent />
+        <GLBDrone droneType={drone.droneType} />
+        <SmokeTrail droneType={drone.droneType} />
 
-        {/* Danger glow */}
         <pointLight color="#ff0000" intensity={1.0} distance={5} />
 
-        {/* Hit flash overlay */}
         {hitFlashRef.current > 0 && (
           <mesh>
             <sphereGeometry args={[1.5, 8, 8]} />
@@ -361,19 +203,16 @@ export function DroneModel({ droneId, stateRef, onClick }: DroneModelProps) {
           </mesh>
         )}
 
-        {/* Targeting reticle (hover) */}
         <mesh ref={reticleRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
           <ringGeometry args={[outlineSize * 0.8, outlineSize * 1.0, 4]} />
           <meshBasicMaterial color="#ff2222" transparent opacity={0.7} side={THREE.DoubleSide} />
         </mesh>
 
-        {/* Selection outline */}
         <mesh ref={outlineRef} visible={isSelected}>
           <sphereGeometry args={[outlineSize, 12, 12]} />
           <meshBasicMaterial color="#ff4444" wireframe transparent opacity={0.6} />
         </mesh>
 
-        {/* HP for multi-HP drones */}
         {drone.maxHp > 1 && (
           <Billboard>
             <Text

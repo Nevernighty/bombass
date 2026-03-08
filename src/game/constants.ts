@@ -10,8 +10,8 @@ export const METRO_LINES = {
   green: { color: '#2ecc71', glowColor: 'rgba(46,204,113,0.6)', name: 'M3 Сирецько-Печерська' },
 } as const;
 
-export const MAP_WIDTH = 140;
-export const MAP_HEIGHT = 115;
+export const MAP_WIDTH = 200;
+export const MAP_HEIGHT = 160;
 
 export function toWorld(nx: number, ny: number): [number, number, number] {
   return [(nx - 0.5) * MAP_WIDTH, 0, (ny - 0.5) * MAP_HEIGHT];
@@ -47,7 +47,6 @@ export const GAME_CONFIG = {
   DECOY_COST: 40,
   SPEED_BOOST_COST: 20,
   TUNNEL_SEAL_COST: 15,
-  // Phase 5
   EMERGENCY_BRAKE_COST: 10,
   DOUBLE_FARE_COST: 15,
   EXPRESS_LINE_COST: 35,
@@ -55,7 +54,6 @@ export const GAME_CONFIG = {
   PASSENGER_AIRDROP_COST: 25,
   STATION_MAGNET_COST: 20,
   DRONE_JAMMER_COST: 45,
-  // Phase 6
   SAM_BATTERY_COST: 120,
   INTERCEPTOR_COST: 80,
   AA_TURRET_COST: 60,
@@ -68,60 +66,60 @@ export const DRONE_TYPES = {
 } as const;
 
 export const STATIONS = [
-  // Red line (M1) — spread horizontally wider
-  { id: 'r1', name: 'Akademmistechko', nameUa: 'Академмістечко', x: 0.04, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r2', name: 'Zhytomyrska', nameUa: 'Житомирська', x: 0.09, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  // Red line (M1) — wide horizontal spread across full map
+  { id: 'r1', name: 'Akademmistechko', nameUa: 'Академмістечко', x: 0.02, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r2', name: 'Zhytomyrska', nameUa: 'Житомирська', x: 0.08, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
   { id: 'r3', name: 'Sviatoshyn', nameUa: 'Святошин', x: 0.14, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r4', name: 'Nyvky', nameUa: 'Нивки', x: 0.19, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r5', name: 'Beresteiska', nameUa: 'Берестейська', x: 0.24, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r6', name: 'Shuliavska', nameUa: 'Шулявська', x: 0.28, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r7', name: 'Politekhnichnyi Instytut', nameUa: 'Політехнічний інститут', x: 0.32, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r8', name: 'Vokzalna', nameUa: 'Вокзальна', x: 0.36, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r9', name: 'Universytet', nameUa: 'Університет', x: 0.40, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  // Transfer cluster — spread apart significantly
-  { id: 'r10', name: 'Teatralna', nameUa: 'Театральна', x: 0.44, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'r11', name: 'Khreshchatyk', nameUa: 'Хрещатик', x: 0.50, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'r12', name: 'Arsenalna', nameUa: 'Арсенальна', x: 0.56, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r13', name: 'Dnipro', nameUa: 'Дніпро', x: 0.62, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
-  { id: 'r14', name: 'Hidropark', nameUa: 'Гідропарк', x: 0.68, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
-  { id: 'r15', name: 'Livoberezhna', nameUa: 'Лівобережна', x: 0.74, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r16', name: 'Darnytsia', nameUa: 'Дарниця', x: 0.80, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r17', name: 'Chernihivska', nameUa: 'Чернігівська', x: 0.86, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r18', name: 'Lisova', nameUa: 'Лісова', x: 0.93, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  // Blue line (M2) — spread vertically wider
-  { id: 'b1', name: 'Heroiv Dnipra', nameUa: 'Героїв Дніпра', x: 0.44, y: 0.04, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b2', name: 'Minska', nameUa: 'Мінська', x: 0.44, y: 0.09, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b3', name: 'Obolon', nameUa: 'Оболонь', x: 0.44, y: 0.14, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b4', name: 'Pochaina', nameUa: 'Почайна', x: 0.44, y: 0.19, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b5', name: 'Tarasa Shevchenka', nameUa: 'Тараса Шевченка', x: 0.44, y: 0.24, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b6', name: 'Kontraktova Ploshcha', nameUa: 'Контрактова площа', x: 0.44, y: 0.29, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b7', name: 'Poshtova Ploshcha', nameUa: 'Поштова площа', x: 0.44, y: 0.34, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  // Maidan — offset from Khreshchatyk
-  { id: 'b8', name: 'Maidan Nezalezhnosti', nameUa: 'Майдан Незалежності', x: 0.50, y: 0.46, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'b9', name: 'Ploshcha Ukrainskykh Heroiv', nameUa: 'Площа Українських Героїв', x: 0.50, y: 0.52, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b10', name: 'Olimpiiska', nameUa: 'Олімпійська', x: 0.48, y: 0.58, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b11', name: 'Palats Ukraina', nameUa: 'Палац «Україна»', x: 0.46, y: 0.64, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'b12', name: 'Lybidska', nameUa: 'Либідська', x: 0.44, y: 0.70, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b13', name: 'Demiivska', nameUa: 'Деміївська', x: 0.44, y: 0.76, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b14', name: 'Holosiivska', nameUa: 'Голосіївська', x: 0.44, y: 0.82, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b15', name: 'Vasylkivska', nameUa: 'Васильківська', x: 0.44, y: 0.88, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'b16', name: 'Ipodrom', nameUa: 'Іподром', x: 0.44, y: 0.95, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
-  // Green line (M3) — spread diagonally wider
-  { id: 'g1', name: 'Syrets', nameUa: 'Сирець', x: 0.18, y: 0.14, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g2', name: 'Dorohozhychi', nameUa: 'Дорогожичі', x: 0.22, y: 0.19, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g3', name: 'Lukianivska', nameUa: "Лук'янівська", x: 0.27, y: 0.25, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g4', name: 'Zoloti Vorota', nameUa: 'Золоті ворота', x: 0.33, y: 0.32, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'g5', name: 'Palats Sportu', nameUa: 'Палац спорту', x: 0.38, y: 0.38, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'g6', name: 'Klovska', nameUa: 'Кловська', x: 0.50, y: 0.50, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g7', name: 'Pecherska', nameUa: 'Печерська', x: 0.56, y: 0.54, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g8', name: 'Druzhby Narodiv', nameUa: 'Дружби народів', x: 0.54, y: 0.60, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'g9', name: 'Vydubychi', nameUa: 'Видубичі', x: 0.56, y: 0.66, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g10', name: 'Slavutych', nameUa: 'Славутич', x: 0.64, y: 0.68, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g11', name: 'Osokorky', nameUa: 'Осокорки', x: 0.70, y: 0.66, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g12', name: 'Pozniaky', nameUa: 'Позняки', x: 0.76, y: 0.64, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g13', name: 'Kharkivska', nameUa: 'Харківська', x: 0.82, y: 0.62, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g14', name: 'Vyrlytsia', nameUa: 'Вирлиця', x: 0.88, y: 0.60, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'g15', name: 'Boryspilska', nameUa: 'Бориспільська', x: 0.94, y: 0.58, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r4', name: 'Nyvky', nameUa: 'Нивки', x: 0.20, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r5', name: 'Beresteiska', nameUa: 'Берестейська', x: 0.25, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'r6', name: 'Shuliavska', nameUa: 'Шулявська', x: 0.30, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'r7', name: 'Politekhnichnyi Instytut', nameUa: 'Політехнічний інститут', x: 0.34, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'r8', name: 'Vokzalna', nameUa: 'Вокзальна', x: 0.38, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'r9', name: 'Universytet', nameUa: 'Університет', x: 0.42, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  // Transfer cluster — MUCH more spread out
+  { id: 'r10', name: 'Teatralna', nameUa: 'Театральна', x: 0.46, y: 0.44, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'r11', name: 'Khreshchatyk', nameUa: 'Хрещатик', x: 0.52, y: 0.40, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'r12', name: 'Arsenalna', nameUa: 'Арсенальна', x: 0.58, y: 0.38, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'r13', name: 'Dnipro', nameUa: 'Дніпро', x: 0.65, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
+  { id: 'r14', name: 'Hidropark', nameUa: 'Гідропарк', x: 0.72, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
+  { id: 'r15', name: 'Livoberezhna', nameUa: 'Лівобережна', x: 0.78, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r16', name: 'Darnytsia', nameUa: 'Дарниця', x: 0.84, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r17', name: 'Chernihivska', nameUa: 'Чернігівська', x: 0.90, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r18', name: 'Lisova', nameUa: 'Лісова', x: 0.97, y: 0.38, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  // Blue line (M2) — wide vertical spread
+  { id: 'b1', name: 'Heroiv Dnipra', nameUa: 'Героїв Дніпра', x: 0.46, y: 0.02, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b2', name: 'Minska', nameUa: 'Мінська', x: 0.46, y: 0.08, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b3', name: 'Obolon', nameUa: 'Оболонь', x: 0.46, y: 0.14, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b4', name: 'Pochaina', nameUa: 'Почайна', x: 0.46, y: 0.20, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b5', name: 'Tarasa Shevchenka', nameUa: 'Тараса Шевченка', x: 0.46, y: 0.26, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b6', name: 'Kontraktova Ploshcha', nameUa: 'Контрактова площа', x: 0.46, y: 0.32, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b7', name: 'Poshtova Ploshcha', nameUa: 'Поштова площа', x: 0.48, y: 0.37, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  // Maidan — clearly offset from Khreshchatyk
+  { id: 'b8', name: 'Maidan Nezalezhnosti', nameUa: 'Майдан Незалежності', x: 0.52, y: 0.48, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'b9', name: 'Ploshcha Ukrainskykh Heroiv', nameUa: 'Площа Українських Героїв', x: 0.50, y: 0.54, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b10', name: 'Olimpiiska', nameUa: 'Олімпійська', x: 0.48, y: 0.60, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b11', name: 'Palats Ukraina', nameUa: 'Палац «Україна»', x: 0.44, y: 0.67, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'b12', name: 'Lybidska', nameUa: 'Либідська', x: 0.42, y: 0.73, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'b13', name: 'Demiivska', nameUa: 'Деміївська', x: 0.42, y: 0.79, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b14', name: 'Holosiivska', nameUa: 'Голосіївська', x: 0.42, y: 0.85, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b15', name: 'Vasylkivska', nameUa: 'Васильківська', x: 0.42, y: 0.91, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'b16', name: 'Ipodrom', nameUa: 'Іподром', x: 0.42, y: 0.98, line: 'blue' as const, depth: 'shallow' as const, isTransfer: false },
+  // Green line (M3) — wide diagonal spread
+  { id: 'g1', name: 'Syrets', nameUa: 'Сирець', x: 0.12, y: 0.10, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g2', name: 'Dorohozhychi', nameUa: 'Дорогожичі', x: 0.18, y: 0.16, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g3', name: 'Lukianivska', nameUa: "Лук'янівська", x: 0.25, y: 0.23, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g4', name: 'Zoloti Vorota', nameUa: 'Золоті ворота', x: 0.34, y: 0.32, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'g5', name: 'Palats Sportu', nameUa: 'Палац спорту', x: 0.40, y: 0.40, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
+  { id: 'g6', name: 'Klovska', nameUa: 'Кловська', x: 0.54, y: 0.52, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g7', name: 'Pecherska', nameUa: 'Печерська', x: 0.60, y: 0.56, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g8', name: 'Druzhby Narodiv', nameUa: 'Дружби народів', x: 0.58, y: 0.63, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
+  { id: 'g9', name: 'Vydubychi', nameUa: 'Видубичі', x: 0.60, y: 0.70, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g10', name: 'Slavutych', nameUa: 'Славутич', x: 0.68, y: 0.72, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g11', name: 'Osokorky', nameUa: 'Осокорки', x: 0.74, y: 0.70, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g12', name: 'Pozniaky', nameUa: 'Позняки', x: 0.80, y: 0.68, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g13', name: 'Kharkivska', nameUa: 'Харківська', x: 0.86, y: 0.66, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g14', name: 'Vyrlytsia', nameUa: 'Вирлиця', x: 0.92, y: 0.64, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'g15', name: 'Boryspilska', nameUa: 'Бориспільська', x: 0.98, y: 0.62, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
 ];
 
 export const STATION_MAP = new Map(STATIONS.map(s => [s.id, s]));
@@ -135,10 +133,10 @@ export const LINE_STATIONS: Record<string, string[]> = {
 export const BRIDGE_STATION_IDS = new Set(STATIONS.filter(s => (s as any).isBridge).map(s => s.id));
 
 export const DNIPRO_RIVER_POINTS = [
-  { x: 0.50, y: 0.0 }, { x: 0.52, y: 0.10 }, { x: 0.54, y: 0.20 },
-  { x: 0.56, y: 0.30 }, { x: 0.57, y: 0.38 }, { x: 0.56, y: 0.46 },
-  { x: 0.55, y: 0.55 }, { x: 0.54, y: 0.62 }, { x: 0.56, y: 0.70 },
-  { x: 0.58, y: 0.80 }, { x: 0.56, y: 0.90 }, { x: 0.55, y: 1.0 },
+  { x: 0.55, y: 0.0 }, { x: 0.57, y: 0.10 }, { x: 0.58, y: 0.20 },
+  { x: 0.59, y: 0.30 }, { x: 0.60, y: 0.38 }, { x: 0.59, y: 0.46 },
+  { x: 0.58, y: 0.55 }, { x: 0.57, y: 0.62 }, { x: 0.59, y: 0.70 },
+  { x: 0.61, y: 0.80 }, { x: 0.59, y: 0.90 }, { x: 0.58, y: 1.0 },
 ];
 
 export const SURFACE_ROUTES = [

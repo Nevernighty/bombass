@@ -526,13 +526,23 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
   );
 }
 
-// Ground with grid zones
+// Ground with Kyiv map texture
 function GroundPlane({ isNight }: { isNight: boolean }) {
+  const texture = useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    const tex = loader.load('/textures/reference_map_1.png');
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+  }, []);
+
   const groundColor = isNight ? '#0a1025' : '#0c1220';
   return (
     <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
-        <planeGeometry args={[160, 130]} />
+      {/* Base dark ground */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]} receiveShadow>
+        <planeGeometry args={[220, 180]} />
         <meshStandardMaterial
           color={groundColor}
           metalness={0.05}
@@ -541,12 +551,16 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
           emissiveIntensity={isNight ? 0.15 : 0}
         />
       </mesh>
-      {/* Subtle zone coloring near river */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[5, -0.08, 0]}>
-        <planeGeometry args={[30, 130]} />
-        <meshStandardMaterial color={isNight ? '#0c1230' : '#0e1428'} transparent opacity={0.5} />
+      {/* Kyiv map overlay */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]}>
+        <planeGeometry args={[200, 160]} />
+        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.15 : 0.25} depthWrite={false} />
       </mesh>
-      {/* Grid removed for cleaner look */}
+      {/* Subtle zone coloring near river */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.08, 0]}>
+        <planeGeometry args={[40, 160]} />
+        <meshStandardMaterial color={isNight ? '#0c1230' : '#0e1428'} transparent opacity={0.3} />
+      </mesh>
     </>
   );
 }

@@ -26,7 +26,7 @@ export function generateBuildingData() {
     const tooClose = STATIONS.some(s => {
       const [sx, , sz] = toWorld(s.x, s.y);
       const dx = wx - sx, dz = wz - sz;
-      return Math.sqrt(dx * dx + dz * dz) < 3.5;
+      return Math.sqrt(dx * dx + dz * dz) < 5.5;
     });
     if (tooClose) continue;
 
