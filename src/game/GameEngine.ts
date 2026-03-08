@@ -1449,6 +1449,46 @@ export function launchInterceptor(state: GameState, stationId: string): GameStat
   return state;
 }
 
+// ===== Phase 7 Actions =====
+export function fortifyStation(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.isFortified || state.money < 100) return state;
+  state.money -= 100;
+  station.isFortified = true;
+  station.maxHp *= 2;
+  station.hp = station.maxHp;
+  addNotification(state, '🏰 Укріплено!', station.x, station.y, '#9ca3af');
+  return state;
+}
+
+export function activateDroneEMP(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || state.money < 60 || station.empCooldown > 0) return state;
+  state.money -= 60;
+  station.empCooldown = 45000;
+  let stunned = 0;
+  for (const d of state.drones) {
+    if (d.isDestroyed) continue;
+    const dx = station.x - d.x, dy = station.y - d.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 0.15) {
+      d.isStunned = true;
+      d.stunTimer = 3000;
+      stunned++;
+    }
+  }
+  addNotification(state, `⚡ ЕМІ! ${stunned} дронів оглушено!`, station.x, station.y, '#a855f7');
+  return state;
+}
+
+export function activateTrainShield(state: GameState, trainId: string): GameState {
+  const train = state.trains.find(t => t.id === trainId);
+  if (!train || state.money < 30 || train.shieldTimer > 0) return state;
+  state.money -= 30;
+  train.shieldTimer = 15000;
+  addNotification(state, '🛡️ Щит потяга!', train.x, train.y, '#3b82f6');
+  return state;
+}
+
 // Keep for backward compat
 export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   return state;
