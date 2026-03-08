@@ -22,9 +22,10 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
         mesh.castShadow = true;
         if (mesh.material) {
           const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
-          // Tint the model with line color
           const lineCol = new THREE.Color(lineColor);
-          mat.color.lerp(lineCol, 0.4);
+          mat.color.lerp(lineCol, 0.5);
+          mat.emissive = lineCol;
+          mat.emissiveIntensity = 0.3;
           mesh.material = mat;
         }
       }
@@ -32,7 +33,7 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
     return s;
   }, [scene, lineColor]);
 
-  return <primitive object={cloned} scale={[1.0, 1.0, 1.0]} />;
+  return <primitive object={cloned} scale={[2.0, 2.0, 2.0]} />;
 }
 
 useGLTF.preload('/models/metro_wagon_type_d.glb');
@@ -44,12 +45,14 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const lastMovementAngle = useRef<number>(0);
   const shieldMeshRef = useRef<THREE.Mesh>(null);
   const hoverGlowRef = useRef<THREE.Mesh>(null);
+  const glowRingRef = useRef<THREE.Mesh>(null);
   const isHoveredRef = useRef(false);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
 
   const lineColor = METRO_LINES[train.line].color;
+  const lineName = train.line === 'red' ? 'M1' : train.line === 'blue' ? 'M2' : 'M3';
 
   useFrame((_, delta) => {
     const state = stateRef.current;
@@ -59,7 +62,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     const [wx, , wz] = toWorld(t.x, t.y);
     const targetPos = new THREE.Vector3(wx, 0.7, wz);
 
-    const lerpFactor = Math.min(1, delta * 8);
+    const lerpFactor = Math.min(1, delta * 12);
     smoothPos.current.lerp(targetPos, lerpFactor);
     groupRef.current.position.copy(smoothPos.current);
 
@@ -101,6 +104,12 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     if (hoverGlowRef.current) {
       hoverGlowRef.current.visible = isHoveredRef.current;
     }
+
+    // Animate glow ring
+    if (glowRingRef.current) {
+      const pulse = 0.6 + Math.sin(Date.now() * 0.003) * 0.15;
+      (glowRingRef.current.material as THREE.MeshBasicMaterial).opacity = pulse;
+    }
   });
 
   const isSelected = stateRef.current.selectedTrain === trainId;
@@ -117,35 +126,53 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     >
       <GLBTrain lineColor={lineColor} />
 
-      {/* Capacity bar under train */}
-      <mesh position={[0, -0.3, 0]}>
-        <boxGeometry args={[1.12, 0.06, 3.0 * Math.max(0.1, fillRatio)]} />
-        <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.5} transparent opacity={0.7} />
+      {/* Ground glow ring - always visible */}
+      <mesh ref={glowRingRef} position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.8, 3.0, 20]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Capacity bar */}
+      <mesh position={[0, -0.2, 0]}>
+        <boxGeometry args={[1.8, 0.12, 4.0 * Math.max(0.1, fillRatio)]} />
+        <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.6} transparent opacity={0.8} />
       </mesh>
 
       {/* Hover glow ring */}
-      <mesh ref={hoverGlowRef} position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[2.2, 2.8, 16]} />
-        <meshBasicMaterial color={lineColor} transparent opacity={0.35} side={THREE.DoubleSide} />
+      <mesh ref={hoverGlowRef} position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[3.0, 3.8, 16]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.4} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>
-        <sphereGeometry args={[3.0, 12, 12]} />
+        <sphereGeometry args={[3.5, 12, 12]} />
         <meshBasicMaterial color="#3b82f6" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Selection ring */}
       {isSelected && (
-        <mesh position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[2.0, 2.5, 20]} />
-          <meshBasicMaterial color="#ffcc00" transparent opacity={0.5} side={THREE.DoubleSide} />
+        <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[2.8, 3.5, 20]} />
+          <meshBasicMaterial color="#ffcc00" transparent opacity={0.6} side={THREE.DoubleSide} />
         </mesh>
       )}
 
-      {/* Passenger count label */}
-      {train.passengers.length > 0 && (
-        <Billboard>
+      {/* Always-visible line label */}
+      <Billboard>
+        <Text
+          position={[0, 3.0, 0]}
+          fontSize={0.8}
+          color={lineColor}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.08}
+          outlineColor="#000000"
+          fontWeight="bold"
+        >
+          {lineName}
+        </Text>
+        {train.passengers.length > 0 && (
           <Text
             position={[0, 2.0, 0]}
             fontSize={0.55}
@@ -157,12 +184,12 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
           >
             {`${train.passengers.length}/${train.capacity}`}
           </Text>
-        </Billboard>
-      )}
+        )}
+      </Billboard>
 
-      {/* Headlights + interior glow */}
-      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 2.5 : 1.0} distance={isNight ? 10 : 5} position={[0, 0.3, 2.0]} />
-      {isNight && <pointLight color="#ffaa66" intensity={0.6} distance={4} position={[0, 0.2, 0]} />}
+      {/* Headlights */}
+      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 3.0 : 1.5} distance={isNight ? 12 : 6} position={[0, 0.5, 2.5]} />
+      {isNight && <pointLight color="#ffaa66" intensity={0.8} distance={5} position={[0, 0.3, 0]} />}
     </group>
   );
 }

@@ -13,96 +13,90 @@ interface MetroLine3DProps {
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const pulseRef = useRef<THREE.Mesh>(null);
-  const prevKey = useRef('__init__');
+  const prevCount = useRef(0);
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
-  const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
+  const prevPointsKey = useRef('');
 
   const { color } = METRO_LINES[line];
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const state = stateRef.current;
     const activeIds = getActiveLineStations(state, line);
-    const key = activeIds.join(',');
 
-    if (key !== prevKey.current && activeIds.length >= 2) {
-      prevKey.current = key;
-
-      const points: THREE.Vector3[] = [];
-      activeIds.forEach(id => {
-        const st = STATION_MAP.get(id);
-        if (st) {
-          const [wx, , wz] = toWorld(st.x, st.y);
-          points.push(new THREE.Vector3(wx, 0.2, wz));
-        }
-      });
-
-      if (points.length >= 2) {
-        const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
-        curveRef.current = curve;
-
-        geometryRef.current?.dispose();
-        glowGeometryRef.current?.dispose();
-
-        const segments = Math.max(points.length * 16, 48);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.7, 8, false);
-        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.5, 8, false);
-
-        geometryRef.current = tubeGeo;
-        glowGeometryRef.current = glowGeo;
-
-        if (meshRef.current) meshRef.current.geometry = tubeGeo;
-        if (glowRef.current) glowRef.current.geometry = glowGeo;
-      }
+    if (activeIds.length < 2) {
+      if (meshRef.current) meshRef.current.visible = false;
+      if (glowRef.current) glowRef.current.visible = false;
+      return;
     }
 
-    // Night glow
+    // Build points
+    const points: THREE.Vector3[] = [];
+    activeIds.forEach(id => {
+      const st = STATION_MAP.get(id);
+      if (st) {
+        const [wx, , wz] = toWorld(st.x, st.y);
+        points.push(new THREE.Vector3(wx, 0.15, wz));
+      }
+    });
+
+    if (points.length < 2) return;
+
+    // Only rebuild geometry when station set changes
+    const key = activeIds.join(',');
+    if (key !== prevPointsKey.current) {
+      prevPointsKey.current = key;
+
+      const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
+
+      geometryRef.current?.dispose();
+      glowGeometryRef.current?.dispose();
+
+      const segments = Math.max(points.length * 20, 64);
+      const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.9, 8, false);
+      const glowGeo = new THREE.TubeGeometry(curve, segments, 1.8, 8, false);
+
+      geometryRef.current = tubeGeo;
+      glowGeometryRef.current = glowGeo;
+
+      if (meshRef.current) meshRef.current.geometry = tubeGeo;
+      if (glowRef.current) glowRef.current.geometry = glowGeo;
+    }
+
+    if (meshRef.current) meshRef.current.visible = true;
+    if (glowRef.current) glowRef.current.visible = true;
+
+    // Night glow adjustments
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.45 : 0.2;
+      mat.opacity = state.isNight ? 0.5 : 0.25;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 1.2 : 0.5;
-    }
-
-    // Animated energy pulse
-    if (pulseRef.current && curveRef.current) {
-      const t = (clock.elapsedTime * 0.15 + (line === 'blue' ? 0.33 : line === 'green' ? 0.66 : 0)) % 1;
-      const pt = curveRef.current.getPointAt(t);
-      pulseRef.current.position.copy(pt);
-      pulseRef.current.position.y = 0.5;
-      pulseRef.current.visible = true;
-      const pScale = 0.8 + Math.sin(clock.elapsedTime * 4) * 0.2;
-      pulseRef.current.scale.setScalar(pScale);
+      mat.emissiveIntensity = state.isNight ? 1.0 : 0.7;
     }
   });
 
+  // Start with a tiny offscreen geometry — will be replaced immediately
   const initCurve = useMemo(() => new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, -100, 0), new THREE.Vector3(1, -100, 0)
+    new THREE.Vector3(0, 0.15, 0), new THREE.Vector3(1, 0.15, 0)
   ]), []);
 
   return (
     <group>
-      <mesh ref={meshRef}>
-        <tubeGeometry args={[initCurve, 2, 0.7, 8, false]} />
+      <mesh ref={meshRef} visible={false}>
+        <tubeGeometry args={[initCurve, 2, 0.9, 8, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.4}
-          metalness={0.4}
-          roughness={0.3}
+          emissiveIntensity={0.7}
+          metalness={0.3}
+          roughness={0.4}
         />
       </mesh>
-      <mesh ref={glowRef}>
-        <tubeGeometry args={[initCurve, 2, 1.5, 8, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Energy pulse sphere */}
-      <mesh ref={pulseRef} visible={false}>
-        <sphereGeometry args={[1.0, 8, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} />
+      <mesh ref={glowRef} visible={false}>
+        <tubeGeometry args={[initCurve, 2, 1.8, 8, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.2} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );

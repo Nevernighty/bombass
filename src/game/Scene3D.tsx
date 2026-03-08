@@ -537,7 +537,7 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
     return tex;
   }, []);
 
-  const groundColor = isNight ? '#0a1025' : '#0c1220';
+  const groundColor = isNight ? '#0c1230' : '#0e1428';
   return (
     <>
       {/* Base dark ground */}
@@ -554,7 +554,7 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
       {/* Kyiv map overlay */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]}>
         <planeGeometry args={[200, 160]} />
-        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.15 : 0.25} depthWrite={false} />
+        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.35 : 0.45} depthWrite={false} />
       </mesh>
       {/* Subtle zone coloring near river */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.08, 0]}>
@@ -571,11 +571,11 @@ function SceneContent({
 }: SceneContentProps) {
   const state = stateRef.current;
 
-  const ambientIntensity = state.isNight ? 0.35 : 0.45;
+  const ambientIntensity = state.isNight ? 0.45 : 0.5;
   const ambientColor = state.isNight ? '#4455aa' : '#e8e8ff';
-  const dirIntensity = state.isNight ? 0.35 : 0.7;
+  const dirIntensity = state.isNight ? 0.45 : 0.9;
   const dirColor = state.isNight ? '#6688cc' : '#ffffee';
-  const fogColor = state.isNight ? '#0a1025' : '#0a0e1a';
+  const fogColor = state.isNight ? '#0a1025' : '#0c1220';
 
   const skyHue = state.dayTime > 0.7 && state.dayTime < 0.85 ? '#2a1535' :
     state.dayTime > 0.15 && state.dayTime < 0.25 ? '#1a2545' :
@@ -587,7 +587,7 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
-      <fog attach="fog" args={[fogColor, 60, 150]} />
+      <fog attach="fog" args={[fogColor, 80, 200]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
