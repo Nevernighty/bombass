@@ -491,8 +491,8 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
     if (dist < 0.015) {
       const config = DRONE_TYPES[d.droneType];
 
-      // 30% chance to hit a building instead
-      if (d.targetBuildingIdx === -1 && Math.random() < 0.3 && s.buildings.length > 0) {
+      // 70% chance to hit a building instead (buildings-first targeting)
+      if (d.targetBuildingIdx === -1 && Math.random() < 0.7 && s.buildings.length > 0) {
         let nearestBldg = -1;
         let nearestDist = Infinity;
         for (let bi = 0; bi < s.buildings.length; bi++) {
@@ -502,17 +502,17 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
           const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
           if (bdist < nearestDist) { nearestDist = bdist; nearestBldg = bi; }
         }
-        if (nearestBldg >= 0 && nearestDist < 0.1) {
+        if (nearestBldg >= 0 && nearestDist < 0.15) {
           const bldg = s.buildings[nearestBldg];
           bldg.hp -= config.damage;
-          s.explosions.push({ x: bldg.x, y: bldg.y, radius: 0, maxRadius: 30, alpha: 1, time: 0 });
+          s.explosions.push({ x: bldg.x, y: bldg.y, radius: 0, maxRadius: 50, alpha: 1, time: 0 });
           if (bldg.hp <= 0) {
             bldg.isDestroyed = true;
             bldg.hp = 0;
             s.buildingsDestroyed++;
-            addNotification(s, '🏚️', bldg.x, bldg.y, '#888');
+            addNotification(s, '🏚️💥', bldg.x, bldg.y, '#ff6600');
           }
-          s.screenShake = 5;
+          s.screenShake = 8;
           return false;
         }
       }
