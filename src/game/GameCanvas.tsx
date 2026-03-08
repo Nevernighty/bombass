@@ -9,6 +9,7 @@ import SceneContent from './Scene3D';
 import { TopBar } from './ui/TopBar';
 import { StationPanel } from './ui/StationPanel';
 import { ActionBar } from './ui/ActionBar';
+import { CameraControls } from './ui/CameraControls';
 import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Achievement } from './types';
@@ -377,13 +378,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       {/* START SCREEN */}
       {!state.gameStarted && (
         <div className="absolute inset-0 flex items-center justify-center" style={{
-          background: 'linear-gradient(135deg, rgba(6,10,30,0.96), rgba(15,8,30,0.96), rgba(6,10,30,0.96))',
-          backgroundSize: '200% 200%',
-          animation: 'bg-gradient-pulse 8s ease infinite',
+          background: 'hsla(var(--game-bg), 0.96)',
         }}>
-          <div className="text-center p-6 rounded-2xl max-w-2xl w-full mx-4" style={{ background: 'rgba(12,18,38,0.85)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}>
-            {/* Animated title */}
-            <h1 className="text-4xl font-bold text-white mb-1 tracking-tight" style={{ fontFamily: 'monospace' }}>
+          <div className="text-center p-8 rounded-xl max-w-2xl w-full mx-4 game-panel">
+            <h1 className="text-5xl font-bold mb-1 tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
               {'KYIV TRANSIT'.split('').map((ch, i) => (
                 <span key={i} className="inline-block" style={{
                   animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
@@ -392,48 +390,38 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 </span>
               ))}
             </h1>
-            <p className="text-xl mb-5 font-bold tracking-[0.3em]" style={{
-              color: '#eab308',
+            <p className="text-lg mb-6 font-bold tracking-[0.3em]" style={{
+              color: 'hsl(var(--game-accent))',
               animation: 'title-letter 0.5s ease-out 0.5s both',
-              textShadow: '0 0 20px rgba(234,179,8,0.3)',
             }}>RESILIENCE</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
               {(Object.values(SCENARIOS)).map((sc, idx) => (
                 <button key={sc.id} onClick={() => startGame(sc.id)}
-                  className="game-btn-hover p-3.5 rounded-xl text-left group"
+                  className="game-btn-hover p-4 rounded-lg text-left transition-all hover:border-[hsl(var(--game-accent))]/40"
                   style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'hsla(var(--muted), 0.3)',
+                    border: '1px solid hsl(var(--border))',
                     animation: `mode-card-in 0.4s ease-out ${0.6 + idx * 0.08}s both`,
-                    transition: 'border-color 0.2s, box-shadow 0.2s, background 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(234,179,8,0.4)';
-                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(234,179,8,0.15)';
-                    e.currentTarget.style.background = 'rgba(234,179,8,0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                    e.currentTarget.style.boxShadow = 'none';
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
                   }}>
-                  <div className="text-xl mb-1.5">{sc.icon}</div>
-                  <p className="text-sm font-bold text-white">{sc.nameUa}</p>
-                  <p className="text-xs mt-1 leading-tight" style={{ color: '#9ca3af' }}>{sc.descriptionUa}</p>
-                  <div className="mt-1.5 text-xs">
-                    {'⭐'.repeat(sc.difficulty)}<span style={{ opacity: 0.3 }}>{'☆'.repeat(5 - sc.difficulty)}</span>
+                  <p className="text-sm font-bold mb-1" style={{ color: 'hsl(var(--foreground))' }}>{sc.nameUa}</p>
+                  <p className="text-[11px] leading-tight mb-2" style={{ color: 'hsl(var(--muted-foreground))' }}>{sc.descriptionUa}</p>
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+                    <div className="h-full rounded-full" style={{
+                      width: `${(sc.difficulty / 5) * 100}%`,
+                      background: sc.difficulty <= 2 ? 'hsl(145, 63%, 49%)' : sc.difficulty <= 3 ? 'hsl(var(--game-accent))' : 'hsl(var(--destructive))',
+                    }} />
                   </div>
                   {sc.id === 'classic' && (
-                    <span className="block text-[10px] font-bold mt-1.5 tracking-wider animate-pulse" style={{ color: '#eab308' }}>
+                    <span className="block text-[10px] font-bold mt-2 tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>
                       ▶ ГРАТИ
                     </span>
                   )}
                 </button>
               ))}
             </div>
-            <div className="text-xs space-y-0.5 px-2" style={{ color: '#4b5563', animation: 'title-letter 0.4s ease-out 1.2s both' }}>
-              <p>🖱️ WASD — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону</p>
-              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F/O/C — камера | Q/E/R/T/G — дії</p>
+            <div className="text-[11px] space-y-0.5 font-mono" style={{ color: 'hsl(var(--muted-foreground))', animation: 'title-letter 0.4s ease-out 1.2s both' }}>
+              <p>WASD рух · Колесо зум · ПКМ обертання · Клік по дрону</p>
+              <p>Пробіл пауза · 1-4 швидкість · F/O/C камера · Q/E/R/T дії</p>
             </div>
           </div>
         </div>
@@ -457,43 +445,40 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               ))}
             </div>
           )}
-          <div className="text-center p-8 rounded-2xl max-w-md" style={{
-            background: 'rgba(12,18,38,0.9)',
-            backdropFilter: 'blur(24px)',
-            border: `1px solid ${state.winConditionMet ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.15)'}`,
-            boxShadow: state.winConditionMet ? '0 0 40px rgba(34,197,94,0.15)' : '0 16px 48px rgba(0,0,0,0.5)',
+          <div className="text-center p-8 rounded-xl max-w-md game-panel" style={{
+            border: `1px solid ${state.winConditionMet ? 'hsla(145, 63%, 49%, 0.3)' : 'hsla(0, 72%, 51%, 0.15)'}`,
             animation: state.winConditionMet ? 'victory-glow 2s ease-in-out infinite' : undefined,
           }}>
             <h2 className="text-3xl font-bold mb-5" style={{
-              color: state.winConditionMet ? '#22c55e' : '#ef4444',
+              color: state.winConditionMet ? 'hsl(145, 63%, 49%)' : 'hsl(var(--destructive))',
               animation: 'title-letter 0.4s ease-out both',
-              textShadow: state.winConditionMet ? '0 0 20px rgba(34,197,94,0.3)' : '0 0 20px rgba(239,68,68,0.3)',
             }}>
-              {state.winConditionMet ? '🎉 ПЕРЕМОГА!' : '💀 ГАМОВЕР'}
+              {state.winConditionMet ? 'ПЕРЕМОГА' : 'ГАМОВЕР'}
             </h2>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-5" style={{ color: '#9ca3af' }}>
+            <div className="grid grid-cols-2 gap-3 text-sm mb-5">
               {[
                 { label: 'Рахунок', value: String(Math.round(state.score)), accent: true },
                 { label: 'Час', value: `${Math.floor(state.elapsedTime / 60000)}:${String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}` },
                 { label: 'Пасажирів', value: String(state.passengersDelivered) },
                 { label: 'Дронів збито', value: `${state.dronesIntercepted}/${state.totalDrones}` },
                 { label: 'Макс. комбо', value: `x${state.maxCombo.toFixed(1)}` },
-                { label: 'Будівлі знищено', value: String(state.buildingsDestroyed) },
+                { label: 'Будівлі', value: String(state.buildingsDestroyed) },
               ].map((stat, i) => (
-                <div key={i} style={{ animation: `stat-reveal 0.3s ease-out ${0.3 + i * 0.12}s both` }}>
-                  {stat.label}: <span className="font-bold" style={{
-                    color: stat.accent ? '#eab308' : '#fff',
-                    fontSize: stat.accent ? '1.1em' : undefined,
+                <div key={i} className="text-left" style={{ color: 'hsl(var(--muted-foreground))', animation: `stat-reveal 0.3s ease-out ${0.3 + i * 0.12}s both` }}>
+                  <span>{stat.label}</span>
+                  <span className="float-right font-bold" style={{
+                    color: stat.accent ? 'hsl(var(--game-accent))' : 'hsl(var(--foreground))',
                   }}>{stat.value}</span>
                 </div>
               ))}
             </div>
             {state.achievements.filter(a => a.unlocked).length > 0 && (
               <div className="mb-5" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
-                <p className="text-xs mb-1.5 font-bold uppercase tracking-wider" style={{ color: '#eab308' }}>Досягнення:</p>
+                <p className="text-[10px] mb-1.5 font-bold uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Досягнення</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {state.achievements.filter(a => a.unlocked).map((a, i) => (
-                    <span key={a.id} className="text-lg" title={a.nameUa} style={{
+                    <span key={a.id} className="text-lg px-1 py-0.5 rounded" title={a.nameUa} style={{
+                      background: 'hsl(var(--muted))',
                       animation: `mode-card-in 0.3s ease-out ${1.4 + i * 0.1}s both`,
                     }}>{a.icon}</span>
                   ))}
@@ -501,14 +486,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               </div>
             )}
             <button onClick={restartGame}
-              className="game-btn-hover px-8 py-3 font-bold rounded-xl text-base"
+              className="game-btn-hover px-8 py-3 font-bold rounded-lg text-base"
               style={{
-                background: 'linear-gradient(135deg, #eab308, #f59e0b)',
-                color: '#1a1a2e',
-                boxShadow: '0 4px 16px rgba(234,179,8,0.3)',
-                animation: 'stat-reveal 0.3s ease-out 1.8s both, glow-pulse 2s ease-in-out 2.1s infinite',
-                '--glow-color': 'rgba(234,179,8,0.4)',
-              } as React.CSSProperties}>
+                background: 'hsl(var(--game-accent))',
+                color: 'hsl(var(--game-bg))',
+                animation: 'stat-reveal 0.3s ease-out 1.8s both',
+              }}>
               ГРАТИ ЗНОВУ
             </button>
           </div>
@@ -601,44 +584,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onTrainShield={() => state.selectedTrain ? act(s => activateTrainShield(s, state.selectedTrain!)) : undefined}
           />
 
-          {/* Camera mode toolbar */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
-            {([
-              { mode: 'free' as CameraMode, icon: '🖱️', label: 'Вільна (Esc)', key: 'Esc' },
-              { mode: 'follow' as CameraMode, icon: '🚇', label: 'Слідкувати (F)', key: 'F' },
-              { mode: 'overview' as CameraMode, icon: '🗺️', label: 'Огляд (O)', key: 'O' },
-              { mode: 'cinematic' as CameraMode, icon: '🎬', label: 'Кіно (C)', key: 'C' },
-            ]).map(cm => (
-              <button key={cm.mode} onClick={() => setCameraMode(cm.mode)}
-                title={cm.label}
-                className="game-btn-hover w-10 h-10 rounded-xl flex flex-col items-center justify-center text-sm"
-                style={{
-                  background: state.camera.mode === cm.mode ? 'rgba(234,179,8,0.25)' : 'rgba(8,12,28,0.9)',
-                  border: `1px solid ${state.camera.mode === cm.mode ? 'rgba(234,179,8,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                  boxShadow: state.camera.mode === cm.mode ? '0 0 10px rgba(234,179,8,0.2)' : 'none',
-                }}>
-                <span>{cm.icon}</span>
-                <span className="text-[7px] font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>{cm.key}</span>
-              </button>
-            ))}
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
-            <button onClick={() => { stateRef.current.camera.targetZoom = Math.min(5, stateRef.current.camera.targetZoom * 1.3); }}
-              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
-            <button onClick={() => { stateRef.current.camera.targetZoom = Math.max(0.2, stateRef.current.camera.targetZoom * 0.7); }}
-              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>−</button>
-            <button onClick={() => {
-              stateRef.current.camera.targetX = 0;
-              stateRef.current.camera.targetY = 0;
-              stateRef.current.camera.targetZoom = 1;
-              stateRef.current.camera.orbitAngle = 0;
-              stateRef.current.camera.tiltAngle = 0.65;
-              setCameraMode('free');
-            }}
-              className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs"
-              style={{ background: 'rgba(10,15,30,0.85)', border: '1px solid rgba(255,255,255,0.1)' }}>⌂</button>
-          </div>
+          <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
         </>
       )}
     </div>

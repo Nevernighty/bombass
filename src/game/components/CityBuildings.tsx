@@ -248,7 +248,7 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       {/* Buildings */}
       <instancedMesh ref={meshRef} args={[undefined, undefined, BUILDING_DATA.length]} castShadow receiveShadow frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial metalness={0.15} roughness={0.85} emissive="#443300" emissiveIntensity={0.2} />
+        <meshStandardMaterial metalness={0.3} roughness={0.75} emissive="#443300" emissiveIntensity={0.35} />
       </instancedMesh>
 
       {/* Window glow layer */}
