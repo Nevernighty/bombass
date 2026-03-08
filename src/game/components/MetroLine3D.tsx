@@ -13,9 +13,9 @@ interface MetroLine3DProps {
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
-  const prevCount = useRef(0);
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
+  const prevStationCount = useRef(0);
   const prevPointsKey = useRef('');
 
   const { color } = METRO_LINES[line];
@@ -42,19 +42,20 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
     if (points.length < 2) return;
 
-    // Only rebuild geometry when station set changes
     const key = activeIds.join(',');
+    // Only rebuild when station set actually changes
     if (key !== prevPointsKey.current) {
       prevPointsKey.current = key;
+      prevStationCount.current = points.length;
 
       const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
 
       geometryRef.current?.dispose();
       glowGeometryRef.current?.dispose();
 
-      const segments = Math.max(points.length * 20, 64);
-      const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.9, 8, false);
-      const glowGeo = new THREE.TubeGeometry(curve, segments, 1.8, 8, false);
+      const segments = Math.max(points.length * 24, 80);
+      const tubeGeo = new THREE.TubeGeometry(curve, segments, 1.0, 10, false);
+      const glowGeo = new THREE.TubeGeometry(curve, segments, 2.2, 10, false);
 
       geometryRef.current = tubeGeo;
       glowGeometryRef.current = glowGeo;
@@ -69,15 +70,15 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     // Night glow adjustments
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.5 : 0.25;
+      mat.opacity = state.isNight ? 0.55 : 0.3;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 1.0 : 0.7;
+      mat.emissiveIntensity = state.isNight ? 1.2 : 0.8;
     }
   });
 
-  // Start with a tiny offscreen geometry — will be replaced immediately
+  // Visible initial geometry at proper height
   const initCurve = useMemo(() => new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, 0.15, 0), new THREE.Vector3(1, 0.15, 0)
   ]), []);
@@ -85,18 +86,18 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   return (
     <group>
       <mesh ref={meshRef} visible={false}>
-        <tubeGeometry args={[initCurve, 2, 0.9, 8, false]} />
+        <tubeGeometry args={[initCurve, 4, 1.0, 10, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.7}
-          metalness={0.3}
-          roughness={0.4}
+          emissiveIntensity={0.8}
+          metalness={0.4}
+          roughness={0.3}
         />
       </mesh>
       <mesh ref={glowRef} visible={false}>
-        <tubeGeometry args={[initCurve, 2, 1.8, 8, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.2} side={THREE.DoubleSide} />
+        <tubeGeometry args={[initCurve, 4, 2.2, 10, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.25} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
