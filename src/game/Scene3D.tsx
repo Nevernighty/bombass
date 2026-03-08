@@ -15,6 +15,7 @@ import { ExplosionsLayer } from './components/ExplosionEffect';
 import { RepairUnitsLayer } from './components/RepairUnitModel';
 import { NotificationsLayer } from './components/NotificationsLayer';
 import { CityBuildings } from './components/CityBuildings';
+import { DecoyMarkers } from './components/DecoyMarkers';
 
 interface SceneContentProps {
   stateRef: React.MutableRefObject<GameState>;
@@ -81,7 +82,6 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
   return null;
 }
 
-// Manages dynamic entity lists via refs — no React state re-renders
 function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHover, onDroneClick }: {
   stateRef: React.MutableRefObject<GameState>;
   onStationClick: (id: string) => void;
@@ -142,13 +142,13 @@ function SceneContent({
 }: SceneContentProps) {
   const state = stateRef.current;
 
-  // Dynamic lighting based on day/night and air raid
-  const ambientIntensity = state.isNight ? 0.2 : 0.5;
-  const ambientColor = state.isNight ? '#2233aa' : '#e8e8ff';
-  const dirIntensity = state.isNight ? 0.15 : 0.7;
-  const dirColor = state.isNight ? '#334488' : '#ffffee';
-  const fogColor = state.isNight ? '#060a14' : '#0a0e1a';
-  const groundColor = state.isNight ? '#050810' : '#0c1220';
+  // Night visibility fix: brighter ambient, moonlight, warm hemisphere
+  const ambientIntensity = state.isNight ? 0.35 : 0.5;
+  const ambientColor = state.isNight ? '#4455aa' : '#e8e8ff';
+  const dirIntensity = state.isNight ? 0.3 : 0.7;
+  const dirColor = state.isNight ? '#6688cc' : '#ffffee';
+  const fogColor = state.isNight ? '#0a1025' : '#0a0e1a';
+  const groundColor = state.isNight ? '#0a1025' : '#0c1220';
 
   return (
     <>
@@ -156,13 +156,26 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
-      <fog attach="fog" args={[fogColor, 50, 130]} />
+      <fog attach="fog" args={[fogColor, 60, 140]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
-      {state.isNight && <hemisphereLight args={['#112244', '#000011', 0.12]} />}
+      {/* Hemisphere light — always on, stronger at night for visibility */}
+      <hemisphereLight args={[
+        state.isNight ? '#223366' : '#87ceeb',
+        state.isNight ? '#111122' : '#362907',
+        state.isNight ? 0.25 : 0.15
+      ]} />
       {state.isAirRaid && (
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25} distance={120} />
+      )}
+      {/* City glow at night */}
+      {state.isNight && (
+        <>
+          <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.3} distance={80} />
+          <pointLight position={[-20, 5, -10]} color="#ffaa44" intensity={0.15} distance={50} />
+          <pointLight position={[15, 5, 15]} color="#ffaa44" intensity={0.15} distance={50} />
+        </>
       )}
 
       {/* Ground */}
@@ -173,14 +186,13 @@ function SceneContent({
       <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
 
       <RiverPlane />
-      <CityBuildings />
+      <CityBuildings stateRef={stateRef} />
 
       {/* Metro lines */}
       <MetroLine3D line="red" stateRef={stateRef} />
       <MetroLine3D line="blue" stateRef={stateRef} />
       <MetroLine3D line="green" stateRef={stateRef} />
 
-      {/* Dynamic entities with smart re-render */}
       <DynamicEntities
         stateRef={stateRef}
         onStationClick={onStationClick}
@@ -189,6 +201,7 @@ function SceneContent({
         onDroneClick={onDroneClick}
       />
 
+      <DecoyMarkers stateRef={stateRef} />
       <ExplosionsLayer stateRef={stateRef} />
       <RepairUnitsLayer stateRef={stateRef} />
       <NotificationsLayer stateRef={stateRef} />

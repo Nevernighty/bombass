@@ -5,18 +5,26 @@ interface ActionBarProps {
   money: number;
   selectedTrain: string | null;
   selectedTrainLevel: number;
+  radarActive: boolean;
+  speedBoostCooldown: number;
   onBuyTrain: (line: 'red' | 'blue' | 'green') => void;
   onReinforcements: () => void;
   onUpgradeTrain: () => void;
+  onBuyGenerator: () => void;
+  onBuyRadar: () => void;
+  onPlaceDecoy: () => void;
+  onSpeedBoost: (line: 'red' | 'blue' | 'green') => void;
 }
 
 export const ActionBar = React.memo(function ActionBar({
   money, selectedTrain, selectedTrainLevel,
+  radarActive, speedBoostCooldown,
   onBuyTrain, onReinforcements, onUpgradeTrain,
+  onBuyGenerator, onBuyRadar, onPlaceDecoy, onSpeedBoost,
 }: ActionBarProps) {
   return (
     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-auto">
-      <div className="flex gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(10,15,30,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex gap-1 px-3 py-1.5 rounded-lg flex-wrap justify-center" style={{ background: 'rgba(10,15,30,0.9)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)', maxWidth: '600px' }}>
         {(['red', 'blue', 'green'] as const).map(line => (
           <button
             key={line}
@@ -26,14 +34,29 @@ export const ActionBar = React.memo(function ActionBar({
             disabled={money < GAME_CONFIG.TRAIN_COST}
             title={`Купити потяг (${GAME_CONFIG.TRAIN_COST}💰)`}
           >
-            🚇+ {GAME_CONFIG.TRAIN_COST}💰
+            🚇 {GAME_CONFIG.TRAIN_COST}💰
           </button>
         ))}
         <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)' }} />
         <button onClick={onReinforcements} disabled={money < GAME_CONFIG.REINFORCEMENT_COST}
           className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
           style={{ color: '#f97316', border: '1px solid rgba(249,115,22,0.2)' }}>
-          🚒 ДСНС ({GAME_CONFIG.REINFORCEMENT_COST}💰)
+          🚒 {GAME_CONFIG.REINFORCEMENT_COST}💰
+        </button>
+        <button onClick={onBuyGenerator} disabled={money < GAME_CONFIG.GENERATOR_COST}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
+          style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}>
+          ⚡ {GAME_CONFIG.GENERATOR_COST}💰
+        </button>
+        <button onClick={onBuyRadar} disabled={money < GAME_CONFIG.RADAR_COST || radarActive}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
+          style={{ color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)' }}>
+          📡 {GAME_CONFIG.RADAR_COST}💰
+        </button>
+        <button onClick={onPlaceDecoy} disabled={money < GAME_CONFIG.DECOY_COST}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
+          style={{ color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}>
+          🎯 {GAME_CONFIG.DECOY_COST}💰
         </button>
         {selectedTrain && (
           <button onClick={onUpgradeTrain}

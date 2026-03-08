@@ -1,13 +1,13 @@
-import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification } from './types';
+import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
+import { generateBuildingData } from './components/CityBuildings';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
 
-// O(1) index into state.stations array by station ID
 const STATION_IDX = new Map<string, number>(STATIONS.map((s, i) => [s.id, i]));
 export function getStation(state: GameState, id: string) {
   const idx = STATION_IDX.get(id);
@@ -24,6 +24,9 @@ const UNLOCK_ORDER: Record<string, string[]> = {
 };
 
 const STATION_UNLOCK_INTERVAL = 20000;
+const RUSH_HOUR_INTERVAL = 90000;
+const RUSH_HOUR_DURATION = 15000;
+const RUSH_HOUR_WARNING = 5000;
 
 export function easeInOutQuad(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -33,6 +36,21 @@ function assignStationShape(station: typeof STATIONS[0], index: number): Passeng
   if (station.isTransfer) return 'star';
   const lineShapes: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond'];
   return lineShapes[index % lineShapes.length];
+}
+
+function initBuildings(): BuildingState[] {
+  const data = generateBuildingData();
+  return data.map((b, i) => ({
+    id: i,
+    x: b.x,
+    y: b.y,
+    hp: 50,
+    maxHp: 50,
+    isDestroyed: false,
+    height: b.h,
+    width: b.w,
+    depth: b.d,
+  }));
 }
 
 export function createInitialState(): GameState {
@@ -48,6 +66,7 @@ export function createInitialState(): GameState {
     isRepairing: false, repairProgress: 0,
     jellyOffset: { x: 0, y: 0 }, jellyVel: { x: 0, y: 0 },
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
+    isSheltering: false, tunnelSealTimer: 0,
   }));
 
   const trains: Train[] = [];
@@ -78,14 +97,29 @@ export function createInitialState(): GameState {
     selectedTrain: null, hoveredStation: null,
     activeStationIds: [...STARTING_STATIONS],
     nextStationUnlockTime: STATION_UNLOCK_INTERVAL,
-    qteActive: false, qteDroneId: null, qteKey: 'Q', qteTimer: 0,
     notifications: [], waveIndex: 0,
+    // Phase 4
+    buildings: initBuildings(),
+    selectedDroneId: null,
+    powerGrid: 100,
+    maxPower: 100,
+    generators: 0,
+    rushHourTimer: RUSH_HOUR_INTERVAL,
+    rushHourActive: false,
+    rushHourCooldown: 0,
+    radarActive: false,
+    radarWarnings: [],
+    decoys: [],
+    speedBoostLine: null,
+    speedBoostTimer: 0,
+    speedBoostCooldown: 0,
+    comboMilestones: [],
+    buildingsDestroyed: 0,
     _cachedLineStations: {},
   };
 }
 
 export function getActiveLineStations(state: GameState, line: string): string[] {
-  // Use cache if available
   if (state._cachedLineStations[line]) return state._cachedLineStations[line];
   const lineIds = LINE_STATIONS[line];
   if (!lineIds) return [];
@@ -104,17 +138,19 @@ function updatePassengers(s: GameState, realDt: number, events: EventBus): void 
   const wave = getCurrentWave(s.elapsedTime);
   const activeSet = new Set(s.activeStationIds);
 
-  // Available shapes from active non-destroyed stations
   const activeShapes = new Set<PassengerShape>();
   for (const st of s.stations) {
     if (activeSet.has(st.id) && !st.isDestroyed) activeShapes.add(st.shape);
   }
   const availableShapes = Array.from(activeShapes);
 
-  // Spawn
-  if (Math.random() < realDt / wave.passengerSpawnRate && availableShapes.length > 1) {
+  // Rush hour multiplier
+  const spawnRateMult = s.rushHourActive ? 3 : 1;
+  const effectiveSpawnRate = wave.passengerSpawnRate / spawnRateMult;
+
+  if (Math.random() < realDt / effectiveSpawnRate && availableShapes.length > 1) {
     const openStations = s.stations.filter(st =>
-      activeSet.has(st.id) && st.isOpen && !st.isDestroyed && st.passengers.length < st.maxPassengers
+      activeSet.has(st.id) && st.isOpen && !st.isDestroyed && !st.isSheltering && st.passengers.length < st.maxPassengers
     );
     if (openStations.length > 0) {
       const station = openStations[Math.floor(Math.random() * openStations.length)];
@@ -128,7 +164,7 @@ function updatePassengers(s: GameState, realDt: number, events: EventBus): void 
     }
   }
 
-  // Patience decay — passengers leave if they wait too long
+  // Patience decay
   for (const station of s.stations) {
     if (!activeSet.has(station.id) || station.isDestroyed) continue;
     for (let i = station.passengers.length - 1; i >= 0; i--) {
@@ -171,6 +207,9 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
 
     t.routeIndex = Math.max(0, Math.min(route.length - 1, t.routeIndex));
 
+    // Speed boost
+    const speedMult = (s.speedBoostLine === t.line && s.speedBoostTimer > 0) ? 2 : 1;
+
     if (t.isDwelling) {
       t.dwellTimer -= realDt;
       if (t.dwellTimer <= 0) {
@@ -186,6 +225,7 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
       return t;
     }
 
+    // Check tunnel seal — if sealed between current and next, stop
     const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
     if (nextIdx === t.routeIndex) {
       t.direction = (t.direction * -1) as 1 | -1;
@@ -196,7 +236,17 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
       return t;
     }
 
-    t.progress += (t.speed * realDt) / 2500;
+    // Check tunnel seal
+    const curStation = getStation(s, route[t.routeIndex]);
+    const nextStation = getStation(s, route[nextIdx]);
+    if (curStation && curStation.tunnelSealTimer > 0) {
+      // Sealed, don't move
+      t.isDwelling = true;
+      t.dwellTimer = 500;
+      return t;
+    }
+
+    t.progress += (t.speed * speedMult * realDt) / 2500;
 
     const curStConst = STATION_MAP.get(route[t.routeIndex]);
     const nextStConst = STATION_MAP.get(route[nextIdx]);
@@ -231,8 +281,7 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
           }
 
-          // Transfer logic: at transfer stations, unload passengers whose
-          // destination shape doesn't exist on current line but does on another active line
+          // Transfer logic at transfer stations
           if (arrStation.isTransfer) {
             const currentLineShapes = new Set<PassengerShape>();
             const activeSet = new Set(s.activeStationIds);
@@ -272,13 +321,63 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
 
 // ==================== SYSTEM: Drones ====================
 function updateDrones(s: GameState, realDt: number, events: EventBus): void {
+  // Auto-attack from anti-air stations targeting selectedDroneId
+  if (s.selectedDroneId) {
+    const selDrone = s.drones.find(d => d.id === s.selectedDroneId && !d.isDestroyed);
+    if (!selDrone) {
+      s.selectedDroneId = null;
+    } else {
+      // Anti-air stations auto-fire at selected drone
+      for (const st of s.stations) {
+        if (!st.hasAntiAir || st.isDestroyed) continue;
+        const dx = st.x - selDrone.x, dy = st.y - selDrone.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.15 && Math.random() < realDt / 800) {
+          selDrone.hp--;
+          addNotification(s, '🎯', selDrone.x, selDrone.y, '#3498db');
+          if (selDrone.hp <= 0) {
+            selDrone.isDestroyed = true;
+            s.dronesIntercepted++;
+            s.score += 15;
+            s.money += 10;
+            s.explosions.push({ x: selDrone.x, y: selDrone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+            events.emit({ type: 'DRONE_DESTROYED', x: selDrone.x, y: selDrone.y });
+            s.selectedDroneId = null;
+          }
+          break;
+        }
+      }
+    }
+  }
+
   s.drones = s.drones.filter(d => {
     if (d.isDestroyed) return false;
+
+    // Check if targeting a decoy
+    let targetX: number, targetY: number;
+    const closestDecoy = s.decoys.length > 0 ? s.decoys.reduce((closest, decoy) => {
+      const ddx = decoy.x - d.x, ddy = decoy.y - d.y;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (!closest || dist < closest.dist) return { decoy, dist };
+      return closest;
+    }, null as { decoy: Decoy; dist: number } | null) : null;
+
+    // 40% chance drones divert to decoy if close enough
+    if (closestDecoy && closestDecoy.dist < 0.3 && d.id.charCodeAt(0) % 5 < 2) {
+      targetX = closestDecoy.decoy.x;
+      targetY = closestDecoy.decoy.y;
+    } else {
+      const target = getStation(s, d.targetStationId);
+      if (!target) return false;
+      targetX = target.x;
+      targetY = target.y;
+    }
+
     const target = getStation(s, d.targetStationId);
     if (!target) return false;
 
-    // Anti-air intercept
-    if (target.hasAntiAir && target.shieldTimer <= 0) {
+    // Anti-air intercept (non-selected, proximity-based)
+    if (target.hasAntiAir && target.shieldTimer <= 0 && s.selectedDroneId !== d.id) {
       const dx = target.x - d.x, dy = target.y - d.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 0.06) {
@@ -308,22 +407,53 @@ function updateDrones(s: GameState, realDt: number, events: EventBus): void {
       }
     }
 
-    const dx = target.x - d.x, dy = target.y - d.y;
+    const dx = targetX - d.x, dy = targetY - d.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     d.angle = Math.atan2(dy, dx);
     d.wobble += realDt * 0.005;
 
-    // Hit station
+    // Hit target
     if (dist < 0.015) {
       const config = DRONE_TYPES[d.droneType];
-      target.hp -= config.damage;
+
+      // 30% chance to hit a building instead
+      if (d.targetBuildingIdx === -1 && Math.random() < 0.3 && s.buildings.length > 0) {
+        // Find nearest non-destroyed building
+        let nearestBldg = -1;
+        let nearestDist = Infinity;
+        for (let bi = 0; bi < s.buildings.length; bi++) {
+          const b = s.buildings[bi];
+          if (b.isDestroyed) continue;
+          const bdx = b.x - d.x, bdy = b.y - d.y;
+          const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+          if (bdist < nearestDist) { nearestDist = bdist; nearestBldg = bi; }
+        }
+        if (nearestBldg >= 0 && nearestDist < 0.1) {
+          const bldg = s.buildings[nearestBldg];
+          bldg.hp -= config.damage;
+          s.explosions.push({ x: bldg.x, y: bldg.y, radius: 0, maxRadius: 30, alpha: 1, time: 0 });
+          if (bldg.hp <= 0) {
+            bldg.isDestroyed = true;
+            bldg.hp = 0;
+            s.buildingsDestroyed++;
+            addNotification(s, '🏚️', bldg.x, bldg.y, '#888');
+          }
+          s.screenShake = 5;
+          return false;
+        }
+      }
+
+      // Bridge vulnerability — double damage
+      const damageMult = BRIDGE_STATION_IDS.has(d.targetStationId) ? 2 : 1;
+
+      target.hp -= config.damage * damageMult;
       target.isOnFire = true;
       target.fireTimer = 5000;
       target.jellyVel.x = 8; target.jellyVel.y = 8;
       s.screenShake = 10;
       s.explosions.push({ x: target.x, y: target.y, radius: 0, maxRadius: 40, alpha: 1, time: 0 });
-      addNotification(s, `💥 -${config.damage}HP`, target.x, target.y, '#e74c3c');
-      events.emit({ type: 'DRONE_HIT_STATION', x: target.x, y: target.y, data: { damage: config.damage } });
+      addNotification(s, `💥 -${config.damage * damageMult}HP`, target.x, target.y, '#e74c3c');
+      events.emit({ type: 'DRONE_HIT_STATION', x: target.x, y: target.y, data: { damage: config.damage * damageMult } });
       if (target.hp <= 0) {
         target.isDestroyed = true;
         target.isOpen = false;
@@ -353,17 +483,32 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
   }
 
   if (!s.isAirRaid) {
+    // Radar early warning
+    if (s.radarActive && s.elapsedTime > s.nextRaidTime - 5000 && s.radarWarnings.length === 0) {
+      // Show warning dots at map edges
+      for (let i = 0; i < 3; i++) {
+        const edge = Math.random();
+        let wx = 0, wy = 0;
+        if (edge < 0.25) { wx = 0.02; wy = Math.random(); }
+        else if (edge < 0.5) { wx = 0.98; wy = Math.random(); }
+        else if (edge < 0.75) { wx = Math.random(); wy = 0.02; }
+        else { wx = Math.random(); wy = 0.98; }
+        s.radarWarnings.push({ x: wx, y: wy, timer: 5000 });
+      }
+      addNotification(s, '📡 Радар: дрони наближаються!', 0.5, 0.3, '#06b6d4');
+    }
+
     if (s.elapsedTime > s.nextRaidTime) {
       s.isAirRaid = true;
       s.airRaidTimer = 0;
       s.raidDronesSpawned = 0;
+      s.radarWarnings = [];
       events.emit({ type: 'AIR_RAID_START' });
       s.surfaceVehicles.forEach(v => { v.isFrozen = true; });
     }
   } else {
     s.airRaidTimer += realDt;
 
-    // Spawn drones with wave limits
     if (s.raidDronesSpawned < wave.maxDronesPerRaid && Math.random() < realDt / wave.droneSpawnRate) {
       const activeSet = new Set(s.activeStationIds);
       const activeStations = s.stations.filter(st => !st.isDestroyed && activeSet.has(st.id));
@@ -384,6 +529,7 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
           speed: config.speed, angle: 0, isDestroyed: false,
           wobble: Math.random() * Math.PI * 2,
           droneType, hp: config.hp, maxHp: config.hp,
+          targetBuildingIdx: -1,
         });
         s.totalDrones++;
         s.raidDronesSpawned++;
@@ -448,11 +594,78 @@ function updateProgression(s: GameState, realDt: number, events: EventBus): void
   }
 }
 
+// ==================== SYSTEM: Power Grid ====================
+function updatePowerGrid(s: GameState, realDt: number): void {
+  const activeCount = s.activeStationIds.length;
+  const drain = activeCount * 0.003 * (realDt / 1000);
+  const generation = (1 + s.generators * 2) * 0.01 * (realDt / 1000);
+  s.powerGrid = Math.min(s.maxPower, Math.max(0, s.powerGrid - drain + generation));
+
+  if (s.powerGrid <= 0) {
+    // Random station shuts down
+    const openStations = s.stations.filter(st => st.isOpen && !st.isDestroyed);
+    if (openStations.length > 0 && Math.random() < 0.001) {
+      const victim = openStations[Math.floor(Math.random() * openStations.length)];
+      victim.isOpen = false;
+      addNotification(s, '⚡ Відключення!', victim.x, victim.y, '#ef4444');
+    }
+  }
+}
+
+// ==================== SYSTEM: Rush Hour ====================
+function updateRushHour(s: GameState, realDt: number): void {
+  if (s.rushHourActive) {
+    s.rushHourCooldown -= realDt;
+    if (s.rushHourCooldown <= 0) {
+      s.rushHourActive = false;
+      addNotification(s, '🕐 Година пік завершена', 0.5, 0.5, '#eab308');
+    }
+  } else {
+    s.rushHourTimer -= realDt;
+    if (s.rushHourTimer <= RUSH_HOUR_WARNING && s.rushHourTimer > RUSH_HOUR_WARNING - realDt * 2) {
+      addNotification(s, '⚠️ Година пік через 5с!', 0.5, 0.5, '#f59e0b');
+    }
+    if (s.rushHourTimer <= 0) {
+      s.rushHourActive = true;
+      s.rushHourCooldown = RUSH_HOUR_DURATION;
+      s.rushHourTimer = RUSH_HOUR_INTERVAL;
+      addNotification(s, '🚇 ГОДИНА ПІК! x3 пасажирів!', 0.5, 0.5, '#eab308');
+    }
+  }
+}
+
+// ==================== SYSTEM: Combo Rewards ====================
+function updateComboRewards(s: GameState): void {
+  const milestones = [3, 4, 5];
+  for (const m of milestones) {
+    if (s.combo >= m && !s.comboMilestones.includes(m)) {
+      s.comboMilestones.push(m);
+      if (m === 3) {
+        s.money += 30;
+        addNotification(s, '🌟 Комбо x3! +30💰', 0.5, 0.4, '#f59e0b');
+      } else if (m === 4) {
+        // Temporary speed boost all lines
+        s.speedBoostLine = 'red';
+        s.speedBoostTimer = 5000;
+        addNotification(s, '⚡ Комбо x4! Прискорення!', 0.5, 0.4, '#f59e0b');
+      } else if (m === 5) {
+        s.lives = Math.min(s.lives + 1, 5);
+        addNotification(s, '❤️ Комбо x5! +1 життя!', 0.5, 0.4, '#f59e0b');
+      }
+    }
+  }
+  // Reset milestones if combo drops
+  if (s.combo < 3) {
+    s.comboMilestones = [];
+  }
+}
+
 // ==================== SYSTEM: Physics / Misc ====================
 function updatePhysics(s: GameState, realDt: number): void {
   // Shield timers
   for (const st of s.stations) {
     if (st.shieldTimer > 0) st.shieldTimer -= realDt;
+    if (st.tunnelSealTimer > 0) st.tunnelSealTimer -= realDt;
   }
 
   // Fire/jelly physics
@@ -488,22 +701,26 @@ function updatePhysics(s: GameState, realDt: number): void {
     return e.alpha > 0;
   });
 
-  // QTE
-  if (s.qteActive) {
-    s.qteTimer -= realDt;
-    if (s.qteTimer <= 0) { s.qteActive = false; s.qteDroneId = null; }
-  }
-  if (!s.qteActive && s.drones.some(d => !d.isDestroyed) && Math.random() < realDt / 3000) {
-    const activeDrones = s.drones.filter(d => !d.isDestroyed);
-    const drone = activeDrones[Math.floor(Math.random() * activeDrones.length)];
-    if (drone) {
-      const config = DRONE_TYPES[drone.droneType];
-      s.qteActive = true;
-      s.qteDroneId = drone.id;
-      s.qteKey = config.qteKeys[Math.floor(Math.random() * config.qteKeys.length)];
-      s.qteTimer = config.qteTime;
+  // Speed boost timer
+  if (s.speedBoostTimer > 0) {
+    s.speedBoostTimer -= realDt;
+    if (s.speedBoostTimer <= 0) {
+      s.speedBoostLine = null;
     }
   }
+  if (s.speedBoostCooldown > 0) s.speedBoostCooldown -= realDt;
+
+  // Decoy timers
+  s.decoys = s.decoys.filter(d => {
+    d.timer -= realDt;
+    return d.timer > 0 && d.hp > 0;
+  });
+
+  // Radar warnings
+  s.radarWarnings = s.radarWarnings.filter(w => {
+    w.timer -= realDt;
+    return w.timer > 0;
+  });
 
   // Surface vehicles
   SURFACE_ROUTES.forEach(route => {
@@ -546,8 +763,7 @@ function updatePhysics(s: GameState, realDt: number): void {
   s.networkEfficiency = totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0;
 }
 
-// ==================== MAIN UPDATE (orchestrator) ====================
-// Global event bus singleton
+// ==================== MAIN UPDATE ====================
 export const globalEventBus = new EventBus();
 
 export function updateGame(state: GameState, dt: number, audio: AudioEngine): GameState {
@@ -557,11 +773,9 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   const s = { ...state };
   s.elapsedTime += realDt;
 
-  // Day/night
   s.dayTime = (s.dayTime + realDt / GAME_CONFIG.DAY_CYCLE_DURATION) % 1;
   s.isNight = s.dayTime < 0.2 || s.dayTime > 0.8;
 
-  // Cache line stations for this tick
   const activeSet = new Set(s.activeStationIds);
   s._cachedLineStations = {
     red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
@@ -569,49 +783,28 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
     green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
   };
 
-  // Run systems
   updateProgression(s, realDt, globalEventBus);
   updatePassengers(s, realDt, globalEventBus);
   updateTrains(s, realDt, globalEventBus);
   updateCrisis(s, realDt, globalEventBus);
   updateDrones(s, realDt, globalEventBus);
   updateRepair(s, realDt, globalEventBus);
+  updatePowerGrid(s, realDt);
+  updateRushHour(s, realDt);
+  updateComboRewards(s);
   updatePhysics(s, realDt);
 
-  // Flush events so audio feedback processes them
   globalEventBus.flush();
 
   return s;
 }
 
-// ===== QTE Input =====
-export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
-  if (!state.qteActive) return state;
-  if (key.toUpperCase() === state.qteKey) {
-    const drone = state.drones.find(d => d.id === state.qteDroneId);
-    if (drone) {
-      drone.hp--;
-      if (drone.hp <= 0) {
-        drone.isDestroyed = true;
-        state.dronesIntercepted++;
-        state.score += Math.round(10 * state.combo);
-        state.money += 15;
-        state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
-        addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
-        globalEventBus.emit({ type: 'QTE_SUCCESS', x: drone.x, y: drone.y });
-      } else {
-        addNotification(state, `💥 ${drone.hp}/${drone.maxHp} HP`, drone.x, drone.y, '#e67e22');
-      }
-    }
-    state.qteActive = false;
-    state.qteDroneId = null;
-  }
-  globalEventBus.flush();
-  return state;
-}
-
-// ===== Click-to-attack drone =====
+// ===== Click-to-select/attack drone =====
 export function attackDrone(state: GameState, droneId: string): GameState {
+  // Select the drone
+  state.selectedDroneId = droneId;
+
+  // Manual click costs 5 money
   if (state.money < 5) return state;
   const drone = state.drones.find(d => d.id === droneId && !d.isDestroyed);
   if (!drone) return state;
@@ -625,6 +818,7 @@ export function attackDrone(state: GameState, droneId: string): GameState {
     state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
     addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
     globalEventBus.emit({ type: 'DRONE_DESTROYED', x: drone.x, y: drone.y });
+    state.selectedDroneId = null;
   } else {
     addNotification(state, `💥 ${drone.hp}/${drone.maxHp}`, drone.x, drone.y, '#e67e22');
   }
@@ -756,5 +950,72 @@ export function upgradeStation(state: GameState, stationId: string): GameState {
   station.maxHp = 100 + (station.level - 1) * 50;
   station.maxPassengers = GAME_CONFIG.MAX_PASSENGERS_PER_STATION + (station.level - 1) * 4;
   station.hp = station.maxHp;
+  return state;
+}
+
+// ===== New Phase 4 Actions =====
+export function buyGenerator(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.GENERATOR_COST) return state;
+  state.money -= GAME_CONFIG.GENERATOR_COST;
+  state.generators++;
+  state.maxPower += 30;
+  state.powerGrid = Math.min(state.powerGrid + 30, state.maxPower);
+  addNotification(state, '⚡ Генератор!', 0.5, 0.5, '#22c55e');
+  return state;
+}
+
+export function buyRadar(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.RADAR_COST || state.radarActive) return state;
+  state.money -= GAME_CONFIG.RADAR_COST;
+  state.radarActive = true;
+  addNotification(state, '📡 Радар активовано!', 0.5, 0.5, '#06b6d4');
+  return state;
+}
+
+export function placeDecoy(state: GameState): GameState {
+  if (state.money < GAME_CONFIG.DECOY_COST) return state;
+  state.money -= GAME_CONFIG.DECOY_COST;
+  // Place decoy at random position away from center
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 0.15 + Math.random() * 0.2;
+  state.decoys.push({
+    id: uid(),
+    x: 0.5 + Math.cos(angle) * dist,
+    y: 0.5 + Math.sin(angle) * dist,
+    timer: 20000,
+    hp: 1,
+  });
+  addNotification(state, '🎯 Приманку розміщено!', 0.5, 0.5, '#f59e0b');
+  return state;
+}
+
+export function emergencySpeedBoost(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+  if (state.money < GAME_CONFIG.SPEED_BOOST_COST || state.speedBoostCooldown > 0) return state;
+  state.money -= GAME_CONFIG.SPEED_BOOST_COST;
+  state.speedBoostLine = line;
+  state.speedBoostTimer = 10000;
+  state.speedBoostCooldown = 30000;
+  addNotification(state, `⚡ ${line.toUpperCase()} x2 швидкість!`, 0.5, 0.5, '#a855f7');
+  return state;
+}
+
+export function toggleShelter(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.depth !== 'deep') return state;
+  station.isSheltering = !station.isSheltering;
+  return state;
+}
+
+export function sealTunnel(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || state.money < GAME_CONFIG.TUNNEL_SEAL_COST) return state;
+  state.money -= GAME_CONFIG.TUNNEL_SEAL_COST;
+  station.tunnelSealTimer = 15000;
+  addNotification(state, '🚧 Тунель заблоковано!', station.x, station.y, '#9ca3af');
+  return state;
+}
+
+// Keep handleQteInput for backward compat but it's now a no-op
+export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   return state;
 }

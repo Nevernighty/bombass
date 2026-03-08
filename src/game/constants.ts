@@ -42,12 +42,17 @@ export const GAME_CONFIG = {
   UPGRADE_COST: 40,
   REINFORCEMENT_COST: 25,
   DWELL_TIME: 1200,
+  GENERATOR_COST: 50,
+  RADAR_COST: 60,
+  DECOY_COST: 40,
+  SPEED_BOOST_COST: 20,
+  TUNNEL_SEAL_COST: 15,
 };
 
 export const DRONE_TYPES = {
-  shahed: { speed: 0.8, hp: 1, damage: 40, qteKeys: ['Q', 'W', 'E', 'R'], qteTime: 2000, color: '#555555', scale: 0.5 },
-  molniya: { speed: 1.8, hp: 1, damage: 20, qteKeys: ['Q', 'W'], qteTime: 1000, color: '#888888', scale: 0.3 },
-  gerbera: { speed: 0.5, hp: 3, damage: 70, qteKeys: ['Q', 'W', 'E', 'R'], qteTime: 3000, color: '#666666', scale: 0.6 },
+  shahed: { speed: 0.8, hp: 1, damage: 40, color: '#555555', scale: 0.5 },
+  molniya: { speed: 1.8, hp: 1, damage: 20, color: '#888888', scale: 0.3 },
+  gerbera: { speed: 0.5, hp: 3, damage: 70, color: '#666666', scale: 0.6 },
 } as const;
 
 export const STATIONS = [
@@ -60,11 +65,13 @@ export const STATIONS = [
   { id: 'r7', name: 'Politekhnichnyi Instytut', nameUa: 'Політехнічний інститут', x: 0.32, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'r8', name: 'Vokzalna', nameUa: 'Вокзальна', x: 0.36, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'r9', name: 'Universytet', nameUa: 'Університет', x: 0.40, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r10', name: 'Teatralna', nameUa: 'Театральна', x: 0.44, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'r11', name: 'Khreshchatyk', nameUa: 'Хрещатик', x: 0.48, y: 0.42, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
+  // Teatralna offset from Zoloti Vorota
+  { id: 'r10', name: 'Teatralna', nameUa: 'Театральна', x: 0.43, y: 0.43, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
+  // Khreshchatyk offset from Maidan
+  { id: 'r11', name: 'Khreshchatyk', nameUa: 'Хрещатик', x: 0.49, y: 0.41, line: 'red' as const, depth: 'deep' as const, isTransfer: true },
   { id: 'r12', name: 'Arsenalna', nameUa: 'Арсенальна', x: 0.53, y: 0.44, line: 'red' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'r13', name: 'Dnipro', nameUa: 'Дніпро', x: 0.59, y: 0.44, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
-  { id: 'r14', name: 'Hidropark', nameUa: 'Гідропарк', x: 0.65, y: 0.42, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
+  { id: 'r13', name: 'Dnipro', nameUa: 'Дніпро', x: 0.59, y: 0.44, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
+  { id: 'r14', name: 'Hidropark', nameUa: 'Гідропарк', x: 0.65, y: 0.42, line: 'red' as const, depth: 'shallow' as const, isTransfer: false, isBridge: true },
   { id: 'r15', name: 'Livoberezhna', nameUa: 'Лівобережна', x: 0.72, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
   { id: 'r16', name: 'Darnytsia', nameUa: 'Дарниця', x: 0.78, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
   { id: 'r17', name: 'Chernihivska', nameUa: 'Чернігівська', x: 0.84, y: 0.40, line: 'red' as const, depth: 'shallow' as const, isTransfer: false },
@@ -76,7 +83,8 @@ export const STATIONS = [
   { id: 'b5', name: 'Tarasa Shevchenka', nameUa: 'Тараса Шевченка', x: 0.42, y: 0.25, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'b6', name: 'Kontraktova Ploshcha', nameUa: 'Контрактова площа', x: 0.42, y: 0.30, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'b7', name: 'Poshtova Ploshcha', nameUa: 'Поштова площа', x: 0.44, y: 0.35, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
-  { id: 'b8', name: 'Maidan Nezalezhnosti', nameUa: 'Майдан Незалежності', x: 0.48, y: 0.42, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
+  // Maidan offset from Khreshchatyk
+  { id: 'b8', name: 'Maidan Nezalezhnosti', nameUa: 'Майдан Незалежності', x: 0.47, y: 0.44, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
   { id: 'b9', name: 'Ploshcha Ukrainskykh Heroiv', nameUa: 'Площа Українських Героїв', x: 0.46, y: 0.50, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'b10', name: 'Olimpiiska', nameUa: 'Олімпійська', x: 0.44, y: 0.56, line: 'blue' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'b11', name: 'Palats Ukraina', nameUa: 'Палац «Україна»', x: 0.42, y: 0.62, line: 'blue' as const, depth: 'deep' as const, isTransfer: true },
@@ -89,7 +97,8 @@ export const STATIONS = [
   { id: 'g2', name: 'Dorohozhychi', nameUa: 'Дорогожичі', x: 0.26, y: 0.22, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'g3', name: 'Lukianivska', nameUa: "Лук'янівська", x: 0.30, y: 0.28, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'g4', name: 'Zoloti Vorota', nameUa: 'Золоті ворота', x: 0.34, y: 0.34, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
-  { id: 'g5', name: 'Palats Sportu', nameUa: 'Палац спорту', x: 0.40, y: 0.40, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
+  // Palats Sportu offset
+  { id: 'g5', name: 'Palats Sportu', nameUa: 'Палац спорту', x: 0.39, y: 0.41, line: 'green' as const, depth: 'deep' as const, isTransfer: true },
   { id: 'g6', name: 'Klovska', nameUa: 'Кловська', x: 0.46, y: 0.46, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'g7', name: 'Pecherska', nameUa: 'Печерська', x: 0.50, y: 0.52, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
   { id: 'g8', name: 'Druzhby Narodiv', nameUa: 'Дружби народів', x: 0.48, y: 0.58, line: 'green' as const, depth: 'deep' as const, isTransfer: false },
@@ -111,6 +120,9 @@ export const LINE_STATIONS: Record<string, string[]> = {
   blue: STATIONS.filter(s => s.line === 'blue').map(s => s.id),
   green: STATIONS.filter(s => s.line === 'green').map(s => s.id),
 };
+
+// Bridge stations (double drone damage)
+export const BRIDGE_STATION_IDS = new Set(STATIONS.filter(s => (s as any).isBridge).map(s => s.id));
 
 export const DNIPRO_RIVER_POINTS = [
   { x: 0.50, y: 0.0 }, { x: 0.52, y: 0.10 }, { x: 0.54, y: 0.20 },
