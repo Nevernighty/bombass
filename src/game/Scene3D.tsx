@@ -537,7 +537,7 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
     return tex;
   }, []);
 
-  const groundColor = isNight ? '#0c1230' : '#0e1428';
+  const groundColor = isNight ? '#0e1435' : '#101830';
   return (
     <>
       {/* Base dark ground */}
@@ -547,14 +547,14 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
           color={groundColor}
           metalness={0.05}
           roughness={0.95}
-          emissive={isNight ? '#0a0e20' : '#000000'}
-          emissiveIntensity={isNight ? 0.15 : 0}
+          emissive={isNight ? '#0c1025' : '#050810'}
+          emissiveIntensity={isNight ? 0.2 : 0.05}
         />
       </mesh>
       {/* Kyiv map overlay */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]}>
         <planeGeometry args={[200, 160]} />
-        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.35 : 0.45} depthWrite={false} />
+        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.4 : 0.5} depthWrite={false} />
       </mesh>
       {/* Subtle zone coloring near river */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.08, 0]}>
@@ -571,9 +571,9 @@ function SceneContent({
 }: SceneContentProps) {
   const state = stateRef.current;
 
-  const ambientIntensity = state.isNight ? 0.45 : 0.5;
+  const ambientIntensity = state.isNight ? 0.5 : 0.55;
   const ambientColor = state.isNight ? '#4455aa' : '#e8e8ff';
-  const dirIntensity = state.isNight ? 0.45 : 0.9;
+  const dirIntensity = state.isNight ? 0.5 : 1.0;
   const dirColor = state.isNight ? '#6688cc' : '#ffffee';
   const fogColor = state.isNight ? '#0a1025' : '#0c1220';
 
@@ -587,7 +587,7 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
-      <fog attach="fog" args={[fogColor, 80, 200]} />
+      <fog attach="fog" args={[fogColor, 90, 250]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
