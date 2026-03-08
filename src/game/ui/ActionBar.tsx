@@ -16,9 +16,9 @@ interface ActionBarProps {
   emergencyBrakeTimer: number;
   stationMagnetTimer: number;
   lives: number;
+  closedSegments: { line: string; from: string; to: string; timer: number }[];
   onBuyTrain: (line: 'red' | 'blue' | 'green') => void;
   onReinforcements: () => void;
-  onUpgradeTrain: () => void;
   onBuyGenerator: () => void;
   onBuyRadar: () => void;
   onPlaceDecoy: () => void;
@@ -31,7 +31,8 @@ interface ActionBarProps {
   onPassengerAirdrop: () => void;
   onDroneJammer: () => void;
   onEmergencyFund: () => void;
-  onTrainShield: () => void;
+  onCloseSegment: (line: 'red' | 'blue' | 'green') => void;
+  onReopenLine: (line: 'red' | 'blue' | 'green') => void;
 }
 
 interface DropdownItem {
