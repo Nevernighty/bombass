@@ -5,6 +5,13 @@ import { AudioEngine } from './AudioEngine';
 let nextId = 0;
 const uid = () => `${++nextId}`;
 
+// O(1) index into state.stations array by station ID
+const STATION_IDX = new Map<string, number>(STATIONS.map((s, i) => [s.id, i]));
+export function getStation(state: GameState, id: string) {
+  const idx = STATION_IDX.get(id);
+  return idx !== undefined ? state.stations[idx] : undefined;
+}
+
 const SHAPES: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
 const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5'];
 
