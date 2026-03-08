@@ -131,7 +131,6 @@ export const TopBar = React.memo(function TopBar({
               {Math.ceil(airRaidTimer / 1000)}с
             </span>
           )}
-          </span>
           {rushHourActive && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded animate-pulse" style={{
               background: 'hsla(45, 90%, 55%, 0.15)', color: 'hsl(var(--game-accent))',
