@@ -70,6 +70,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
     isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
     hasSAM: false, samCooldown: 0, hasAATurret: false, turretCooldown: 0, stationIncome: 0,
+    isFortified: false, empCooldown: 0, panicTimer: 0, passiveIncomeAccum: 0,
   }));
 
   const trains: Train[] = [];
@@ -83,7 +84,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
       });
       trainsCreated++;
     }
@@ -97,7 +98,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: -1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
-        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1,
+        x: st.x, y: st.y, dwellTimer: 0, isDwelling: false, level: 1, shieldTimer: 0,
       });
     }
     trainsCreated++;
@@ -105,7 +106,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
-    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3 },
+    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3, tiltAngle: 0.65, keysDown: new Set<string>() },
     score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
@@ -149,6 +150,14 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     isRaining: false,
     weatherTimer: 30000 + Math.random() * 60000,
     autoRepairTimer: 0,
+    // Phase 7
+    floatingScores: [],
+    killFlashTimer: 0,
+    screenPulseTimer: 0,
+    screenPulseColor: '#22c55e',
+    passiveIncomeTimer: 0,
+    victoryLapActive: false,
+    swarmWarningTimer: 0,
     _cachedLineStations: {},
   };
 }
