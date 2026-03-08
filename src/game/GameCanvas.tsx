@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, attackDrone, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, globalEventBus } from './GameEngine';
 import { GameState } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -47,11 +47,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     audioRef.current.init();
     audioRef.current.resume();
     audioRef.current.startAmbientMusic();
-    // Wire up EventBus → Audio
     if (!audioFeedbackRef.current) {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
-    setHudState({ ...s });
     setHudState({ ...s });
   }, []);
 
@@ -100,11 +98,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const state = stateRef.current;
-      if (state.qteActive) {
-        stateRef.current = handleQteInput({ ...state }, e.key, audioRef.current);
-        setHudState({ ...stateRef.current });
-      }
       if (e.key === ' ') {
         e.preventDefault();
         stateRef.current = { ...stateRef.current, isPaused: !stateRef.current.isPaused };
@@ -141,7 +134,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const handleMouseUp = useCallback(() => { isPanningRef.current = false; }, []);
   const handleContextMenu = useCallback((e: React.MouseEvent) => { e.preventDefault(); }, []);
 
-  // Touch support
   const touchStartRef = useRef<{ x: number; y: number; dist: number } | null>(null);
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
@@ -224,6 +216,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     stateRef.current = setSpeedMultiplier({ ...stateRef.current }, mult);
     setHudState({ ...stateRef.current });
   }, []);
+  const handleBuyGenerator = useCallback(() => {
+    stateRef.current = buyGenerator({ ...stateRef.current });
+    setHudState({ ...stateRef.current });
+  }, []);
+  const handleBuyRadar = useCallback(() => {
+    stateRef.current = buyRadar({ ...stateRef.current });
+    setHudState({ ...stateRef.current });
+  }, []);
+  const handlePlaceDecoy = useCallback(() => {
+    stateRef.current = placeDecoy({ ...stateRef.current });
+    setHudState({ ...stateRef.current });
+  }, []);
+  const handleSpeedBoost = useCallback((line: 'red' | 'blue' | 'green') => {
+    stateRef.current = emergencySpeedBoost({ ...stateRef.current }, line);
+    setHudState({ ...stateRef.current });
+  }, []);
+  const handleShelter = useCallback(() => {
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) { stateRef.current = toggleShelter({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
+  }, [selectedStation, state.hoveredStation]);
+  const handleSealTunnel = useCallback(() => {
+    const sid = selectedStation || state.hoveredStation;
+    if (sid) { stateRef.current = sealTunnel({ ...stateRef.current }, sid); setHudState({ ...stateRef.current }); }
+  }, [selectedStation, state.hoveredStation]);
 
   const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
   const selectedTrainLevel = state.selectedTrain ? (state.trains.find(t => t.id === state.selectedTrain)?.level || 1) : 1;
@@ -255,6 +271,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         </Suspense>
       </Canvas>
 
+      {/* Air raid vignette overlay */}
+      {state.isAirRaid && state.gameStarted && !state.gameOver && (
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'radial-gradient(ellipse at center, transparent 50%, rgba(220,38,38,0.15) 100%)',
+        }} />
+      )}
+
       {/* START SCREEN */}
       {!state.gameStarted && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
@@ -266,7 +289,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               <p>🖱️ Перетягуйте — камера | Колесо — зум</p>
               <p>🚇 Клік по потягу — змінити напрямок</p>
               <p>🏗️ Клік по станції — управління</p>
-              <p>⚡ Q/W/E/R — збити дрон | ⏸️ Пробіл — пауза</p>
+              <p>🎯 Клік по дрону — атакувати (5💰)</p>
+              <p>⏸️ Пробіл — пауза | 1-4 — швидкість</p>
             </div>
             <button
               onClick={startGame}
@@ -290,7 +314,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               <div>Пасажирів: <span className="text-white font-bold">{state.passengersDelivered}</span></div>
               <div>Дронів збито: <span className="text-white font-bold">{state.dronesIntercepted}/{state.totalDrones}</span></div>
               <div>Макс. комбо: <span className="text-white font-bold">x{state.maxCombo.toFixed(1)}</span></div>
-              <div>Станцій втрачено: <span className="text-white font-bold">{state.stationsDestroyed}</span></div>
+              <div>Будівлі: <span className="text-white font-bold">{state.buildingsDestroyed}</span></div>
             </div>
             <button
               onClick={restartGame}
@@ -320,6 +344,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             isNight={state.isNight}
             waveIndex={state.waveIndex}
             isAirRaid={state.isAirRaid}
+            powerGrid={state.powerGrid}
+            maxPower={state.maxPower}
+            rushHourActive={state.rushHourActive}
+            radarActive={state.radarActive}
             onSpeedChange={handleSpeedChange}
           />
 
@@ -333,15 +361,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
           )}
 
-          {/* QTE */}
-          {state.qteActive && (
-            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 text-center pointer-events-none">
-              <div className="px-8 py-4 rounded-xl animate-pulse" style={{ background: 'rgba(234,179,8,0.15)', border: '2px solid rgba(234,179,8,0.6)', boxShadow: '0 0 40px rgba(234,179,8,0.2)' }}>
-                <p className="text-2xl font-bold mb-2" style={{ color: '#eab308' }}>Натисни [{state.qteKey}]</p>
-                <div className="w-48 h-2 rounded-full overflow-hidden mx-auto" style={{ background: '#374151' }}>
-                  <div className="h-full transition-all rounded-full" style={{ width: `${(state.qteTimer / 2000) * 100}%`, background: '#eab308' }} />
-                </div>
-              </div>
+          {/* Rush Hour Banner */}
+          {state.rushHourActive && (
+            <div
+              className="absolute top-14 right-4 text-white px-4 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
+              style={{ background: 'rgba(234,179,8,0.85)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(234,179,8,0.4)' }}
+            >
+              🚇 ГОДИНА ПІК x3
             </div>
           )}
 
@@ -357,12 +383,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             <StationPanel
               station={selStation}
               money={state.money}
+              isAirRaid={state.isAirRaid}
+              speedBoostCooldown={state.speedBoostCooldown}
               onClose={() => setSelectedStation(null)}
               onDeployAA={handleDeployAA}
               onShield={handleShield}
               onUpgrade={handleUpgradeStation}
               onEvacuate={handleEvacuate}
               onToggle={handleToggleStation}
+              onShelter={handleShelter}
+              onSealTunnel={handleSealTunnel}
+              onSpeedBoost={() => selStation && handleSpeedBoost(selStation.line)}
             />
           )}
 
@@ -370,9 +401,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             money={state.money}
             selectedTrain={state.selectedTrain}
             selectedTrainLevel={selectedTrainLevel}
+            radarActive={state.radarActive}
+            speedBoostCooldown={state.speedBoostCooldown}
             onBuyTrain={handleBuyTrain}
             onReinforcements={handleReinforcements}
             onUpgradeTrain={handleUpgradeTrain}
+            onBuyGenerator={handleBuyGenerator}
+            onBuyRadar={handleBuyRadar}
+            onPlaceDecoy={handlePlaceDecoy}
+            onSpeedBoost={handleSpeedBoost}
           />
 
           {/* Zoom controls */}

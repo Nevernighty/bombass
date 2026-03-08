@@ -26,6 +26,8 @@ export interface GameStation {
   hasAntiAir: boolean;
   shieldTimer: number;
   level: number;
+  isSheltering: boolean;
+  tunnelSealTimer: number;
 }
 
 export interface Passenger {
@@ -33,7 +35,7 @@ export interface Passenger {
   shape: PassengerShape;
   spawnTime: number;
   stationId: string;
-  patience: number; // ms remaining before leaving
+  patience: number;
 }
 
 export type DroneType = 'shahed' | 'molniya' | 'gerbera';
@@ -66,6 +68,7 @@ export interface Drone {
   droneType: DroneType;
   hp: number;
   maxHp: number;
+  targetBuildingIdx: number; // -1 = targeting station
 }
 
 export interface SurfaceVehicle {
@@ -108,6 +111,26 @@ export interface Camera {
   targetY: number;
 }
 
+export interface BuildingState {
+  id: number;
+  x: number; // normalized
+  y: number;
+  hp: number;
+  maxHp: number;
+  isDestroyed: boolean;
+  height: number;
+  width: number;
+  depth: number;
+}
+
+export interface Decoy {
+  id: string;
+  x: number;
+  y: number;
+  timer: number;
+  hp: number;
+}
+
 export interface GameState {
   stations: GameStation[];
   trains: Train[];
@@ -146,13 +169,26 @@ export interface GameState {
   hoveredStation: string | null;
   activeStationIds: string[];
   nextStationUnlockTime: number;
-  qteActive: boolean;
-  qteDroneId: string | null;
-  qteKey: string;
-  qteTimer: number;
   notifications: GameNotification[];
   waveIndex: number;
-  // cached per-tick (avoid recompute)
+  // New Phase 4 fields
+  buildings: BuildingState[];
+  selectedDroneId: string | null;
+  powerGrid: number;
+  maxPower: number;
+  generators: number;
+  rushHourTimer: number;
+  rushHourActive: boolean;
+  rushHourCooldown: number;
+  radarActive: boolean;
+  radarWarnings: { x: number; y: number; timer: number }[];
+  decoys: Decoy[];
+  speedBoostLine: string | null;
+  speedBoostTimer: number;
+  speedBoostCooldown: number;
+  comboMilestones: number[];
+  buildingsDestroyed: number;
+  // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }
 

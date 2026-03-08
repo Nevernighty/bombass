@@ -5,16 +5,23 @@ import { GAME_CONFIG } from '../constants';
 interface StationPanelProps {
   station: GameStation;
   money: number;
+  isAirRaid: boolean;
+  speedBoostCooldown: number;
   onClose: () => void;
   onDeployAA: () => void;
   onShield: () => void;
   onUpgrade: () => void;
   onEvacuate: () => void;
   onToggle: () => void;
+  onShelter: () => void;
+  onSealTunnel: () => void;
+  onSpeedBoost: () => void;
 }
 
 export const StationPanel = React.memo(function StationPanel({
-  station, money, onClose, onDeployAA, onShield, onUpgrade, onEvacuate, onToggle,
+  station, money, isAirRaid, speedBoostCooldown,
+  onClose, onDeployAA, onShield, onUpgrade, onEvacuate, onToggle,
+  onShelter, onSealTunnel, onSpeedBoost,
 }: StationPanelProps) {
   return (
     <div className="absolute bottom-20 left-3 px-3 py-2 rounded-lg text-xs pointer-events-auto max-w-xs" style={{ background: 'rgba(10,15,30,0.92)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -30,6 +37,8 @@ export const StationPanel = React.memo(function StationPanel({
         {station.isOnFire ? ' 🔥' : ''}
         {station.isDestroyed ? ' 💀' : ''}
         {station.hasAntiAir ? ' 🛡️' : ''}
+        {station.isSheltering ? ' 🏠' : ''}
+        {station.tunnelSealTimer > 0 ? ' 🚧' : ''}
       </p>
       <div className="w-full h-1.5 rounded-full mb-2" style={{ background: '#374151' }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${(station.hp / station.maxHp) * 100}%`, background: station.hp > 50 ? '#22c55e' : '#ef4444' }} />
@@ -59,6 +68,23 @@ export const StationPanel = React.memo(function StationPanel({
           className="px-2 py-1 rounded text-xs transition-colors"
           style={{ color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
           {station.isOpen ? '🔒 Закр' : '🔓 Відкр'}
+        </button>
+        {station.depth === 'deep' && isAirRaid && (
+          <button onClick={onShelter}
+            className="px-2 py-1 rounded text-xs transition-colors"
+            style={{ color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>
+            {station.isSheltering ? '🏠 Вийти' : '🏠 Укриття'}
+          </button>
+        )}
+        <button onClick={onSealTunnel} disabled={money < GAME_CONFIG.TUNNEL_SEAL_COST || station.tunnelSealTimer > 0}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
+          style={{ color: '#9ca3af', border: '1px solid rgba(255,255,255,0.15)' }}>
+          🚧 Тунель ({GAME_CONFIG.TUNNEL_SEAL_COST}💰)
+        </button>
+        <button onClick={onSpeedBoost} disabled={money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0}
+          className="px-2 py-1 rounded text-xs disabled:opacity-30 transition-colors"
+          style={{ color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>
+          🚀 Буст ({GAME_CONFIG.SPEED_BOOST_COST}💰)
         </button>
       </div>
     </div>

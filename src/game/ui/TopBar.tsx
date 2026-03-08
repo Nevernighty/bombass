@@ -14,6 +14,10 @@ interface TopBarProps {
   isNight: boolean;
   waveIndex: number;
   isAirRaid: boolean;
+  powerGrid: number;
+  maxPower: number;
+  rushHourActive: boolean;
+  radarActive: boolean;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -27,18 +31,22 @@ function formatTime(ms: number) {
 export const TopBar = React.memo(function TopBar({
   score, combo, money, lives, speedMultiplier,
   elapsedTime, passengersDelivered, dronesIntercepted, totalDrones,
-  networkEfficiency, isNight, waveIndex, isAirRaid, onSpeedChange,
+  networkEfficiency, isNight, waveIndex, isAirRaid,
+  powerGrid, maxPower, rushHourActive, radarActive,
+  onSpeedChange,
 }: TopBarProps) {
+  const powerPct = Math.round((powerGrid / maxPower) * 100);
+
   return (
     <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-2 pointer-events-none">
       <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-white font-bold text-base">{Math.round(score)}</span>
-          <span style={{ color: '#eab308' }}>x{(Math.round(combo * 10) / 10).toFixed(1)}</span>
+          <span style={{ color: combo >= 3 ? '#f59e0b' : '#eab308' }}>x{(Math.round(combo * 10) / 10).toFixed(1)}</span>
           <span style={{ color: '#22c55e' }}>💰{money}</span>
-          <span>{'❤️'.repeat(lives)}{'🖤'.repeat(Math.max(0, 3 - lives))}</span>
+          <span>{'❤️'.repeat(Math.min(lives, 5))}{'🖤'.repeat(Math.max(0, 3 - lives))}</span>
         </div>
-        <div className="flex gap-1 mt-1 items-center">
+        <div className="flex gap-1 mt-1 items-center flex-wrap">
           {[1, 2, 5, 10].map(s => (
             <button
               key={s}
@@ -59,6 +67,15 @@ export const TopBar = React.memo(function TopBar({
           }}>
             Хвиля {waveIndex + 1}
           </span>
+          {rushHourActive && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded animate-pulse" style={{
+              background: 'rgba(234,179,8,0.3)',
+              color: '#fbbf24',
+              border: '1px solid rgba(234,179,8,0.5)',
+            }}>
+              🚇 ГОДИНА ПІК
+            </span>
+          )}
         </div>
       </div>
       <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -68,6 +85,12 @@ export const TopBar = React.memo(function TopBar({
           <span>🎯 {dronesIntercepted}/{totalDrones}</span>
           <span>📊 {networkEfficiency}%</span>
           <span>{isNight ? '🌙' : '☀️'}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-1 text-xs">
+          <span style={{ color: powerPct < 20 ? '#ef4444' : powerPct < 50 ? '#f59e0b' : '#22c55e' }}>
+            ⚡ {powerPct}%
+          </span>
+          {radarActive && <span style={{ color: '#06b6d4' }}>📡</span>}
         </div>
       </div>
     </div>
