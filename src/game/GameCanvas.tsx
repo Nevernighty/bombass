@@ -640,7 +640,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onSpeedBoost={() => act(s => emergencySpeedBoost(s, selStation.line))}
               onExpressLine={() => act(s => activateExpressLine(s, selStation.line))}
               onStationMagnet={() => act(s => activateStationMagnet(s, selStation.id))}
-              onBuySAM={() => act(s => busSAMBattery(s, selStation.id))}
+              onBuySAM={() => act(s => buySAMBattery(s, selStation.id))}
               onBuyAATurret={() => act(s => buyAATurret(s, selStation.id))}
               onLaunchInterceptor={() => act(s => launchInterceptor(s, selStation.id))}
               onFortify={() => act(s => fortifyStation(s, selStation.id))}

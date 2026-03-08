@@ -77,7 +77,7 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
           background: active ? `${color}30` : `${color}12`,
           border: `2px solid ${active ? color : color + '40'}`,
           color,
-          ringColor: active ? color : undefined,
+          
           boxShadow: active ? `0 0 12px ${color}40` : 'none',
         }}
       >
