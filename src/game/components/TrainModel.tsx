@@ -33,7 +33,7 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
     return s;
   }, [scene, lineColor]);
 
-  return <primitive object={cloned} scale={[3.0, 3.0, 3.0]} />;
+  return <primitive object={cloned} scale={[0.6, 0.6, 0.6]} />;
 }
 
 useGLTF.preload('/models/metro_wagon_type_d.glb');
@@ -134,38 +134,38 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
 
       {/* Ground shadow disc */}
       <mesh ref={shadowRef} position={[0, -0.65, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[3.5, 16]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.35} depthWrite={false} />
+        <circleGeometry args={[1.2, 16]} />
+        <meshBasicMaterial color="#000000" transparent opacity={0.3} depthWrite={false} />
       </mesh>
 
       {/* Ground glow ring */}
       <mesh ref={glowRingRef} position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[2.5, 4.0, 24]} />
-        <meshBasicMaterial color={lineColor} transparent opacity={0.6} side={THREE.DoubleSide} />
+        <ringGeometry args={[0.8, 1.5, 24]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.5} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Capacity bar */}
-      <mesh position={[0, -0.2, 0]}>
-        <boxGeometry args={[2.2, 0.15, 5.0 * Math.max(0.1, fillRatio)]} />
+      <mesh position={[0, -0.1, 0]}>
+        <boxGeometry args={[0.6, 0.08, 1.5 * Math.max(0.1, fillRatio)]} />
         <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.7} transparent opacity={0.85} />
       </mesh>
 
       {/* Hover glow ring */}
-      <mesh ref={hoverGlowRef} position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-        <ringGeometry args={[3.5, 4.5, 16]} />
+      <mesh ref={hoverGlowRef} position={[0, -0.4, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[1.3, 1.8, 16]} />
         <meshBasicMaterial color={lineColor} transparent opacity={0.5} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>
-        <sphereGeometry args={[4.5, 12, 12]} />
+        <sphereGeometry args={[2.0, 12, 12]} />
         <meshBasicMaterial color="#3b82f6" transparent opacity={0.12} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Selection ring */}
       {isSelected && (
-        <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[3.5, 4.5, 24]} />
+        <mesh position={[0, -0.4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.3, 1.8, 24]} />
           <meshBasicMaterial color="#ffcc00" transparent opacity={0.7} side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -173,24 +173,24 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       {/* Always-visible line label + passenger count */}
       <Billboard>
         <Text
-          position={[0, 4.0, 0]}
-          fontSize={1.0}
+          position={[0, 2.5, 0]}
+          fontSize={0.7}
           color={lineColor}
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.1}
+          outlineWidth={0.08}
           outlineColor="#000000"
           fontWeight="bold"
         >
           {lineName}
         </Text>
         <Text
-          position={[0, 2.8, 0]}
-          fontSize={0.65}
+          position={[0, 1.6, 0]}
+          fontSize={0.45}
           color="#ffffff"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={0.06}
+          outlineWidth={0.04}
           outlineColor="#000000"
         >
           {`${train.passengers.length}/${train.capacity}`}
@@ -198,14 +198,14 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       </Billboard>
 
       {/* Interior window glow */}
-      <mesh position={[0, 0.8, 0]}>
-        <boxGeometry args={[1.2, 0.4, 3.5]} />
+      <mesh position={[0, 0.4, 0]}>
+        <boxGeometry args={[0.4, 0.15, 1.0]} />
         <meshBasicMaterial color={isNight ? '#ffcc66' : '#ffffff'} transparent opacity={isNight ? 0.25 : 0.08} />
       </mesh>
 
       {/* Headlights */}
-      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 4.0 : 2.0} distance={isNight ? 15 : 8} position={[0, 0.5, 3.5]} />
-      {isNight && <pointLight color="#ffaa66" intensity={1.0} distance={6} position={[0, 0.3, 0]} />}
+      <pointLight color={isNight ? '#ffcc88' : lineColor} intensity={isNight ? 2.0 : 1.0} distance={isNight ? 8 : 4} position={[0, 0.3, 1.2]} />
+      {isNight && <pointLight color="#ffaa66" intensity={0.5} distance={3} position={[0, 0.2, 0]} />}
     </group>
   );
 }

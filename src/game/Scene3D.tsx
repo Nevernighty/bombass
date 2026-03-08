@@ -537,7 +537,7 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
     return tex;
   }, []);
 
-  const groundColor = isNight ? '#0e1435' : '#101830';
+  const groundColor = isNight ? '#141a3a' : '#182040';
   return (
     <>
       {/* Base dark ground */}
@@ -547,14 +547,14 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
           color={groundColor}
           metalness={0.05}
           roughness={0.95}
-          emissive={isNight ? '#0c1025' : '#050810'}
-          emissiveIntensity={isNight ? 0.2 : 0.05}
+          emissive={isNight ? '#0c1025' : '#080c18'}
+          emissiveIntensity={isNight ? 0.25 : 0.1}
         />
       </mesh>
       {/* Kyiv map overlay */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]}>
         <planeGeometry args={[200, 160]} />
-        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.4 : 0.5} depthWrite={false} />
+        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.5 : 0.6} depthWrite={false} />
       </mesh>
       {/* Subtle zone coloring near river */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.08, 0]}>
@@ -610,9 +610,9 @@ function SceneContent({
         </>
       )}
 
-      {/* Skybox gradient dome */}
+      {/* Full skybox sphere */}
       <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <sphereGeometry args={[200, 32, 16]} />
         <meshBasicMaterial color={skyHue} side={THREE.BackSide} transparent opacity={0.8} />
       </mesh>
 
