@@ -246,9 +246,7 @@ function SignalFlareLines({ stateRef }: { stateRef: React.MutableRefObject<GameS
         const points = [new THREE.Vector3(dx, 3, dz), new THREE.Vector3(tx, 1, tz)];
         const geo = new THREE.BufferGeometry().setFromPoints(points);
         return (
-          <line key={d.id} geometry={geo}>
-            <lineBasicMaterial color="#ff4444" transparent opacity={0.4} />
-          </line>
+          <primitive key={d.id} object={new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#ff4444', transparent: true, opacity: 0.4 }))} />
         );
       })}
     </group>
