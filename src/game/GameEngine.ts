@@ -891,6 +891,26 @@ function updatePhase6Systems(s: GameState, realDt: number, events: EventBus): vo
   }
 }
 
+// ==================== SYSTEM: Phase 7 ====================
+function updatePhase7Systems(s: GameState, realDt: number): void {
+  s.passiveIncomeTimer += realDt;
+  if (s.passiveIncomeTimer >= 10000) {
+    s.passiveIncomeTimer = 0;
+    const activeSet = new Set(s.activeStationIds);
+    const activeCount = s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed).length;
+    s.money += activeCount;
+  }
+  for (const t of s.trains) { if (t.shieldTimer > 0) t.shieldTimer -= realDt; }
+  for (const st of s.stations) {
+    if (st.empCooldown > 0) st.empCooldown -= realDt;
+    if (st.panicTimer > 0) st.panicTimer -= realDt;
+  }
+  if (s.killFlashTimer > 0) s.killFlashTimer -= realDt;
+  if (s.screenPulseTimer > 0) s.screenPulseTimer -= realDt;
+  if (s.swarmWarningTimer > 0) s.swarmWarningTimer -= realDt;
+  s.floatingScores = s.floatingScores.filter(fs => { fs.timer -= realDt; fs.y -= realDt * 0.003; return fs.timer > 0; });
+}
+
 // ==================== SYSTEM: Achievements ====================
 function updateAchievements(s: GameState): void {
   function unlock(id: string) {
