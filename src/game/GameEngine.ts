@@ -230,6 +230,31 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
             addNotification(s, `+${earned}`, arrStation.x, arrStation.y, '#2ecc71');
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
           }
+
+          // Transfer logic: at transfer stations, unload passengers whose
+          // destination shape doesn't exist on current line but does on another active line
+          if (arrStation.isTransfer) {
+            const currentLineShapes = new Set<PassengerShape>();
+            const activeSet = new Set(s.activeStationIds);
+            for (const sid of (s._cachedLineStations[t.line] || [])) {
+              const st = getStation(s, sid);
+              if (st && !st.isDestroyed && activeSet.has(st.id)) currentLineShapes.add(st.shape);
+            }
+            const transferPassengers = t.passengers.filter(p => !currentLineShapes.has(p.shape));
+            if (transferPassengers.length > 0) {
+              const spaceAtStation = arrStation.maxPassengers - arrStation.passengers.length;
+              const toTransfer = transferPassengers.slice(0, spaceAtStation);
+              toTransfer.forEach(p => {
+                arrStation.passengers.push({ ...p, stationId: arrStation.id });
+              });
+              const transferIds = new Set(toTransfer.map(p => p.id));
+              t.passengers = t.passengers.filter(p => !transferIds.has(p.id));
+              if (toTransfer.length > 0) {
+                addNotification(s, `🔄 ${toTransfer.length}`, arrStation.x, arrStation.y, '#a29bfe');
+              }
+            }
+          }
+
           // Load
           const space = t.capacity - t.passengers.length;
           if (space > 0 && arrStation.passengers.length > 0) {
