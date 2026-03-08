@@ -29,35 +29,35 @@ function TrainGLB({ lineColor }: { lineColor: string }) {
     return c;
   }, [scene, lineColor]);
 
-  return <primitive object={cloned} scale={0.4} rotation={[0, Math.PI / 2, 0]} />;
+  return <primitive object={cloned} scale={0.5} rotation={[0, Math.PI / 2, 0]} />;
 }
 
 function TrainFallback({ lineColor }: { lineColor: string }) {
   return (
     <group>
       <mesh castShadow>
-        <boxGeometry args={[2.5, 0.7, 0.9]} />
+        <boxGeometry args={[2.8, 0.8, 1.0]} />
         <meshStandardMaterial color={lineColor} metalness={0.5} roughness={0.3} />
       </mesh>
-      <mesh position={[0, 0.45, 0]}>
-        <boxGeometry args={[2.3, 0.15, 0.8]} />
+      <mesh position={[0, 0.5, 0]}>
+        <boxGeometry args={[2.5, 0.15, 0.9]} />
         <meshStandardMaterial color={lineColor} metalness={0.6} roughness={0.2} />
       </mesh>
-      <mesh position={[0, 0.15, 0.46]}>
-        <boxGeometry args={[2.0, 0.3, 0.02]} />
-        <meshStandardMaterial color="#88ccff" emissive="#88ccff" emissiveIntensity={0.3} transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[0, 0.15, -0.46]}>
-        <boxGeometry args={[2.0, 0.3, 0.02]} />
-        <meshStandardMaterial color="#88ccff" emissive="#88ccff" emissiveIntensity={0.3} transparent opacity={0.8} />
-      </mesh>
+      {/* Windows */}
+      {[-0.7, -0.2, 0.3, 0.8].map((xOff, i) => (
+        <mesh key={i} position={[xOff, 0.2, 0.51]}>
+          <planeGeometry args={[0.35, 0.25]} />
+          <meshBasicMaterial color="#88ccff" transparent opacity={0.7} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
 export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const prevAngle = useRef<number | null>(null);
+  const smoothPos = useRef(new THREE.Vector3(0, 0.7, 0));
+  const smoothAngle = useRef<number | null>(null);
   const lastMovementAngle = useRef<number>(0);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
@@ -65,15 +65,20 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
 
   const lineColor = METRO_LINES[train.line].color;
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const state = stateRef.current;
     const t = state.trains.find(tr => tr.id === trainId);
     if (!t || !groupRef.current) return;
 
     const [wx, , wz] = toWorld(t.x, t.y);
-    groupRef.current.position.set(wx, 0.6, wz);
+    const targetPos = new THREE.Vector3(wx, 0.7, wz);
 
-    // Only compute rotation when NOT dwelling (moving between stations)
+    // Smooth position interpolation to prevent teleportation
+    const lerpFactor = Math.min(1, delta * 8);
+    smoothPos.current.lerp(targetPos, lerpFactor);
+    groupRef.current.position.copy(smoothPos.current);
+
+    // Compute rotation only when actually moving
     if (!t.isDwelling) {
       const route = getActiveLineStations(state, t.line);
       if (route.length >= 2) {
@@ -84,28 +89,29 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         if (curSt && nextSt && curSt.id !== nextSt.id) {
           const [cx, , cz] = toWorld(curSt.x, curSt.y);
           const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
-          const targetAngle = Math.atan2(nx - cx, nz - cz);
-          lastMovementAngle.current = targetAngle;
+          lastMovementAngle.current = Math.atan2(nx - cx, nz - cz);
         }
       }
     }
 
-    // Smooth rotation toward last known movement angle
+    // Smooth rotation
     const targetAngle = lastMovementAngle.current;
-    if (prevAngle.current === null) {
-      prevAngle.current = targetAngle;
+    if (smoothAngle.current === null) {
+      smoothAngle.current = targetAngle;
     }
-    let diff = targetAngle - prevAngle.current;
+    let diff = targetAngle - smoothAngle.current;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    prevAngle.current += diff * 0.15;
-    groupRef.current.rotation.y = prevAngle.current;
+    smoothAngle.current += diff * 0.12;
+    groupRef.current.rotation.y = smoothAngle.current;
 
-    // Dwell animation — gentle bob
+    // Dwell bob animation
     if (t.isDwelling) {
-      groupRef.current.position.y = 0.6 + Math.sin(Date.now() * 0.006) * 0.06;
+      groupRef.current.position.y = 0.7 + Math.sin(Date.now() * 0.005) * 0.05;
     }
   });
+
+  const isSelected = stateRef.current.selectedTrain === trainId;
 
   return (
     <group
@@ -117,28 +123,36 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       </Suspense>
 
       {/* Selection ring */}
-      <mesh position={[0, -0.4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.2, 1.5, 16]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.25} side={THREE.DoubleSide} />
+      <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.3, 1.6, 16]} />
+        <meshBasicMaterial
+          color={isSelected ? '#ffcc00' : '#ffffff'}
+          transparent
+          opacity={isSelected ? 0.5 : 0.2}
+          side={THREE.DoubleSide}
+        />
       </mesh>
 
-      {/* Passenger count - billboarded */}
-      <Billboard>
-        <Text
-          position={[0, 1.8, 0]}
-          fontSize={0.5}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#000000"
-        >
-          {train.passengers.length > 0 ? `${train.passengers.length}/${train.capacity}` : ''}
-        </Text>
-      </Billboard>
+      {/* Passenger count */}
+      {train.passengers.length > 0 && (
+        <Billboard>
+          <Text
+            position={[0, 2, 0]}
+            fontSize={0.55}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            outlineWidth={0.06}
+            outlineColor="#000000"
+          >
+            {`${train.passengers.length}/${train.capacity}`}
+          </Text>
+        </Billboard>
+      )}
 
-      {/* Headlight */}
-      <pointLight color={lineColor} intensity={1.5} distance={6} position={[1.3, 0.2, 0]} />
+      {/* Headlights */}
+      <pointLight color={lineColor} intensity={1.2} distance={5} position={[1.4, 0.2, 0]} />
+      <pointLight color={lineColor} intensity={0.4} distance={3} position={[-1.4, 0.2, 0]} />
     </group>
   );
 }
