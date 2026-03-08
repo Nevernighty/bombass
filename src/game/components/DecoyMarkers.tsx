@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GameState } from '../types';
 import { toWorld } from '../constants';
 
-export function DecoyMarkers({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+function DecoyMarkersInner({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const groupRef = React.useRef<THREE.Group>(null);
   const [decoyIds, setDecoyIds] = React.useState<string[]>([]);
   const prevKey = React.useRef('');
@@ -25,6 +25,10 @@ export function DecoyMarkers({ stateRef }: { stateRef: React.MutableRefObject<Ga
     </group>
   );
 }
+
+export const DecoyMarkers = React.forwardRef<THREE.Group, { stateRef: React.MutableRefObject<GameState> }>(
+  (props, ref) => <DecoyMarkersInner {...props} />
+);
 
 function DecoyMesh({ decoyId, stateRef }: { decoyId: string; stateRef: React.MutableRefObject<GameState> }) {
   const meshRef = React.useRef<THREE.Group>(null);

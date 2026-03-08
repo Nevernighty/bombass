@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { CameraMode } from '../types';
 
 interface TopBarProps {
@@ -36,6 +36,46 @@ function formatTime(ms: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+// Animated number that "rolls" when value changes
+function AnimatedValue({ value, color }: { value: number; color?: string }) {
+  const [display, setDisplay] = useState(value);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== prevRef.current) {
+      setFlash(value > prevRef.current ? 'up' : 'down');
+      prevRef.current = value;
+      // Animate to new value
+      const start = display;
+      const diff = value - start;
+      const steps = Math.min(10, Math.abs(diff));
+      if (steps === 0) { setDisplay(value); return; }
+      let step = 0;
+      const interval = setInterval(() => {
+        step++;
+        setDisplay(Math.round(start + (diff * step) / steps));
+        if (step >= steps) {
+          clearInterval(interval);
+          setDisplay(value);
+          setTimeout(() => setFlash(null), 200);
+        }
+      }, 30);
+      return () => clearInterval(interval);
+    }
+  }, [value]);
+
+  return (
+    <span className="inline-block transition-transform duration-100" style={{
+      color: color || '#fff',
+      transform: flash === 'up' ? 'scale(1.15)' : flash === 'down' ? 'scale(0.9)' : 'scale(1)',
+      textShadow: flash === 'up' ? '0 0 6px rgba(34,197,94,0.5)' : flash === 'down' ? '0 0 6px rgba(239,68,68,0.5)' : 'none',
+    }}>
+      {display}
+    </span>
+  );
+}
+
 export const TopBar = React.memo(function TopBar({
   score, combo, money, lives, speedMultiplier,
   elapsedTime, passengersDelivered, dronesIntercepted, totalDrones,
@@ -46,33 +86,73 @@ export const TopBar = React.memo(function TopBar({
   onSpeedChange,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
+  const [prevLives, setPrevLives] = useState(lives);
+  const [heartPulse, setHeartPulse] = useState(false);
+  const [waveFlash, setWaveFlash] = useState(false);
+  const prevWaveRef = useRef(waveIndex);
+
+  useEffect(() => {
+    if (lives < prevLives) {
+      setHeartPulse(true);
+      setTimeout(() => setHeartPulse(false), 400);
+    }
+    setPrevLives(lives);
+  }, [lives]);
+
+  useEffect(() => {
+    if (waveIndex !== prevWaveRef.current) {
+      setWaveFlash(true);
+      prevWaveRef.current = waveIndex;
+      setTimeout(() => setWaveFlash(false), 600);
+    }
+  }, [waveIndex]);
 
   return (
     <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-2 pointer-events-none">
-      <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="pointer-events-auto px-3 py-2 rounded-xl" style={{ background: 'rgba(8,12,28,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-white font-bold text-base">{Math.round(score)}</span>
-          <span style={{ color: combo >= 3 ? '#f59e0b' : '#eab308' }}>x{(Math.round(combo * 10) / 10).toFixed(1)}</span>
-          <span style={{ color: '#22c55e' }}>💰{money}</span>
+          <span className="font-bold text-base" style={{ color: '#fff' }}>
+            <AnimatedValue value={Math.round(score)} />
+          </span>
+          <span className="transition-transform duration-150" style={{
+            color: combo >= 3 ? '#f59e0b' : '#eab308',
+            transform: combo >= 3 ? 'scale(1.1)' : 'scale(1)',
+          }}>
+            x{(Math.round(combo * 10) / 10).toFixed(1)}
+          </span>
+          <span style={{ color: '#22c55e' }}>
+            💰<AnimatedValue value={money} color="#22c55e" />
+          </span>
           <span className="text-xs" style={{ color: '#4ade80' }}>+{passiveIncome}/10с</span>
-          <span>{'❤️'.repeat(Math.min(lives, 5))}{'🖤'.repeat(Math.max(0, 3 - lives))}</span>
+          <span className={heartPulse ? '' : ''} style={{ display: 'inline-flex', gap: '1px' }}>
+            {Array.from({ length: Math.min(lives, 5) }).map((_, i) => (
+              <span key={i} className={heartPulse && i === Math.min(lives, 5) - 1 ? 'inline-block' : ''} 
+                style={heartPulse && i === Math.min(lives, 5) - 1 ? { animation: 'heart-pulse 0.4s ease-in-out' } : {}}>
+                ❤️
+              </span>
+            ))}
+            {Array.from({ length: Math.max(0, 3 - lives) }).map((_, i) => (
+              <span key={`d${i}`}>🖤</span>
+            ))}
+          </span>
         </div>
         <div className="flex gap-1 mt-1 items-center flex-wrap">
           {[1, 2, 5, 10].map(s => (
             <button key={s} onClick={() => onSpeedChange(s)}
-              className="px-2 py-0.5 rounded text-xs font-bold transition-colors"
+              className="game-btn-hover px-2 py-0.5 rounded text-xs font-bold"
               style={speedMultiplier === s
-                ? { background: '#eab308', color: '#1a1a2e' }
-                : { background: 'rgba(255,255,255,0.05)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }
+                ? { background: '#eab308', color: '#1a1a2e', boxShadow: '0 0 8px rgba(234,179,8,0.4)' }
+                : { background: 'rgba(255,255,255,0.04)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.06)' }
               }>
               {s}x
             </button>
           ))}
-          <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded" style={{ color: '#6b7280', background: 'rgba(255,255,255,0.03)' }}>G</span>
-          <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded" style={{
-            background: isAirRaid ? 'rgba(220,38,38,0.4)' : 'rgba(255,255,255,0.05)',
+          <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded transition-all" style={{
+            background: isAirRaid ? 'rgba(220,38,38,0.4)' : waveFlash ? 'rgba(234,179,8,0.3)' : 'rgba(255,255,255,0.04)',
             color: isAirRaid ? '#fca5a5' : '#9ca3af',
-            border: isAirRaid ? '1px solid rgba(220,38,38,0.5)' : '1px solid rgba(255,255,255,0.08)',
+            border: isAirRaid ? '1px solid rgba(220,38,38,0.5)' : '1px solid rgba(255,255,255,0.06)',
+            transform: waveFlash ? 'scale(1.1)' : 'scale(1)',
+            transition: 'transform 0.2s, background 0.3s',
           }}>
             Хвиля {waveIndex + 1}
           </span>
@@ -97,10 +177,10 @@ export const TopBar = React.memo(function TopBar({
           )}
         </div>
       </div>
-      <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="pointer-events-auto px-3 py-2 rounded-xl" style={{ background: 'rgba(8,12,28,0.92)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
         <div className="flex items-center gap-3 text-xs" style={{ color: '#9ca3af' }}>
           <span>⏱ {formatTime(elapsedTime)}</span>
-          <span>🚇 {passengersDelivered}</span>
+          <span>🚇 <AnimatedValue value={passengersDelivered} color="#9ca3af" /></span>
           <span>🎯 {dronesIntercepted}/{totalDrones}</span>
           <span>📊 {networkEfficiency}%</span>
           <span>{isNight ? '🌙' : '☀️'}</span>

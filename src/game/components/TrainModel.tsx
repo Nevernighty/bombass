@@ -13,53 +13,36 @@ interface TrainModelProps {
 }
 
 function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string; fillRatio: number; isNight: boolean }) {
-  // Color-coded capacity: green=empty, yellow=half, red=full
   const capacityColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
   const windowOpacity = isNight ? 0.9 : 0.6;
   const windowEmissive = isNight ? '#ffcc88' : '#88ccff';
 
   return (
     <group>
-      {/* Main body */}
       <mesh castShadow>
         <boxGeometry args={[1.1, 0.9, 3.2]} />
         <meshStandardMaterial color={lineColor} metalness={0.6} roughness={0.25} />
       </mesh>
-      {/* Roof */}
       <mesh position={[0, 0.55, 0]}>
         <boxGeometry args={[1.0, 0.12, 3.0]} />
         <meshStandardMaterial color={lineColor} metalness={0.7} roughness={0.2} />
       </mesh>
-      {/* Windows - left */}
       {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
         <mesh key={`wl${i}`} position={[0.56, 0.15, zOff]}>
           <planeGeometry args={[0.01, 0.3]} />
-          <meshStandardMaterial
-            color={windowEmissive}
-            emissive={windowEmissive}
-            emissiveIntensity={isNight ? 1.5 : 0.3}
-            transparent opacity={windowOpacity}
-          />
+          <meshStandardMaterial color={windowEmissive} emissive={windowEmissive} emissiveIntensity={isNight ? 1.5 : 0.3} transparent opacity={windowOpacity} />
         </mesh>
       ))}
-      {/* Windows - right */}
       {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
         <mesh key={`wr${i}`} position={[-0.56, 0.15, zOff]}>
           <planeGeometry args={[0.01, 0.3]} />
-          <meshStandardMaterial
-            color={windowEmissive}
-            emissive={windowEmissive}
-            emissiveIntensity={isNight ? 1.5 : 0.3}
-            transparent opacity={windowOpacity}
-          />
+          <meshStandardMaterial color={windowEmissive} emissive={windowEmissive} emissiveIntensity={isNight ? 1.5 : 0.3} transparent opacity={windowOpacity} />
         </mesh>
       ))}
-      {/* Front face */}
       <mesh position={[0, 0.1, 1.6]}>
         <boxGeometry args={[0.9, 0.7, 0.05]} />
         <meshStandardMaterial color="#333333" metalness={0.8} roughness={0.2} />
       </mesh>
-      {/* Headlights */}
       <mesh position={[0.25, 0.25, 1.63]}>
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
@@ -68,17 +51,14 @@ function ProceduralTrain({ lineColor, fillRatio, isNight }: { lineColor: string;
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
       </mesh>
-      {/* Capacity indicator strip */}
       <mesh position={[0, -0.3, 0]}>
         <boxGeometry args={[1.12, 0.06, 3.0 * Math.max(0.1, fillRatio)]} />
         <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.5} transparent opacity={0.7} />
       </mesh>
-      {/* Undercarriage */}
       <mesh position={[0, -0.5, 0]}>
         <boxGeometry args={[0.6, 0.12, 2.8]} />
         <meshStandardMaterial color="#222222" metalness={0.5} roughness={0.6} />
       </mesh>
-      {/* Bogies */}
       <mesh position={[0, -0.55, -0.9]}>
         <boxGeometry args={[0.8, 0.15, 0.5]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.4} />
@@ -97,6 +77,8 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const smoothAngle = useRef<number | null>(null);
   const lastMovementAngle = useRef<number>(0);
   const shieldMeshRef = useRef<THREE.Mesh>(null);
+  const hoverGlowRef = useRef<THREE.Mesh>(null);
+  const isHoveredRef = useRef(false);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
@@ -150,6 +132,11 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         shieldMeshRef.current.rotation.y += delta * 0.8;
       }
     }
+
+    // Hover glow
+    if (hoverGlowRef.current) {
+      hoverGlowRef.current.visible = isHoveredRef.current;
+    }
   });
 
   const isSelected = stateRef.current.selectedTrain === trainId;
@@ -160,8 +147,16 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     <group
       ref={groupRef}
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
+      onPointerEnter={() => { isHoveredRef.current = true; }}
+      onPointerLeave={() => { isHoveredRef.current = false; }}
     >
       <ProceduralTrain lineColor={lineColor} fillRatio={fillRatio} isNight={isNight} />
+
+      {/* Hover glow ring */}
+      <mesh ref={hoverGlowRef} position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <ringGeometry args={[1.8, 2.2, 16]} />
+        <meshBasicMaterial color={lineColor} transparent opacity={0.35} side={THREE.DoubleSide} />
+      </mesh>
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>

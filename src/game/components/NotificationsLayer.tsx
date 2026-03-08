@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GameState } from '../types';
 import { toWorld } from '../constants';
 
-export function NotificationsLayer({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+function NotificationsLayerInner({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame(() => {
@@ -20,7 +20,6 @@ export function NotificationsLayer({ stateRef }: { stateRef: React.MutableRefObj
       const height = 4 + (2000 - notif.timer) * 0.004;
       billboard.position.set(wx, height, wz);
       billboard.visible = true;
-      // Update text child
       const textMesh = billboard.children?.[0];
       if (textMesh) {
         textMesh.fillOpacity = Math.min(1, notif.timer / 500);
@@ -54,3 +53,7 @@ export function NotificationsLayer({ stateRef }: { stateRef: React.MutableRefObj
     </group>
   );
 }
+
+export const NotificationsLayer = React.forwardRef<THREE.Group, { stateRef: React.MutableRefObject<GameState> }>(
+  (props, ref) => <NotificationsLayerInner {...props} />
+);
