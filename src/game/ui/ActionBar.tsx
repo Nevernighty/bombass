@@ -202,12 +202,13 @@ export const ActionBar = React.memo(function ActionBar({
   radarActive, speedBoostCooldown,
   doubleFareTimer, expressTimer, blackoutMode,
   signalFlareTimer, droneJammerTimer, emergencyBrakeTimer,
-  stationMagnetTimer, lives,
-  onBuyTrain, onReinforcements, onUpgradeTrain,
+  stationMagnetTimer, lives, closedSegments,
+  onBuyTrain, onReinforcements,
   onBuyGenerator, onBuyRadar, onPlaceDecoy, onSpeedBoost,
   onEmergencyBrake, onDoubleFare, onExpressLine,
   onBlackout, onSignalFlare, onPassengerAirdrop,
-  onDroneJammer, onEmergencyFund, onTrainShield,
+  onDroneJammer, onEmergencyFund,
+  onCloseSegment, onReopenLine,
 }: ActionBarProps) {
 
   const defenseItems: DropdownItem[] = [
@@ -230,13 +231,28 @@ export const ActionBar = React.memo(function ActionBar({
     { label: 'ГЕН', fullName: 'Генератор', desc: 'Автономне живлення при блекауті', cost: GAME_CONFIG.GENERATOR_COST, onClick: onBuyGenerator, disabled: money < GAME_CONFIG.GENERATOR_COST, accentColor: '#4ade80' },
   ];
 
-  const transportItems: DropdownItem[] = [];
-  if (selectedTrain) {
-    transportItems.push(
-      { label: 'UP', fullName: 'Апгрейд потяга', desc: 'Більше місткість та швидкість', cost: GAME_CONFIG.UPGRADE_COST * selectedTrainLevel, onClick: onUpgradeTrain, disabled: money < GAME_CONFIG.UPGRADE_COST * selectedTrainLevel, accentColor: '#c084fc' },
-      { label: 'ЩИТ', fullName: 'Щит потяга', desc: 'Тимчасовий захист від дронів', cost: 30, onClick: onTrainShield, disabled: money < 30, accentColor: '#38bdf8' },
-    );
-  }
+  const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+  const networkItems: DropdownItem[] = [];
+  lines.forEach(l => {
+    const hasClosedSeg = closedSegments.some(s => s.line === l);
+    const lineLabel = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
+    const c = METRO_LINES[l].color;
+    if (!hasClosedSeg) {
+      networkItems.push({
+        label: `🚧${lineLabel}`, fullName: `Закрити сегмент ${lineLabel}`, desc: 'Тимчасово блокувати ділянку лінії (30с)',
+        cost: 15, onClick: () => onCloseSegment(l), disabled: money < 15, accentColor: c,
+      });
+    } else {
+      networkItems.push({
+        label: `✅${lineLabel}`, fullName: `Відкрити ${lineLabel}`, desc: 'Зняти блокування з лінії',
+        onClick: () => onReopenLine(l), active: true, accentColor: c,
+      });
+    }
+  });
+  networkItems.push(
+    { label: '⚡M1', fullName: 'Прискорення M1', desc: 'x2 швидкість потягів на лінії', cost: GAME_CONFIG.SPEED_BOOST_COST, onClick: () => onSpeedBoost('red'), disabled: money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0, accentColor: METRO_LINES.red.color },
+    { label: '🚄M1', fullName: 'Експрес M1', desc: 'x3 швидкість, пропуск зупинок', cost: GAME_CONFIG.EXPRESS_LINE_COST, onClick: () => onExpressLine('red'), disabled: money < GAME_CONFIG.EXPRESS_LINE_COST || expressTimer > 0, timer: expressTimer, accentColor: METRO_LINES.red.color },
+  );
 
   const divider = <div className="w-px self-stretch" style={{ background: 'rgba(255,255,255,0.08)' }} />;
 
@@ -248,18 +264,12 @@ export const ActionBar = React.memo(function ActionBar({
           border: '1px solid rgba(255,255,255,0.14)',
           boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
         }}>
-        {/* Direct train buttons */}
         <TrainBtn line="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
         <TrainBtn line="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
         <TrainBtn line="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
 
-        {transportItems.length > 0 && (
-          <>
-            {divider}
-            <DropdownGroup title="Потяг" items={transportItems} accentColor="#c084fc" />
-          </>
-        )}
-
+        {divider}
+        <DropdownGroup title="Мережа" items={networkItems} accentColor="#a855f7" />
         {divider}
         <DropdownGroup title="Оборона" items={defenseItems} accentColor="#38bdf8" />
         {divider}
