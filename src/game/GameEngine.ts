@@ -610,6 +610,28 @@ export function handleQteInput(state: GameState, key: string, audio: AudioEngine
   return state;
 }
 
+// ===== Click-to-attack drone =====
+export function attackDrone(state: GameState, droneId: string): GameState {
+  if (state.money < 5) return state;
+  const drone = state.drones.find(d => d.id === droneId && !d.isDestroyed);
+  if (!drone) return state;
+  state.money -= 5;
+  drone.hp--;
+  if (drone.hp <= 0) {
+    drone.isDestroyed = true;
+    state.dronesIntercepted++;
+    state.score += Math.round(10 * state.combo);
+    state.money += 15;
+    state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+    addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
+    globalEventBus.emit({ type: 'DRONE_DESTROYED', x: drone.x, y: drone.y });
+  } else {
+    addNotification(state, `💥 ${drone.hp}/${drone.maxHp}`, drone.x, drone.y, '#e67e22');
+  }
+  globalEventBus.flush();
+  return state;
+}
+
 // ===== Action Functions =====
 export function dispatchRepair(state: GameState, stationId: string): GameState {
   const station = getStation(state, stationId);
