@@ -300,6 +300,12 @@ export interface GameState {
   activeEvents: GameEvent[];
   hoveredElement: HoveredElement | null;
   eventLog: string[];
+  // Phase 20
+  pendingStations: string[];
+  isDrawingLine: boolean;
+  drawLineFrom: string | null;
+  drawLineTo: string | null;
+  trainSpawnEffects: { id: string; x: number; y: number; timer: number; line: string }[];
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }

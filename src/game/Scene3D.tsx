@@ -155,8 +155,10 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
   const prevStationsRef = useRef('');
   const prevTrainsRef = useRef('');
   const prevDronesRef = useRef('');
+  const prevPendingRef = useRef('');
   const frameCountRef = useRef(0);
   const [activeStations, setActiveStations] = React.useState<string[]>(stateRef.current.activeStationIds);
+  const [pendingStations, setPendingStations] = React.useState<string[]>([]);
   const [trainIds, setTrainIds] = React.useState<string[]>(stateRef.current.trains.map(t => t.id));
   const [droneIds, setDroneIds] = React.useState<string[]>([]);
 
@@ -169,6 +171,11 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
     if (stKey !== prevStationsRef.current) {
       prevStationsRef.current = stKey;
       setActiveStations([...state.activeStationIds]);
+    }
+    const pKey = state.pendingStations.join(',');
+    if (pKey !== prevPendingRef.current) {
+      prevPendingRef.current = pKey;
+      setPendingStations([...state.pendingStations]);
     }
     const tKey = state.trains.map(t => t.id).join(',');
     if (tKey !== prevTrainsRef.current) {
@@ -187,6 +194,10 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
       <group>
         {activeStations.map(id => (
           <StationNode3D key={id} stationId={id} stateRef={stateRef} onClick={onStationClick} onHover={onStationHover} />
+        ))}
+        {/* Pending stations rendered as grey */}
+        {pendingStations.map(id => (
+          <StationNode3D key={`pending-${id}`} stationId={id} stateRef={stateRef} onClick={onStationClick} onHover={onStationHover} />
         ))}
       </group>
       <group>

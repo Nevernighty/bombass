@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, globalEventBus } from './GameEngine';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -87,9 +87,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const handleStationClick = useCallback((stationId: string) => {
     audioRef.current.playClick();
     const state = stateRef.current;
+
+    // Line drawing: if we're drawing and clicked a pending station, connect it
+    if (state.isDrawingLine && state.drawLineFrom && state.pendingStations.includes(stationId)) {
+      stateRef.current = connectStation({ ...state }, stationId, state.drawLineFrom);
+      setHudState({ ...stateRef.current });
+      return;
+    }
+
+    // Start drawing line from an active end-of-line station
+    if (state.pendingStations.length > 0 && state.activeStationIds.includes(stationId)) {
+      stateRef.current = { ...state, isDrawingLine: true, drawLineFrom: stationId, hoveredStation: stationId };
+      setSelectedStation(stationId);
+      setHudState({ ...stateRef.current });
+      return;
+    }
+
+    // If drawing and clicked something else, cancel
+    if (state.isDrawingLine) {
+      stateRef.current = { ...state, isDrawingLine: false, drawLineFrom: null, drawLineTo: null };
+    }
+
     const station = state.stations.find(s => s.id === stationId);
     if (station && (station.isDestroyed || station.isOnFire)) {
-      stateRef.current = dispatchRepair({ ...state }, stationId);
+      stateRef.current = dispatchRepair({ ...stateRef.current }, stationId);
     }
     stateRef.current = { ...stateRef.current, hoveredStation: stationId };
     setSelectedStation(stationId);
@@ -544,9 +565,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               {state.activeEvents.map(ev => {
                 const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
                   rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
-                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир' },
+                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!' },
                   power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
                   emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
+                  power_surge: { bg: 'rgba(34,197,94,0.9)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!' },
                 };
                 const c = configs[ev.type] || configs.rush_surge;
                 const timerPct = Math.min(100, (ev.timer / 15000) * 100);
@@ -616,6 +638,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             <div className="absolute top-14 right-4 text-white px-4 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
               style={{ background: 'rgba(234,179,8,0.85)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(234,179,8,0.4)' }}>
               🚇 ГОДИНА ПІК x3
+            </div>
+          )}
+
+          {/* Line Drawing Mode indicator */}
+          {state.isDrawingLine && (
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse pointer-events-none"
+              style={{ background: 'rgba(156,163,175,0.9)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(156,163,175,0.4)' }}>
+              🔗 Клікни на сіру станцію щоб підключити
+            </div>
+          )}
+
+          {/* Pending stations count */}
+          {state.pendingStations.length > 0 && !state.isDrawingLine && (
+            <div className="absolute top-24 right-4 px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse pointer-events-none"
+              style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
+              🔗 {state.pendingStations.length} станц. чекають підключення
             </div>
           )}
 

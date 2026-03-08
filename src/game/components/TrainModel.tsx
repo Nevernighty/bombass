@@ -12,12 +12,18 @@ interface TrainModelProps {
   onClick?: (id: string) => void;
 }
 
-const TRAIN_SCALE = 0.4;
+const LEVEL_CONFIG = {
+  1: { scale: 0.4, emissive: 0.3, glowIntensity: 0.6, glowDist: 4, stripeColor: null as string | null },
+  2: { scale: 0.45, emissive: 0.6, glowIntensity: 1.0, glowDist: 5, stripeColor: '#fbbf24' },
+  3: { scale: 0.5, emissive: 0.9, glowIntensity: 1.6, glowDist: 7, stripeColor: '#ffffff' },
+};
+
 const TRAIN_BASE_Y = 0.35;
 const BRIDGE_Y = 3.8;
 
-function GLBTrain({ lineColor }: { lineColor: string }) {
+function GLBTrain({ lineColor, level }: { lineColor: string; level: number }) {
   const { scene } = useGLTF('/models/metro_wagon_type_d.glb');
+  const cfg = LEVEL_CONFIG[level as 1 | 2 | 3] || LEVEL_CONFIG[1];
   const cloned = useMemo(() => {
     const s = scene.clone(true);
     s.traverse((child) => {
@@ -29,15 +35,15 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
           const lineCol = new THREE.Color(lineColor);
           mat.color.lerp(lineCol, 0.4);
           mat.emissive = lineCol;
-          mat.emissiveIntensity = 0.3;
+          mat.emissiveIntensity = cfg.emissive;
           mesh.material = mat;
         }
       }
     });
     return s;
-  }, [scene, lineColor]);
+  }, [scene, lineColor, level]);
 
-  return <primitive object={cloned} scale={[TRAIN_SCALE, TRAIN_SCALE, TRAIN_SCALE]} />;
+  return <primitive object={cloned} scale={[cfg.scale, cfg.scale, cfg.scale]} />;
 }
 
 useGLTF.preload('/models/metro_wagon_type_d.glb');
@@ -46,6 +52,37 @@ interface BoardingDot {
   start: THREE.Vector3;
   end: THREE.Vector3;
   progress: number;
+}
+
+// Particle trail for level 3 trains
+function ParticleTrail({ color, active }: { color: string; active: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame(({ clock }) => {
+    if (!groupRef.current || !active) return;
+    groupRef.current.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      const t = (clock.elapsedTime * 2 + i * 0.3) % 2;
+      mesh.position.z = -(t * 2.5);
+      mesh.position.y = Math.sin(t * Math.PI) * 0.3;
+      const s = 0.08 * (1 - t / 2);
+      mesh.scale.setScalar(Math.max(0.01, s));
+      (mesh.material as THREE.MeshBasicMaterial).opacity = (1 - t / 2) * 0.6;
+    });
+  });
+
+  if (!active) return null;
+
+  return (
+    <group ref={groupRef}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <mesh key={i}>
+          <sphereGeometry args={[1, 4, 4]} />
+          <meshBasicMaterial color={color} transparent opacity={0.5} />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
 export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
@@ -59,17 +96,37 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const wasDwelling = useRef(false);
   const isHoveredRef = useRef(false);
   const bobPhase = useRef(0);
+  const spawnScale = useRef(0);
+  const spawnStarted = useRef(false);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
 
   const lineColor = METRO_LINES[train.line].color;
   const lineName = train.line === 'red' ? 'M1' : train.line === 'blue' ? 'M2' : 'M3';
+  const level = train.level as 1 | 2 | 3;
+  const cfg = LEVEL_CONFIG[level] || LEVEL_CONFIG[1];
 
   useFrame((_, delta) => {
     const state = stateRef.current;
     const t = state.trains.find(tr => tr.id === trainId);
     if (!t || !groupRef.current) return;
+
+    // Spawn animation
+    const spawnEffect = state.trainSpawnEffects.find(e => e.id === trainId);
+    if (spawnEffect && !spawnStarted.current) {
+      spawnScale.current = 0;
+      spawnStarted.current = true;
+    }
+    if (spawnScale.current < 1) {
+      spawnScale.current = Math.min(1, spawnScale.current + delta * 1.5);
+      // Bounce easing
+      const p = spawnScale.current;
+      const bounce = p < 0.6 ? (p / 0.6) * 1.15 : 1 + Math.sin((p - 0.6) / 0.4 * Math.PI) * 0.15;
+      groupRef.current.scale.setScalar(bounce);
+    } else {
+      groupRef.current.scale.setScalar(1);
+    }
 
     const route = getActiveLineStations(state, t.line);
     const currentStationId = route[t.routeIndex];
@@ -86,7 +143,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       targetY = TRAIN_BASE_Y + (BRIDGE_Y - TRAIN_BASE_Y) * (currentIsBridge ? (1 - t.progress) : t.progress);
     }
 
-    // Dwelling bob animation
     if (t.isDwelling) {
       bobPhase.current += delta * 4;
       targetY += Math.sin(bobPhase.current) * 0.08;
@@ -95,7 +151,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     }
 
     const targetPos = new THREE.Vector3(wx, targetY, wz);
-
     const springFactor = 1 - Math.exp(-8 * delta);
     smoothPos.current.lerp(targetPos, springFactor);
     groupRef.current.position.copy(smoothPos.current);
@@ -179,7 +234,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const fillRatio = train.passengers.length / train.capacity;
   const ringColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
 
-  // Wagon chain: extra wagons behind for upgraded trains
   const wagonCount = Math.min(train.level, 3);
 
   return (
@@ -200,14 +254,31 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       }}
     >
       {/* Lead wagon */}
-      <GLBTrain lineColor={lineColor} />
+      <GLBTrain lineColor={lineColor} level={level} />
+
+      {/* Gold accent stripe for level 2+ */}
+      {level >= 2 && cfg.stripeColor && (
+        <mesh position={[0, cfg.scale * 1.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[cfg.scale * 3, cfg.scale * 0.8]} />
+          <meshBasicMaterial color={cfg.stripeColor} transparent opacity={0.5} side={THREE.DoubleSide} />
+        </mesh>
+      )}
 
       {/* Additional wagons for upgraded trains */}
       {wagonCount > 1 && Array.from({ length: wagonCount - 1 }).map((_, i) => (
         <group key={`wagon-${i}`} position={[0, 0, -(i + 1) * 1.2]}>
-          <GLBTrain lineColor={lineColor} />
+          <GLBTrain lineColor={lineColor} level={level} />
+          {level >= 2 && cfg.stripeColor && (
+            <mesh position={[0, cfg.scale * 1.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[cfg.scale * 3, cfg.scale * 0.8]} />
+              <meshBasicMaterial color={cfg.stripeColor} transparent opacity={0.4} side={THREE.DoubleSide} />
+            </mesh>
+          )}
         </group>
       ))}
+
+      {/* Particle trail for level 3 */}
+      <ParticleTrail color={lineColor} active={level >= 3} />
 
       {/* Ground shadow */}
       <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -258,7 +329,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         )}
       </Billboard>
 
-      <pointLight color={lineColor} intensity={0.6} distance={4} position={[0, 0.15, 0.4]} />
+      <pointLight color={lineColor} intensity={cfg.glowIntensity} distance={cfg.glowDist} position={[0, 0.15, 0.4]} />
     </group>
   );
 }
