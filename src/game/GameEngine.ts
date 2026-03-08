@@ -629,7 +629,16 @@ function updateCrisis(s: GameState, realDt: number, events: EventBus): void {
         const bridgeStations = targetPool.filter(st => BRIDGE_STATION_IDS.has(st.id));
         if (bridgeStations.length > 0) targetPool = bridgeStations;
       }
-      const targetStation = targetPool[Math.floor(Math.random() * targetPool.length)];
+
+      // VIP drone targeting: 40% chance to target station with VIP passenger
+      let targetStation: GameStation | undefined;
+      const vipStations = targetPool.filter(st => st.passengers.some(p => p.isVIP));
+      if (vipStations.length > 0 && Math.random() < 0.4) {
+        targetStation = vipStations[Math.floor(Math.random() * vipStations.length)];
+      } else {
+        targetStation = targetPool[Math.floor(Math.random() * targetPool.length)];
+      }
+
       if (targetStation) {
         const edge = Math.random();
         let dx = 0, dy = 0;
@@ -706,15 +715,47 @@ function updateProgression(s: GameState, realDt: number, events: EventBus): void
     const scenario = SCENARIOS[s.gameMode];
     scenario.activeLines.forEach(line => {
       const order = UNLOCK_ORDER[line];
-      const nextStation = order.find(id => !s.activeStationIds.includes(id));
+      const nextStation = order.find(id => !s.activeStationIds.includes(id) && !s.pendingStations.includes(id));
       if (nextStation) {
-        s.activeStationIds.push(nextStation);
+        s.pendingStations.push(nextStation);
         const st = getStation(s, nextStation);
         if (st) { st.jellyVel.y = -4; st.jellyVel.x = 2; }
+        addNotification(s, '🔗 Нова станція! Проведи лінію!', st?.x || 0.5, st?.y || 0.5, '#9ca3af');
         events.emit({ type: 'STATION_UNLOCKED', data: { stationId: nextStation } });
       }
     });
   }
+
+  // Pending stations also spawn passengers (pressure!)
+  const pendingSet = new Set(s.pendingStations);
+  for (const st of s.stations) {
+    if (!pendingSet.has(st.id) || st.isDestroyed) continue;
+    // Overflow on pending stations causes life loss
+    if (st.passengers.length > st.maxPassengers + 2) {
+      s.lives--;
+      st.passengers.splice(0, 3);
+      st.jellyVel.x = 5; st.jellyVel.y = 5;
+      addNotification(s, '💀 Станція переповнена!', st.x, st.y, '#ef4444');
+      if (s.lives <= 0) s.gameOver = true;
+    }
+  }
+
+  // Spawn passengers on pending stations (slower rate)
+  if (s.pendingStations.length > 0 && Math.random() < realDt / 8000) {
+    const pendingStations = s.stations.filter(st => pendingSet.has(st.id) && !st.isDestroyed && st.passengers.length < st.maxPassengers);
+    if (pendingStations.length > 0) {
+      const st = pendingStations[Math.floor(Math.random() * pendingStations.length)];
+      const shapes: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond'];
+      const shape = shapes[Math.floor(Math.random() * shapes.length)];
+      st.passengers.push({ id: uid(), shape, spawnTime: s.elapsedTime, stationId: st.id, patience: 25000 });
+    }
+  }
+
+  // Train spawn effects decay
+  s.trainSpawnEffects = s.trainSpawnEffects.filter(e => {
+    e.timer -= realDt;
+    return e.timer > 0;
+  });
 }
 
 // ==================== SYSTEM: Power Grid ====================
