@@ -12,6 +12,8 @@ interface TopBarProps {
   totalDrones: number;
   networkEfficiency: number;
   isNight: boolean;
+  waveIndex: number;
+  isAirRaid: boolean;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -25,7 +27,7 @@ function formatTime(ms: number) {
 export const TopBar = React.memo(function TopBar({
   score, combo, money, lives, speedMultiplier,
   elapsedTime, passengersDelivered, dronesIntercepted, totalDrones,
-  networkEfficiency, isNight, onSpeedChange,
+  networkEfficiency, isNight, waveIndex, isAirRaid, onSpeedChange,
 }: TopBarProps) {
   return (
     <div className="absolute top-0 left-0 right-0 flex justify-between items-start p-2 pointer-events-none">
@@ -36,7 +38,7 @@ export const TopBar = React.memo(function TopBar({
           <span style={{ color: '#22c55e' }}>💰{money}</span>
           <span>{'❤️'.repeat(lives)}{'🖤'.repeat(Math.max(0, 3 - lives))}</span>
         </div>
-        <div className="flex gap-1 mt-1">
+        <div className="flex gap-1 mt-1 items-center">
           {[1, 2, 5, 10].map(s => (
             <button
               key={s}
@@ -50,6 +52,13 @@ export const TopBar = React.memo(function TopBar({
               {s}x
             </button>
           ))}
+          <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded" style={{
+            background: isAirRaid ? 'rgba(220,38,38,0.4)' : 'rgba(255,255,255,0.05)',
+            color: isAirRaid ? '#fca5a5' : '#9ca3af',
+            border: isAirRaid ? '1px solid rgba(220,38,38,0.5)' : '1px solid rgba(255,255,255,0.08)',
+          }}>
+            Хвиля {waveIndex + 1}
+          </span>
         </div>
       </div>
       <div className="pointer-events-auto px-3 py-2 rounded-lg" style={{ background: 'rgba(10,15,30,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>

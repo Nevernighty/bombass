@@ -12,60 +12,60 @@ interface TrainModelProps {
   onClick?: (id: string) => void;
 }
 
-// Procedural metro wagon — much lighter than GLB, always correct orientation
+// Procedural metro wagon — long axis along LOCAL Z so atan2(dx,dz) works directly
 function ProceduralTrain({ lineColor }: { lineColor: string }) {
   return (
     <group>
-      {/* Main body */}
+      {/* Main body — long axis = Z */}
       <mesh castShadow>
-        <boxGeometry args={[3.2, 0.9, 1.1]} />
+        <boxGeometry args={[1.1, 0.9, 3.2]} />
         <meshStandardMaterial color={lineColor} metalness={0.6} roughness={0.25} />
       </mesh>
       {/* Roof */}
       <mesh position={[0, 0.55, 0]}>
-        <boxGeometry args={[3.0, 0.12, 1.0]} />
+        <boxGeometry args={[1.0, 0.12, 3.0]} />
         <meshStandardMaterial color={lineColor} metalness={0.7} roughness={0.2} />
       </mesh>
       {/* Windows - left */}
-      {[-0.9, -0.3, 0.3, 0.9].map((xOff, i) => (
-        <mesh key={`wl${i}`} position={[xOff, 0.15, 0.56]}>
-          <planeGeometry args={[0.4, 0.3]} />
+      {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
+        <mesh key={`wl${i}`} position={[0.56, 0.15, zOff]}>
+          <planeGeometry args={[0.01, 0.3]} />
           <meshBasicMaterial color="#88ccff" transparent opacity={0.8} />
         </mesh>
       ))}
       {/* Windows - right */}
-      {[-0.9, -0.3, 0.3, 0.9].map((xOff, i) => (
-        <mesh key={`wr${i}`} position={[xOff, 0.15, -0.56]} rotation={[0, Math.PI, 0]}>
-          <planeGeometry args={[0.4, 0.3]} />
+      {[-0.9, -0.3, 0.3, 0.9].map((zOff, i) => (
+        <mesh key={`wr${i}`} position={[-0.56, 0.15, zOff]}>
+          <planeGeometry args={[0.01, 0.3]} />
           <meshBasicMaterial color="#88ccff" transparent opacity={0.8} />
         </mesh>
       ))}
       {/* Front face */}
-      <mesh position={[1.6, 0.1, 0]}>
-        <boxGeometry args={[0.05, 0.7, 0.9]} />
+      <mesh position={[0, 0.1, 1.6]}>
+        <boxGeometry args={[0.9, 0.7, 0.05]} />
         <meshStandardMaterial color="#333333" metalness={0.8} roughness={0.2} />
       </mesh>
-      {/* Headlight */}
-      <mesh position={[1.63, 0.25, 0.25]}>
+      {/* Headlights */}
+      <mesh position={[0.25, 0.25, 1.63]}>
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
       </mesh>
-      <mesh position={[1.63, 0.25, -0.25]}>
+      <mesh position={[-0.25, 0.25, 1.63]}>
         <sphereGeometry args={[0.08, 8, 8]} />
         <meshBasicMaterial color="#ffffcc" />
       </mesh>
       {/* Undercarriage */}
       <mesh position={[0, -0.5, 0]}>
-        <boxGeometry args={[2.8, 0.12, 0.6]} />
+        <boxGeometry args={[0.6, 0.12, 2.8]} />
         <meshStandardMaterial color="#222222" metalness={0.5} roughness={0.6} />
       </mesh>
       {/* Bogies */}
-      <mesh position={[-0.9, -0.55, 0]}>
-        <boxGeometry args={[0.5, 0.15, 0.8]} />
+      <mesh position={[0, -0.55, -0.9]}>
+        <boxGeometry args={[0.8, 0.15, 0.5]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.4} />
       </mesh>
-      <mesh position={[0.9, -0.55, 0]}>
-        <boxGeometry args={[0.5, 0.15, 0.8]} />
+      <mesh position={[0, -0.55, 0.9]}>
+        <boxGeometry args={[0.8, 0.15, 0.5]} />
         <meshStandardMaterial color="#1a1a1a" metalness={0.6} roughness={0.4} />
       </mesh>
     </group>
@@ -106,19 +106,20 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         if (curSt && nextSt && curSt.id !== nextSt.id) {
           const [cx, , cz] = toWorld(curSt.x, curSt.y);
           const [nx, , nz] = toWorld(nextSt.x, nextSt.y);
-          // atan2 for facing direction along travel
+          // atan2(dx, dz) gives angle where 0 = +Z direction
+          // Train long axis is along Z, so this is correct now
           lastMovementAngle.current = Math.atan2(nx - cx, nz - cz);
         }
       }
     }
 
-    // Smooth rotation
+    // Smooth rotation — faster lerp for snappier turns
     const targetAngle = lastMovementAngle.current;
     if (smoothAngle.current === null) smoothAngle.current = targetAngle;
     let diff = targetAngle - smoothAngle.current;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    smoothAngle.current += diff * 0.15;
+    smoothAngle.current += diff * 0.25;
     groupRef.current.rotation.y = smoothAngle.current;
 
     // Dwell bob
@@ -162,7 +163,7 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
       )}
 
       {/* Headlights */}
-      <pointLight color={lineColor} intensity={1.0} distance={4} position={[1.6, 0.3, 0]} />
+      <pointLight color={lineColor} intensity={1.0} distance={4} position={[0, 0.3, 1.6]} />
     </group>
   );
 }
