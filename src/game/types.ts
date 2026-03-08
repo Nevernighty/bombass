@@ -29,6 +29,12 @@ export interface GameStation {
   isSheltering: boolean;
   tunnelSealTimer: number;
   magnetTimer: number;
+  // Phase 6
+  hasSAM: boolean;
+  samCooldown: number;
+  hasAATurret: boolean;
+  turretCooldown: number;
+  stationIncome: number;
 }
 
 export interface Passenger {
@@ -103,6 +109,8 @@ export interface RepairUnit {
   speed: number;
 }
 
+export type CameraMode = 'free' | 'follow' | 'overview' | 'cinematic';
+
 export interface Camera {
   x: number;
   y: number;
@@ -110,6 +118,9 @@ export interface Camera {
   targetZoom: number;
   targetX: number;
   targetY: number;
+  mode: CameraMode;
+  orbitAngle: number;
+  orbitSpeed: number;
 }
 
 export interface BuildingState {
@@ -130,6 +141,25 @@ export interface Decoy {
   y: number;
   timer: number;
   hp: number;
+}
+
+export interface InterceptorDrone {
+  id: string;
+  x: number;
+  y: number;
+  targetDroneId: string;
+  speed: number;
+  sourceStationId: string;
+}
+
+export interface TracerLine {
+  id: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  timer: number;
+  color: string;
 }
 
 export type GameMode = 'classic' | 'rush_hour' | 'siege' | 'blackout' | 'bridge_defense';
@@ -215,6 +245,12 @@ export interface GameState {
   stationMagnetTimer: number;
   winConditionMet: boolean;
   modeTimer: number;
+  // Phase 6
+  interceptorDrones: InterceptorDrone[];
+  tracerLines: TracerLine[];
+  isRaining: boolean;
+  weatherTimer: number;
+  autoRepairTimer: number;
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }
