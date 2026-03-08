@@ -118,7 +118,12 @@ export const StationPanel = React.memo(function StationPanel({
   const lineName = station.line === 'red' ? 'M1' : station.line === 'blue' ? 'M2' : 'M3';
 
   return (
-    <div className="absolute bottom-20 left-3 px-4 py-3 rounded-lg text-xs pointer-events-auto w-80 animate-slide-in-left game-panel">
+    <div className="absolute bottom-20 left-3 px-5 py-4 rounded-lg text-xs pointer-events-auto w-96 animate-slide-in-left"
+      style={{
+        background: 'rgba(8, 12, 24, 0.97)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      }}>
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
