@@ -526,40 +526,36 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
   );
 }
 
-// Ground with Kyiv map texture
+// Clean ground — no ugly 2D map overlay
 function GroundPlane({ isNight }: { isNight: boolean }) {
-  const texture = useMemo(() => {
-    const loader = new THREE.TextureLoader();
-    const tex = loader.load('/textures/reference_map_1.png');
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.minFilter = THREE.LinearFilter;
-    return tex;
-  }, []);
-
-  const groundColor = isNight ? '#141a3a' : '#182040';
+  const groundColor = isNight ? '#0e1428' : '#141c32';
   return (
     <>
-      {/* Base dark ground */}
+      {/* Base ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]} receiveShadow>
-        <planeGeometry args={[220, 180]} />
+        <planeGeometry args={[240, 200]} />
         <meshStandardMaterial
           color={groundColor}
           metalness={0.05}
           roughness={0.95}
-          emissive={isNight ? '#0c1025' : '#080c18'}
-          emissiveIntensity={isNight ? 0.25 : 0.1}
+          emissive={isNight ? '#080c1a' : '#060a14'}
+          emissiveIntensity={0.15}
         />
       </mesh>
-      {/* Kyiv map overlay */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.09, 0]}>
-        <planeGeometry args={[200, 160]} />
-        <meshBasicMaterial map={texture} transparent opacity={isNight ? 0.5 : 0.6} depthWrite={false} />
+      {/* Subtle grid for spatial reference */}
+      <gridHelper
+        args={[200, 40, isNight ? '#1a2040' : '#1c2444', isNight ? '#141830' : '#181e38']}
+        position={[0, -0.12, 0]}
+      />
+      {/* Left bank slightly different tone */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-20, -0.1, 0]}>
+        <planeGeometry args={[80, 180]} />
+        <meshStandardMaterial color={isNight ? '#0c1225' : '#101828'} transparent opacity={0.4} />
       </mesh>
-      {/* Subtle zone coloring near river */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -0.08, 0]}>
-        <planeGeometry args={[40, 160]} />
-        <meshStandardMaterial color={isNight ? '#0c1230' : '#0e1428'} transparent opacity={0.3} />
+      {/* Right bank slightly different tone */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[30, -0.1, 0]}>
+        <planeGeometry args={[80, 180]} />
+        <meshStandardMaterial color={isNight ? '#0e1430' : '#121a30'} transparent opacity={0.3} />
       </mesh>
     </>
   );
