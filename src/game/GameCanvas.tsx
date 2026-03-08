@@ -578,6 +578,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             />
           )}
 
+          {selTrain && (
+            <TrainPanel
+              train={selTrain}
+              stations={state.stations}
+              money={state.money}
+              trains={state.trains}
+              onClose={() => { stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }}
+              onReroute={(l) => act(s => rerouteTrain(s, selTrain.id, l))}
+              onMerge={(otherId) => act(s => mergeTrains(s, selTrain.id, otherId))}
+              onSell={() => act(s => sellTrain(s, selTrain.id))}
+              onUpgrade={() => act(s => upgradeTrainCapacity(s, selTrain.id))}
+              onShield={() => act(s => activateTrainShield(s, selTrain.id))}
+              onReverse={() => act(s => reverseTrain(s, selTrain.id))}
+            />
+          )}
+
           <ActionBar
             money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
             radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
@@ -585,9 +601,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
             droneJammerTimer={state.droneJammerTimer} emergencyBrakeTimer={state.emergencyBrakeTimer}
             stationMagnetTimer={state.stationMagnetTimer} lives={state.lives}
+            closedSegments={state.closedSegments}
             onBuyTrain={(l) => act(s => purchaseTrain(s, l))}
             onReinforcements={() => act(s => callReinforcements(s))}
-            onUpgradeTrain={() => state.selectedTrain ? act(s => upgradeTrainCapacity(s, state.selectedTrain!)) : undefined}
             onBuyGenerator={() => act(s => buyGenerator(s))}
             onBuyRadar={() => act(s => buyRadar(s))}
             onPlaceDecoy={() => act(s => placeDecoy(s))}
@@ -600,7 +616,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
             onDroneJammer={() => act(s => activateDroneJammer(s))}
             onEmergencyFund={() => act(s => emergencyFund(s))}
-            onTrainShield={() => state.selectedTrain ? act(s => activateTrainShield(s, state.selectedTrain!)) : undefined}
+            onCloseSegment={(line) => {
+              const lineStations = state._cachedLineStations[line];
+              if (lineStations && lineStations.length >= 2) {
+                const mid = Math.floor(lineStations.length / 2);
+                act(s => closeLineSegment(s, line, lineStations[mid - 1], lineStations[mid]));
+              }
+            }}
+            onReopenLine={(line) => act(s => reopenLineSegment(s, line))}
           />
 
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
