@@ -134,6 +134,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
   const turretRef = useRef<THREE.Group>(null);
   const pulseRef = useRef<THREE.Mesh>(null);
   const selectRingRef = useRef<THREE.Mesh>(null);
+  const pendingRingRef = useRef<THREE.Mesh>(null);
   const isHoveredRef = useRef(false);
   const hoverScaleRef = useRef(1);
 
