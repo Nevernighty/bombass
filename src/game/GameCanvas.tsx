@@ -333,22 +333,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
         }} />
       )}
 
-      {/* Floating score numbers */}
-      {state.gameStarted && !state.gameOver && state.floatingScores.map(fs => (
-        <div key={fs.id} className="absolute pointer-events-none font-bold"
-          style={{
-            left: `${fs.x}%`,
-            top: `${fs.y}%`,
-            color: fs.color,
-            fontSize: `${14 + fs.scale * 8}px`,
-            opacity: Math.min(1, fs.timer / 500),
-            transform: `translateX(-50%) translateY(-${(1 - fs.timer / 1500) * 40}px) scale(${0.8 + fs.scale * 0.4})`,
-            textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-            transition: 'none',
-          }}>
-          {fs.text}
-        </div>
-      ))}
+      {/* Floating score numbers with CSS animation */}
+      {state.gameStarted && !state.gameOver && state.floatingScores.map(fs => {
+        const isCrit = fs.text.includes('КРИТ');
+        return (
+          <div key={fs.id} className={`absolute pointer-events-none font-bold ${isCrit ? 'animate-float-score-crit' : 'animate-float-score'}`}
+            style={{
+              left: `${fs.x}%`,
+              top: `${fs.y}%`,
+              color: fs.color,
+              fontSize: `${16 + fs.scale * 10}px`,
+              textShadow: isCrit ? `0 0 12px ${fs.color}, 0 2px 8px rgba(0,0,0,0.9)` : '0 2px 8px rgba(0,0,0,0.8)',
+              fontWeight: 900,
+              letterSpacing: '0.5px',
+            }}>
+            {fs.text}
+          </div>
+        );
+      })}
 
       {/* Combo streak bar */}
       {state.gameStarted && !state.gameOver && state.combo > 1.5 && (
@@ -374,28 +376,64 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* START SCREEN */}
       {!state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
-          <div className="text-center p-6 rounded-2xl max-w-2xl w-full mx-4" style={{ background: 'rgba(15,22,42,0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <h1 className="text-4xl font-bold text-white mb-2 tracking-tight" style={{ fontFamily: 'monospace' }}>KYIV TRANSIT</h1>
-            <p className="text-xl mb-4" style={{ color: '#eab308' }}>RESILIENCE</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-              {(Object.values(SCENARIOS)).map(sc => (
+        <div className="absolute inset-0 flex items-center justify-center" style={{
+          background: 'linear-gradient(135deg, rgba(6,10,30,0.96), rgba(15,8,30,0.96), rgba(6,10,30,0.96))',
+          backgroundSize: '200% 200%',
+          animation: 'bg-gradient-pulse 8s ease infinite',
+        }}>
+          <div className="text-center p-6 rounded-2xl max-w-2xl w-full mx-4" style={{ background: 'rgba(12,18,38,0.85)', backdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}>
+            {/* Animated title */}
+            <h1 className="text-4xl font-bold text-white mb-1 tracking-tight" style={{ fontFamily: 'monospace' }}>
+              {'KYIV TRANSIT'.split('').map((ch, i) => (
+                <span key={i} className="inline-block" style={{
+                  animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
+                }}>
+                  {ch === ' ' ? '\u00A0' : ch}
+                </span>
+              ))}
+            </h1>
+            <p className="text-xl mb-5 font-bold tracking-[0.3em]" style={{
+              color: '#eab308',
+              animation: 'title-letter 0.5s ease-out 0.5s both',
+              textShadow: '0 0 20px rgba(234,179,8,0.3)',
+            }}>RESILIENCE</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-5">
+              {(Object.values(SCENARIOS)).map((sc, idx) => (
                 <button key={sc.id} onClick={() => startGame(sc.id)}
-                  className="p-3 rounded-lg text-left transition-all hover:scale-[1.02] hover:brightness-110"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div className="text-lg mb-1">{sc.icon}</div>
+                  className="game-btn-hover p-3.5 rounded-xl text-left group"
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    animation: `mode-card-in 0.4s ease-out ${0.6 + idx * 0.08}s both`,
+                    transition: 'border-color 0.2s, box-shadow 0.2s, background 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(234,179,8,0.4)';
+                    e.currentTarget.style.boxShadow = '0 4px 20px rgba(234,179,8,0.15)';
+                    e.currentTarget.style.background = 'rgba(234,179,8,0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                  }}>
+                  <div className="text-xl mb-1.5">{sc.icon}</div>
                   <p className="text-sm font-bold text-white">{sc.nameUa}</p>
-                  <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>{sc.descriptionUa}</p>
-                  <div className="mt-1">
-                    {'⭐'.repeat(sc.difficulty)}{'☆'.repeat(5 - sc.difficulty)}
+                  <p className="text-xs mt-1 leading-tight" style={{ color: '#9ca3af' }}>{sc.descriptionUa}</p>
+                  <div className="mt-1.5 text-xs">
+                    {'⭐'.repeat(sc.difficulty)}<span style={{ opacity: 0.3 }}>{'☆'.repeat(5 - sc.difficulty)}</span>
                   </div>
+                  {sc.id === 'classic' && (
+                    <span className="block text-[10px] font-bold mt-1.5 tracking-wider animate-pulse" style={{ color: '#eab308' }}>
+                      ▶ ГРАТИ
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
-            <div className="text-xs space-y-0.5" style={{ color: '#6b7280' }}>
-              <p>🖱️ Перетягуйте / WASD — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону — атакувати</p>
-              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F — слідкувати | O — огляд | C — кіно</p>
-              <p>Q — потяг | E — ППО | R — підкріплення | T — приманка | G — швидкість | Tab — станції</p>
+            <div className="text-xs space-y-0.5 px-2" style={{ color: '#4b5563', animation: 'title-letter 0.4s ease-out 1.2s both' }}>
+              <p>🖱️ WASD — камера | Колесо — зум | ПКМ — обертання | 🎯 Клік по дрону</p>
+              <p>⏸️ Пробіл — пауза | 1-4 — швидкість | F/O/C — камера | Q/E/R/T/G — дії</p>
             </div>
           </div>
         </div>
@@ -403,32 +441,74 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* GAME OVER / VICTORY */}
       {(state.gameOver || state.winConditionMet) && state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.92)' }}>
-          <div className="text-center p-8 rounded-2xl max-w-md" style={{ background: 'rgba(15,22,42,0.85)', backdropFilter: 'blur(20px)', border: `1px solid ${state.winConditionMet ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}` }}>
-            <h2 className="text-3xl font-bold mb-4" style={{ color: state.winConditionMet ? '#22c55e' : '#ef4444' }}>
-              {state.winConditionMet ? '🎉 ПЕРЕМОГА!' : 'ГАМОВЕР'}
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
+          {/* Victory confetti */}
+          {state.winConditionMet && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {Array.from({ length: 24 }).map((_, i) => (
+                <div key={i} className="absolute w-2 h-2 rounded-sm" style={{
+                  left: `${10 + Math.random() * 80}%`,
+                  top: '-8px',
+                  background: ['#eab308', '#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#f97316'][i % 6],
+                  '--confetti-x': `${(Math.random() - 0.5) * 60}px`,
+                  '--confetti-drift': `${(Math.random() - 0.5) * 80}px`,
+                  animation: `confetti-fall ${2 + Math.random() * 2}s linear ${Math.random() * 1.5}s infinite`,
+                } as React.CSSProperties} />
+              ))}
+            </div>
+          )}
+          <div className="text-center p-8 rounded-2xl max-w-md" style={{
+            background: 'rgba(12,18,38,0.9)',
+            backdropFilter: 'blur(24px)',
+            border: `1px solid ${state.winConditionMet ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.15)'}`,
+            boxShadow: state.winConditionMet ? '0 0 40px rgba(34,197,94,0.15)' : '0 16px 48px rgba(0,0,0,0.5)',
+            animation: state.winConditionMet ? 'victory-glow 2s ease-in-out infinite' : undefined,
+          }}>
+            <h2 className="text-3xl font-bold mb-5" style={{
+              color: state.winConditionMet ? '#22c55e' : '#ef4444',
+              animation: 'title-letter 0.4s ease-out both',
+              textShadow: state.winConditionMet ? '0 0 20px rgba(34,197,94,0.3)' : '0 0 20px rgba(239,68,68,0.3)',
+            }}>
+              {state.winConditionMet ? '🎉 ПЕРЕМОГА!' : '💀 ГАМОВЕР'}
             </h2>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-4" style={{ color: '#9ca3af' }}>
-              <div>Рахунок: <span className="text-white font-bold">{state.score}</span></div>
-              <div>Час: <span className="text-white font-bold">{Math.floor(state.elapsedTime / 60000)}:{String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}</span></div>
-              <div>Пасажирів: <span className="text-white font-bold">{state.passengersDelivered}</span></div>
-              <div>Дронів збито: <span className="text-white font-bold">{state.dronesIntercepted}/{state.totalDrones}</span></div>
-              <div>Макс. комбо: <span className="text-white font-bold">x{state.maxCombo.toFixed(1)}</span></div>
-              <div>Будівлі знищено: <span className="text-white font-bold">{state.buildingsDestroyed}</span></div>
+            <div className="grid grid-cols-2 gap-3 text-sm mb-5" style={{ color: '#9ca3af' }}>
+              {[
+                { label: 'Рахунок', value: String(Math.round(state.score)), accent: true },
+                { label: 'Час', value: `${Math.floor(state.elapsedTime / 60000)}:${String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}` },
+                { label: 'Пасажирів', value: String(state.passengersDelivered) },
+                { label: 'Дронів збито', value: `${state.dronesIntercepted}/${state.totalDrones}` },
+                { label: 'Макс. комбо', value: `x${state.maxCombo.toFixed(1)}` },
+                { label: 'Будівлі знищено', value: String(state.buildingsDestroyed) },
+              ].map((stat, i) => (
+                <div key={i} style={{ animation: `stat-reveal 0.3s ease-out ${0.3 + i * 0.12}s both` }}>
+                  {stat.label}: <span className="font-bold" style={{
+                    color: stat.accent ? '#eab308' : '#fff',
+                    fontSize: stat.accent ? '1.1em' : undefined,
+                  }}>{stat.value}</span>
+                </div>
+              ))}
             </div>
             {state.achievements.filter(a => a.unlocked).length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs mb-1" style={{ color: '#eab308' }}>Досягнення:</p>
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {state.achievements.filter(a => a.unlocked).map(a => (
-                    <span key={a.id} className="text-sm" title={a.nameUa}>{a.icon}</span>
+              <div className="mb-5" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
+                <p className="text-xs mb-1.5 font-bold uppercase tracking-wider" style={{ color: '#eab308' }}>Досягнення:</p>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {state.achievements.filter(a => a.unlocked).map((a, i) => (
+                    <span key={a.id} className="text-lg" title={a.nameUa} style={{
+                      animation: `mode-card-in 0.3s ease-out ${1.4 + i * 0.1}s both`,
+                    }}>{a.icon}</span>
                   ))}
                 </div>
               </div>
             )}
             <button onClick={restartGame}
-              className="px-8 py-3 font-bold rounded-lg transition-all hover:scale-105"
-              style={{ background: '#eab308', color: '#1a1a2e' }}>
+              className="game-btn-hover px-8 py-3 font-bold rounded-xl text-base"
+              style={{
+                background: 'linear-gradient(135deg, #eab308, #f59e0b)',
+                color: '#1a1a2e',
+                boxShadow: '0 4px 16px rgba(234,179,8,0.3)',
+                animation: 'stat-reveal 0.3s ease-out 1.8s both, glow-pulse 2s ease-in-out 2.1s infinite',
+                '--glow-color': 'rgba(234,179,8,0.4)',
+              } as React.CSSProperties}>
               ГРАТИ ЗНОВУ
             </button>
           </div>
