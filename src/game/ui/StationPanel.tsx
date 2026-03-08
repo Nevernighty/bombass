@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { GameStation } from '../types';
 import { GAME_CONFIG, METRO_LINES } from '../constants';
-import { X } from 'lucide-react';
+import { X, Shield, Crosshair, Rocket, Zap, ArrowUp, Users, Lock, Unlock, Mountain, Gauge, Train, Magnet, Hammer } from 'lucide-react';
+import { ProgressRing } from './ProgressRing';
 
 interface StationPanelProps {
   station: GameStation;
@@ -27,82 +28,46 @@ interface StationPanelProps {
   onEMP: () => void;
 }
 
-interface BtnTooltip {
-  name: string;
-  desc: string;
+type Tab = 'defense' | 'manage' | 'info';
+
+function TabBtn({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer
+        ${active ? 'text-white' : 'hover:brightness-125'}`}
+      style={{
+        background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+        color: active ? '#fff' : 'rgba(180,190,210,0.6)',
+      }}>
+      {label}
+    </button>
+  );
 }
 
-const BTN_TOOLTIPS: Record<string, BtnTooltip> = {
-  'Зенітка': { name: 'Протиповітряна оборона', desc: 'Автоматично збиває дрони поблизу станції' },
-  'Ракетний комплекс': { name: 'Зенітний ракетний комплекс', desc: 'Потужна ракетна система великого радіуса дії' },
-  'Турель': { name: 'Зенітна турель', desc: 'Автоматична кулеметна установка проти дронів' },
-  'Перехоплювач': { name: 'Ракета-перехоплювач', desc: 'Одноразова ракета знищує найближчий дрон' },
-  'Щит': { name: 'Захисний щит', desc: 'Тимчасовий бар\'єр поглинає весь вхідний урон' },
-  'Укріплення': { name: 'Фортифікація', desc: 'Зменшує отриманий урон на 50% назавжди' },
-  'EMP імпульс': { name: 'Електромагнітний імпульс', desc: 'Вимикає всі дрони поблизу на кілька секунд' },
-  'Покращити': { name: 'Покращити станцію', desc: 'Збільшує місткість, дохід та міцність' },
-  'Евакуація': { name: 'Евакуювати пасажирів', desc: 'Перемістити всіх пасажирів на сусідні станції' },
-  'Тунель': { name: 'Герметизація тунелю', desc: 'Тимчасово закрити тунелі для захисту від затоплення' },
-  'Прискорення': { name: 'Прискорення потягів', desc: 'Тимчасово збільшити швидкість руху потягів' },
-  'Експрес': { name: 'Експрес-лінія', desc: 'Запустити швидкий маршрут без зупинок' },
-  'Магніт': { name: 'Магніт пасажирів', desc: 'Притягнути пасажирів із сусідніх станцій' },
-  'Закрити': { name: 'Закрити станцію', desc: 'Припинити прийом пасажирів' },
-  'Відкрити': { name: 'Відкрити станцію', desc: 'Відновити прийом пасажирів' },
-  'Сховок': { name: 'Режим укриття', desc: 'Використати глибоку станцію як бомбосховище' },
-  'Вийти': { name: 'Вийти з укриття', desc: 'Повернути станцію у звичайний режим' },
-};
-
-function PanelBtn({ onClick, disabled, children, cost, insufficientMoney, label }: {
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-  cost?: number;
-  insufficientMoney?: boolean;
-  label?: string;
+function ActionBtn({ icon, label, cost, onClick, disabled, active }: {
+  icon: React.ReactNode; label: string; cost?: number; onClick: () => void; disabled?: boolean; active?: boolean;
 }) {
   const [showTip, setShowTip] = useState(false);
-  const tipTimer = useRef<ReturnType<typeof setTimeout>>();
-  const tip = label ? BTN_TOOLTIPS[label] : null;
-
-  const handleEnter = useCallback(() => {
-    tipTimer.current = setTimeout(() => setShowTip(true), 250);
-  }, []);
-  const handleLeave = useCallback(() => {
-    clearTimeout(tipTimer.current);
-    setShowTip(false);
-  }, []);
+  const insufficient = cost !== undefined && disabled;
 
   return (
-    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
-      <button onClick={onClick} disabled={disabled}
-        className="flex items-center justify-between w-full px-2.5 py-1.5 rounded-md text-xs transition-all
-          disabled:opacity-25 hover:brightness-125"
-        style={{
-          background: insufficientMoney ? 'hsla(0, 72%, 51%, 0.05)' : 'hsla(var(--muted), 0.3)',
-          border: '1px solid hsl(var(--border))',
-          color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))',
-        }}>
-        <span className="font-medium">{children}</span>
-        {cost !== undefined && (
-          <span className="text-[10px] ml-2" style={{ color: insufficientMoney ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
-            ${cost}
-          </span>
-        )}
-      </button>
-
-      {showTip && tip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-1 duration-150"
-          style={{ width: '190px' }}>
-          <div className="game-panel rounded-lg px-3 py-2 text-left">
-            <p className="text-[11px] font-bold mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{tip.name}</p>
-            <p className="text-[10px] leading-snug" style={{ color: 'hsl(var(--muted-foreground))' }}>{tip.desc}</p>
-            {cost !== undefined && (
-              <p className="text-[10px] font-mono mt-1" style={{ color: 'hsl(145, 63%, 49%)' }}>${cost}</p>
-            )}
-          </div>
-        </div>
+    <button onClick={onClick} disabled={disabled}
+      onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}
+      className={`relative flex items-center gap-2 w-full px-3 py-2 rounded-lg text-[11px] font-bold transition-all
+        ${disabled ? 'opacity-25 cursor-not-allowed' : 'cursor-pointer hover:brightness-125'}
+        ${active ? 'ring-1 ring-white/20' : ''}`}
+      style={{
+        background: active ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+        borderLeft: `3px solid ${disabled ? 'transparent' : 'rgba(255,255,255,0.2)'}`,
+      }}>
+      <span style={{ color: 'rgba(180,190,210,0.9)' }}>{icon}</span>
+      <span className="flex-1 text-left" style={{ color: 'rgba(230,235,245,0.9)' }}>{label}</span>
+      {cost !== undefined && (
+        <span className="text-[10px] font-mono" style={{ color: insufficient ? '#ef4444' : '#4ade80' }}>
+          ${cost}
+        </span>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -112,139 +77,138 @@ export const StationPanel = React.memo(function StationPanel({
   onShelter, onSealTunnel, onSpeedBoost, onExpressLine, onStationMagnet,
   onBuySAM, onBuyAATurret, onLaunchInterceptor, onFortify, onEMP,
 }: StationPanelProps) {
+  const [tab, setTab] = useState<Tab>('defense');
   const hpPct = (station.hp / station.maxHp) * 100;
-  const hpColor = hpPct > 60 ? 'hsl(145, 63%, 49%)' : hpPct > 30 ? 'hsl(var(--game-accent))' : 'hsl(var(--destructive))';
+  const hpColor = hpPct > 60 ? '#4ade80' : hpPct > 30 ? '#eab308' : '#ef4444';
   const lineColor = METRO_LINES[station.line].color;
   const lineName = station.line === 'red' ? 'M1' : station.line === 'blue' ? 'M2' : 'M3';
+  const fillRatio = station.passengers.length / station.maxPassengers;
 
   return (
-    <div className="absolute bottom-20 left-3 px-5 py-4 rounded-lg text-xs pointer-events-auto w-96 animate-slide-in-left"
-      style={{
-        background: 'rgba(8, 12, 24, 0.97)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-      }}>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-full" style={{ background: lineColor }} />
-          <div>
-            <p className="text-sm font-bold" style={{ color: 'hsl(var(--foreground))' }}>{station.nameUa}</p>
-            <p className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-              {lineName} · {station.depth === 'deep' ? 'Глибока' : 'Мілка'} · Рів.{station.level}
-              {station.isFortified ? ' · Укріплена' : ''}
+    <div className="absolute bottom-20 left-3 z-50 pointer-events-auto animate-in slide-in-from-left-4 duration-200"
+      style={{ width: '300px' }}>
+      <div className="rounded-xl p-4 backdrop-blur-md"
+        style={{
+          background: 'rgba(8, 12, 24, 0.97)',
+          border: `1px solid ${lineColor}30`,
+          boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 20px ${lineColor}10`,
+        }}>
+        {/* Header with circular HP */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="relative w-11 h-11 flex items-center justify-center">
+            <ProgressRing progress={hpPct / 100} size={44} strokeWidth={3} color={hpColor} />
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black"
+              style={{ background: `${lineColor}20`, border: `2px solid ${lineColor}`, color: lineColor }}>
+              {lineName}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold truncate" style={{ color: '#e0e8f0' }}>{station.nameUa}</p>
+            <p className="text-[10px]" style={{ color: 'rgba(180,190,210,0.6)' }}>
+              {station.depth === 'deep' ? 'Глибока' : 'Мілка'} · Рів.{station.level}
+              {station.isFortified && ' · Укріплена'}
             </p>
           </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer">
+            <X size={14} style={{ color: 'rgba(180,190,210,0.6)' }} />
+          </button>
         </div>
-        <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center hover:bg-muted/50 transition-colors">
-          <X size={14} style={{ color: 'hsl(var(--muted-foreground))' }} />
-        </button>
-      </div>
 
-      {/* HP bar */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${hpPct}%`, background: hpColor }} />
+        {/* Passenger fill bar */}
+        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <div className="h-full rounded-full transition-all duration-300" style={{
+            width: `${fillRatio * 100}%`,
+            background: fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#f59e0b' : '#4ade80',
+          }} />
         </div>
-        <span className="text-[10px] font-mono" style={{ color: hpColor }}>{station.hp}/{station.maxHp}</span>
-      </div>
-
-      {/* Stats */}
-      <div className="flex items-center gap-3 mb-3 text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-        <span>{station.passengers.length}/{station.maxPassengers} пасажирів</span>
-        <span>${station.stationIncome}/доставка</span>
-        {station.hasAntiAir && <span style={{ color: 'hsl(204, 70%, 53%)' }}>Зенітка</span>}
-        {station.hasSAM && <span style={{ color: 'hsl(145, 63%, 49%)' }}>ЗРК</span>}
-        {station.hasAATurret && <span style={{ color: 'hsl(var(--game-accent))' }}>Турель</span>}
-      </div>
-
-      {/* Passenger shapes */}
-      {station.passengers.length > 0 && (
-        <div className="flex gap-0.5 mb-3 flex-wrap">
-          {station.passengers.slice(0, 12).map((p, i) => (
-            <span key={i} className="w-3.5 h-3.5 rounded-sm text-center leading-[14px] inline-block text-[9px]"
-              style={{
-                background: p.shape === 'circle' ? 'hsl(0, 65%, 65%)' : p.shape === 'square' ? 'hsl(175, 55%, 55%)' : p.shape === 'triangle' ? 'hsl(50, 90%, 65%)' : p.shape === 'diamond' ? 'hsl(250, 60%, 70%)' : 'hsl(340, 60%, 65%)',
-                color: 'hsl(var(--game-bg))',
-                animation: p.patience < 3000 ? 'heart-pulse 0.5s ease-in-out infinite' : undefined,
-              }}>
-              {p.shape === 'circle' ? '●' : p.shape === 'square' ? '■' : p.shape === 'triangle' ? '▲' : p.shape === 'diamond' ? '◆' : '★'}
-            </span>
-          ))}
-          {station.passengers.length > 12 && <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>+{station.passengers.length - 12}</span>}
+        <div className="flex items-center gap-3 mb-3 text-[10px]" style={{ color: 'rgba(180,190,210,0.5)' }}>
+          <span>{station.passengers.length}/{station.maxPassengers} пас.</span>
+          <span>{station.hp}/{station.maxHp} HP</span>
+          <span>${station.stationIncome}/дост.</span>
+          {station.hasAntiAir && <span style={{ color: '#38bdf8' }}>ППО</span>}
+          {station.hasSAM && <span style={{ color: '#4ade80' }}>ЗРК</span>}
         </div>
-      )}
 
-      {/* Defense section */}
-      <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Оборона</p>
-      <div className="grid grid-cols-2 gap-1 mb-3">
-        <PanelBtn onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir}
-          insufficientMoney={money < GAME_CONFIG.ANTI_AIR_COST} cost={GAME_CONFIG.ANTI_AIR_COST} label="Зенітка">
-          Зенітка
-        </PanelBtn>
-        <PanelBtn onClick={onBuySAM} disabled={money < GAME_CONFIG.SAM_BATTERY_COST || station.hasSAM}
-          insufficientMoney={money < GAME_CONFIG.SAM_BATTERY_COST} cost={GAME_CONFIG.SAM_BATTERY_COST} label="Ракетний комплекс">
-          Ракетний комплекс
-        </PanelBtn>
-        <PanelBtn onClick={onBuyAATurret} disabled={money < GAME_CONFIG.AA_TURRET_COST || station.hasAATurret}
-          insufficientMoney={money < GAME_CONFIG.AA_TURRET_COST} cost={GAME_CONFIG.AA_TURRET_COST} label="Турель">
-          Турель
-        </PanelBtn>
-        <PanelBtn onClick={onLaunchInterceptor} disabled={money < GAME_CONFIG.INTERCEPTOR_COST}
-          insufficientMoney={money < GAME_CONFIG.INTERCEPTOR_COST} cost={GAME_CONFIG.INTERCEPTOR_COST} label="Перехоплювач">
-          Перехоплювач
-        </PanelBtn>
-        <PanelBtn onClick={onShield} disabled={money < GAME_CONFIG.SHIELD_COST || station.shieldTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.SHIELD_COST} cost={GAME_CONFIG.SHIELD_COST} label="Щит">
-          Щит
-        </PanelBtn>
-        <PanelBtn onClick={onFortify} disabled={money < 100 || station.isFortified}
-          insufficientMoney={money < 100} cost={100} label="Укріплення">
-          Укріплення
-        </PanelBtn>
-        <PanelBtn onClick={onEMP} disabled={money < 60 || station.empCooldown > 0}
-          insufficientMoney={money < 60} cost={60} label="EMP імпульс">
-          EMP імпульс
-        </PanelBtn>
-      </div>
-
-      {/* Separator */}
-      <div className="h-px w-full mb-3" style={{ background: 'hsl(var(--border))' }} />
-
-      {/* Station actions */}
-      <p className="text-[9px] mb-1.5 font-bold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>Управління</p>
-      <div className="grid grid-cols-2 gap-1">
-        <PanelBtn onClick={onUpgrade} disabled={money < GAME_CONFIG.UPGRADE_COST * station.level || station.level >= 3}
-          insufficientMoney={money < GAME_CONFIG.UPGRADE_COST * station.level} cost={GAME_CONFIG.UPGRADE_COST * station.level} label="Покращити">
-          Покращити
-        </PanelBtn>
-        <PanelBtn onClick={onEvacuate} disabled={station.passengers.length === 0} label="Евакуація">
-          Евакуація
-        </PanelBtn>
-        <PanelBtn onClick={onToggle} label={station.isOpen ? 'Закрити' : 'Відкрити'}>
-          {station.isOpen ? 'Закрити станцію' : 'Відкрити станцію'}
-        </PanelBtn>
-        {station.depth === 'deep' && isAirRaid && (
-          <PanelBtn onClick={onShelter} label={station.isSheltering ? 'Вийти' : 'Сховок'}>
-            {station.isSheltering ? 'Вийти з укриття' : 'Режим укриття'}
-          </PanelBtn>
+        {/* Passenger shapes grid */}
+        {station.passengers.length > 0 && (
+          <div className="flex gap-0.5 mb-3 flex-wrap">
+            {station.passengers.slice(0, 16).map((p, i) => (
+              <span key={i} className="w-3 h-3 rounded-sm text-center leading-[12px] inline-block text-[8px]"
+                style={{
+                  background: p.shape === 'circle' ? 'hsl(0, 65%, 65%)' : p.shape === 'square' ? 'hsl(175, 55%, 55%)' : p.shape === 'triangle' ? 'hsl(50, 90%, 65%)' : p.shape === 'diamond' ? 'hsl(250, 60%, 70%)' : 'hsl(340, 60%, 65%)',
+                  color: '#0a0e1a',
+                  animation: p.patience < 3000 ? 'heart-pulse 0.5s ease-in-out infinite' : undefined,
+                }}>
+                {p.shape === 'circle' ? '●' : p.shape === 'square' ? '■' : p.shape === 'triangle' ? '▲' : p.shape === 'diamond' ? '◆' : '★'}
+              </span>
+            ))}
+            {station.passengers.length > 16 && <span className="text-[9px]" style={{ color: 'rgba(180,190,210,0.5)' }}>+{station.passengers.length - 16}</span>}
+          </div>
         )}
-        <PanelBtn onClick={onSealTunnel} disabled={money < GAME_CONFIG.TUNNEL_SEAL_COST || station.tunnelSealTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.TUNNEL_SEAL_COST} cost={GAME_CONFIG.TUNNEL_SEAL_COST} label="Тунель">
-          Герметизація тунелю
-        </PanelBtn>
-        <PanelBtn onClick={onSpeedBoost} disabled={money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0}
-          insufficientMoney={money < GAME_CONFIG.SPEED_BOOST_COST} cost={GAME_CONFIG.SPEED_BOOST_COST} label="Прискорення">
-          Прискорення
-        </PanelBtn>
-        <PanelBtn onClick={onExpressLine} disabled={money < GAME_CONFIG.EXPRESS_LINE_COST}
-          insufficientMoney={money < GAME_CONFIG.EXPRESS_LINE_COST} cost={GAME_CONFIG.EXPRESS_LINE_COST} label="Експрес">
-          Експрес-лінія
-        </PanelBtn>
-        <PanelBtn onClick={onStationMagnet} disabled={money < GAME_CONFIG.STATION_MAGNET_COST || stationMagnetTimer > 0}
-          insufficientMoney={money < GAME_CONFIG.STATION_MAGNET_COST} cost={GAME_CONFIG.STATION_MAGNET_COST} label="Магніт">
-          Магніт пасажирів
-        </PanelBtn>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-3 p-0.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+          <TabBtn active={tab === 'defense'} label="Оборона" onClick={() => setTab('defense')} />
+          <TabBtn active={tab === 'manage'} label="Управління" onClick={() => setTab('manage')} />
+          <TabBtn active={tab === 'info'} label="Інфо" onClick={() => setTab('info')} />
+        </div>
+
+        {/* Tab content */}
+        <div className="flex flex-col gap-1">
+          {tab === 'defense' && (
+            <>
+              <ActionBtn icon={<Crosshair size={14} />} label="Зенітка" cost={GAME_CONFIG.ANTI_AIR_COST}
+                onClick={onDeployAA} disabled={money < GAME_CONFIG.ANTI_AIR_COST || station.hasAntiAir} active={station.hasAntiAir} />
+              <ActionBtn icon={<Rocket size={14} />} label="ЗРК" cost={GAME_CONFIG.SAM_BATTERY_COST}
+                onClick={onBuySAM} disabled={money < GAME_CONFIG.SAM_BATTERY_COST || station.hasSAM} active={station.hasSAM} />
+              <ActionBtn icon={<Shield size={14} />} label={`Щит${station.shieldTimer > 0 ? ` (${Math.ceil(station.shieldTimer / 1000)}с)` : ''}`}
+                cost={GAME_CONFIG.SHIELD_COST} onClick={onShield} disabled={money < GAME_CONFIG.SHIELD_COST || station.shieldTimer > 0} />
+              <ActionBtn icon={<Hammer size={14} />} label="Укріплення" cost={100}
+                onClick={onFortify} disabled={money < 100 || station.isFortified} active={station.isFortified} />
+              <ActionBtn icon={<Zap size={14} />} label={`EMP${station.empCooldown > 0 ? ` (${Math.ceil(station.empCooldown / 1000)}с)` : ''}`}
+                cost={60} onClick={onEMP} disabled={money < 60 || station.empCooldown > 0} />
+              <ActionBtn icon={<Rocket size={14} />} label="Перехоплювач" cost={GAME_CONFIG.INTERCEPTOR_COST}
+                onClick={onLaunchInterceptor} disabled={money < GAME_CONFIG.INTERCEPTOR_COST} />
+              <ActionBtn icon={<Crosshair size={14} />} label="Турель" cost={GAME_CONFIG.AA_TURRET_COST}
+                onClick={onBuyAATurret} disabled={money < GAME_CONFIG.AA_TURRET_COST || station.hasAATurret} active={station.hasAATurret} />
+            </>
+          )}
+          {tab === 'manage' && (
+            <>
+              <ActionBtn icon={<ArrowUp size={14} />} label={`Покращити (Рів.${station.level + 1})`}
+                cost={GAME_CONFIG.UPGRADE_COST * station.level} onClick={onUpgrade}
+                disabled={money < GAME_CONFIG.UPGRADE_COST * station.level || station.level >= 3} />
+              <ActionBtn icon={<Users size={14} />} label="Евакуація" onClick={onEvacuate}
+                disabled={station.passengers.length === 0} />
+              <ActionBtn icon={station.isOpen ? <Lock size={14} /> : <Unlock size={14} />}
+                label={station.isOpen ? 'Закрити станцію' : 'Відкрити станцію'} onClick={onToggle} />
+              {station.depth === 'deep' && isAirRaid && (
+                <ActionBtn icon={<Mountain size={14} />}
+                  label={station.isSheltering ? 'Вийти з укриття' : 'Режим укриття'} onClick={onShelter} />
+              )}
+              <ActionBtn icon={<Shield size={14} />} label="Герметизація" cost={GAME_CONFIG.TUNNEL_SEAL_COST}
+                onClick={onSealTunnel} disabled={money < GAME_CONFIG.TUNNEL_SEAL_COST || station.tunnelSealTimer > 0} />
+              <ActionBtn icon={<Gauge size={14} />} label="Прискорення" cost={GAME_CONFIG.SPEED_BOOST_COST}
+                onClick={onSpeedBoost} disabled={money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0} />
+              <ActionBtn icon={<Train size={14} />} label="Експрес" cost={GAME_CONFIG.EXPRESS_LINE_COST}
+                onClick={onExpressLine} disabled={money < GAME_CONFIG.EXPRESS_LINE_COST} />
+              <ActionBtn icon={<Magnet size={14} />} label="Магніт пас." cost={GAME_CONFIG.STATION_MAGNET_COST}
+                onClick={onStationMagnet} disabled={money < GAME_CONFIG.STATION_MAGNET_COST || stationMagnetTimer > 0} />
+            </>
+          )}
+          {tab === 'info' && (
+            <div className="text-[11px] space-y-1.5 py-1" style={{ color: 'rgba(180,190,210,0.7)' }}>
+              <div className="flex justify-between"><span>Лінія</span><span style={{ color: lineColor }}>{METRO_LINES[station.line].name}</span></div>
+              <div className="flex justify-between"><span>Глибина</span><span>{station.depth === 'deep' ? 'Глибока' : 'Мілка'}</span></div>
+              <div className="flex justify-between"><span>Рівень</span><span>{station.level}/3</span></div>
+              <div className="flex justify-between"><span>Місткість</span><span>{station.maxPassengers} пас.</span></div>
+              <div className="flex justify-between"><span>Дохід</span><span>${station.stationIncome}/дост.</span></div>
+              <div className="flex justify-between"><span>HP</span><span style={{ color: hpColor }}>{station.hp}/{station.maxHp}</span></div>
+              <div className="flex justify-between"><span>Укриття</span><span>{station.shelterCount}</span></div>
+              {station.isTransfer && <div className="text-[10px] font-bold mt-1" style={{ color: '#fbbf24' }}>⇄ Пересадочна станція</div>}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

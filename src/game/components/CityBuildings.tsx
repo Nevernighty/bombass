@@ -66,11 +66,13 @@ export function generateBuildingData(): BuildingDef[] {
       let type: 'tower' | 'apartment' | 'commercial';
       let h: number, w: number, d: number;
       if (roll < 0.2) {
-        type = 'tower'; h = 6 + rand() * 5; w = 1.5 + rand() * 1; d = 1.5 + rand() * 1;
+        // Towers capped at 5 (was 11)
+        type = 'tower'; h = 3 + rand() * 2; w = 1.5 + rand() * 1; d = 1.5 + rand() * 1;
       } else if (roll < 0.6) {
-        type = 'apartment'; h = 3 + rand() * 3; w = 2.5 + rand() * 2; d = 2 + rand() * 1.5;
+        // Apartments capped at 3 (was 6)
+        type = 'apartment'; h = 1.5 + rand() * 1.5; w = 2.5 + rand() * 2; d = 2 + rand() * 1.5;
       } else {
-        type = 'commercial'; h = 1 + rand() * 1.5; w = 2 + rand() * 2.5; d = 2 + rand() * 2;
+        type = 'commercial'; h = 1 + rand() * 1; w = 2 + rand() * 2.5; d = 2 + rand() * 2;
       }
 
       buildings.push({
@@ -329,7 +331,6 @@ export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps
     const bs = stateRef.current.buildings[instanceId];
     if (!bs) return;
 
-    // If damaged, try repair
     if (bs.hp < bs.maxHp && !bs.isDestroyed && stateRef) {
       stateRef.current = repairBuilding({ ...stateRef.current }, instanceId);
     }
@@ -367,7 +368,6 @@ export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps
     }
   };
 
-  // Update tooltip HP reactively
   useFrame(() => {
     if (tooltip && stateRef) {
       const bs = stateRef.current.buildings[tooltip.idx];
@@ -379,7 +379,7 @@ export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps
 
   return (
     <group>
-      {/* Buildings — render below metro lines */}
+      {/* Buildings — depthWrite false so they never block metro lines */}
       <instancedMesh
         ref={meshRef}
         args={[undefined, undefined, BUILDING_DATA.length]}
@@ -390,13 +390,19 @@ export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps
         onPointerOut={handlePointerOut}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial metalness={0.35} roughness={0.7} transparent opacity={0.85} />
+        <meshStandardMaterial
+          metalness={0.35}
+          roughness={0.7}
+          transparent
+          opacity={0.7}
+          depthWrite={false}
+        />
       </instancedMesh>
 
       {/* Window glow rows */}
       <instancedMesh ref={windowMeshRef} args={[undefined, undefined, BUILDING_DATA.length * 2]} frustumCulled={false} renderOrder={5}>
         <planeGeometry args={[1, 1]} />
-        <meshStandardMaterial color="#000000" emissive="#ffaa44" emissiveIntensity={0.6} transparent opacity={0.4} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#000000" emissive="#ffaa44" emissiveIntensity={0.6} transparent opacity={0.4} side={THREE.DoubleSide} depthWrite={false} />
       </instancedMesh>
 
       {/* Debris particles */}

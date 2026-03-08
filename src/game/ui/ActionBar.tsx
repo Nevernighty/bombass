@@ -1,6 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { METRO_LINES, GAME_CONFIG } from '../constants';
-import { ChevronUp } from 'lucide-react';
+import { ProgressRing } from './ProgressRing';
+import {
+  Train, Shield, Radar, Target, Zap, DollarSign, Users, AlertTriangle,
+  Wrench, Moon, Gauge, Package, Crosshair, RotateCcw, Lock, Unlock, Rocket
+} from 'lucide-react';
 
 interface ActionBarProps {
   money: number;
@@ -35,71 +39,86 @@ interface ActionBarProps {
   onReopenLine: (line: 'red' | 'blue' | 'green') => void;
 }
 
-interface DropdownItem {
+interface ActionBtnProps {
+  icon: React.ReactNode;
   label: string;
-  fullName: string;
   desc: string;
   cost?: number;
   hotkey?: string;
   onClick: () => void;
   disabled?: boolean;
   active?: boolean;
-  timer?: number;
-  accentColor?: string;
+  cooldown?: number; // 0-1 ratio
+  color: string;
 }
 
-function DropdownGroup({ title, items, accentColor }: {
-  title: string;
-  items: DropdownItem[];
-  accentColor: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
+function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active, cooldown, color }: ActionBtnProps) {
+  const [showTip, setShowTip] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const insufficient = cost !== undefined && disabled;
 
-  const handleEnter = useCallback(() => {
-    clearTimeout(closeTimer.current);
-    setOpen(true);
-  }, []);
-
-  const handleLeave = useCallback(() => {
-    closeTimer.current = setTimeout(() => setOpen(false), 250);
-  }, []);
-
-  const activeCount = items.filter(i => i.active || (i.timer && i.timer > 0)).length;
+  const handleClick = useCallback(() => {
+    if (disabled) return;
+    setPressed(true);
+    setTimeout(() => setPressed(false), 150);
+    onClick();
+  }, [disabled, onClick]);
 
   return (
-    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+    <div className="relative" onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
       <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[13px] font-bold transition-all hover:brightness-125 cursor-pointer"
+        onClick={handleClick}
+        disabled={disabled}
+        className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all
+          ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+          ${pressed ? 'scale-90' : ''}
+          ${active ? 'ring-2 ring-offset-1 ring-offset-transparent' : ''}`}
         style={{
-          background: open ? `${accentColor}25` : 'transparent',
-          border: `1px solid ${open ? accentColor + '80' : 'rgba(255,255,255,0.1)'}`,
-          color: accentColor,
+          background: active ? `${color}30` : `${color}12`,
+          border: `2px solid ${active ? color : color + '40'}`,
+          color,
+          
+          boxShadow: active ? `0 0 12px ${color}40` : 'none',
         }}
       >
-        {title}
-        <ChevronUp size={14} className={`transition-transform ${open ? '' : 'rotate-180'}`} style={{ opacity: 0.7 }} />
-        {activeCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 text-[9px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center"
-            style={{ background: accentColor, color: '#000', width: '18px', height: '18px' }}>
-            {activeCount}
-          </span>
+        {icon}
+        {/* Cooldown overlay */}
+        {cooldown !== undefined && cooldown > 0 && (
+          <ProgressRing progress={1 - cooldown} size={40} strokeWidth={2} color={color} bgColor="rgba(255,255,255,0.05)" />
         )}
       </button>
 
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
-          style={{ minWidth: '280px' }}>
-          <div className="rounded-lg p-2 flex flex-col gap-0.5 backdrop-blur-md"
+      {/* Cost badge */}
+      {cost !== undefined && (
+        <span className="absolute -bottom-1 -right-1 text-[8px] font-bold px-1 rounded-full leading-tight"
+          style={{
+            background: insufficient ? 'hsl(0, 72%, 45%)' : 'hsl(145, 63%, 35%)',
+            color: '#fff',
+          }}>
+          ${cost}
+        </span>
+      )}
+
+      {/* Hotkey badge */}
+      {hotkey && (
+        <span className="absolute -top-1 -right-1 text-[8px] font-mono font-bold px-1 rounded"
+          style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}>
+          {hotkey}
+        </span>
+      )}
+
+      {/* Tooltip */}
+      {showTip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-1 duration-100"
+          style={{ width: '160px' }}>
+          <div className="rounded-lg px-2.5 py-1.5 text-left"
             style={{
               background: 'rgba(8, 12, 24, 0.98)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06)',
+              border: `1px solid ${color}40`,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
             }}>
-            {items.map((item, i) => (
-              <DropdownItemBtn key={i} item={item} onClose={() => setOpen(false)} />
-            ))}
+            <p className="text-[11px] font-bold" style={{ color }}>{label}</p>
+            <p className="text-[9px] leading-snug mt-0.5" style={{ color: 'rgba(180,190,210,0.7)' }}>{desc}</p>
           </div>
         </div>
       )}
@@ -107,99 +126,40 @@ function DropdownGroup({ title, items, accentColor }: {
   );
 }
 
-function DropdownItemBtn({ item, onClose }: { item: DropdownItem; onClose: () => void }) {
-  const [pressed, setPressed] = useState(false);
-  const timerSecs = item.timer && item.timer > 0 ? Math.ceil(item.timer / 1000) : null;
-
-  return (
-    <button
-      onClick={() => {
-        if (item.disabled) return;
-        setPressed(true);
-        setTimeout(() => setPressed(false), 200);
-        item.onClick();
-      }}
-      disabled={item.disabled}
-      className={`flex items-start gap-2.5 w-full px-3 py-2.5 rounded-md text-left transition-all
-        ${item.disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
-        ${pressed ? 'scale-95' : ''}
-        ${item.active ? 'ring-1' : ''}`}
-      style={{
-        background: item.active ? `${item.accentColor || '#fff'}15` : 'transparent',
-        borderLeft: `3px solid ${item.disabled ? 'transparent' : (item.accentColor || 'rgba(255,255,255,0.2)')}`,
-        borderColor: item.active ? item.accentColor : undefined,
-      }}
-      onMouseEnter={(e) => {
-        if (!item.disabled) (e.currentTarget.style.background = 'rgba(255,255,255,0.06)');
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = item.active ? `${item.accentColor || '#fff'}15` : 'transparent';
-      }}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-bold" style={{ color: item.accentColor || '#e0e0e0' }}>
-            {item.fullName}
-          </span>
-          {timerSecs && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full" style={{ background: 'hsl(var(--game-accent))', color: '#000' }}>
-              {timerSecs}с
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] leading-snug mt-0.5" style={{ color: 'rgba(180, 190, 210, 0.8)' }}>
-          {item.desc}
-        </p>
-      </div>
-      <div className="flex flex-col items-end gap-0.5 flex-shrink-0 pt-0.5">
-        {item.cost !== undefined && (
-          <span className="text-[12px] font-mono font-bold" style={{ color: '#4ade80' }}>${item.cost}</span>
-        )}
-        {item.hotkey && (
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(180,190,210,0.7)' }}>
-            {item.hotkey}
-          </span>
-        )}
-      </div>
-    </button>
-  );
-}
-
-function TrainBtn({ line, money, onClick, color }: {
-  line: string;
-  money: number;
-  onClick: () => void;
-  color: string;
+function TrainBtn({ line, label, money, onClick, color }: {
+  line: string; label: string; money: number; onClick: () => void; color: string;
 }) {
   const [pressed, setPressed] = useState(false);
   const insufficient = money < GAME_CONFIG.TRAIN_COST;
 
   return (
     <button
-      onClick={() => { setPressed(true); setTimeout(() => setPressed(false), 200); onClick(); }}
+      onClick={() => { setPressed(true); setTimeout(() => setPressed(false), 150); onClick(); }}
       disabled={insufficient}
-      className={`flex flex-col items-center justify-center rounded-md transition-all
-        ${insufficient ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}
+      className={`flex flex-col items-center justify-center rounded-lg transition-all
+        ${insufficient ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}
         ${pressed ? 'scale-90' : ''}`}
       style={{
-        width: '52px', height: '52px',
+        width: '48px', height: '48px',
         border: `2px solid ${color}`,
         color,
         background: `${color}15`,
-        boxShadow: insufficient ? 'none' : `0 0 12px ${color}30`,
+        boxShadow: insufficient ? 'none' : `0 0 10px ${color}25`,
       }}
     >
-      <span className="text-[15px] font-black leading-none">{line}</span>
-      <span className="text-[9px] leading-none mt-0.5" style={{ color: insufficient ? '#ef4444' : 'rgba(180,190,210,0.7)' }}>
+      <Train size={16} />
+      <span className="text-[9px] font-bold leading-none mt-0.5">{label}</span>
+      <span className="text-[8px] leading-none" style={{ color: insufficient ? '#ef4444' : 'rgba(180,190,210,0.6)' }}>
         ${GAME_CONFIG.TRAIN_COST}
       </span>
     </button>
   );
 }
 
+const Divider = () => <div className="w-px h-8 self-center" style={{ background: 'rgba(255,255,255,0.08)' }} />;
+
 export const ActionBar = React.memo(function ActionBar({
-  money, selectedTrain, selectedTrainLevel,
-  radarActive, speedBoostCooldown,
+  money, radarActive, speedBoostCooldown,
   doubleFareTimer, expressTimer, blackoutMode,
   signalFlareTimer, droneJammerTimer, emergencyBrakeTimer,
   stationMagnetTimer, lives, closedSegments,
@@ -211,71 +171,92 @@ export const ActionBar = React.memo(function ActionBar({
   onCloseSegment, onReopenLine,
 }: ActionBarProps) {
 
-  const defenseItems: DropdownItem[] = [
-    { label: 'РДР', fullName: 'Радар', desc: 'Раннє попередження про наближення дронів', cost: GAME_CONFIG.RADAR_COST, onClick: onBuyRadar, disabled: money < GAME_CONFIG.RADAR_COST || radarActive, active: radarActive, accentColor: '#38bdf8' },
-    { label: 'ПРМ', fullName: 'Приманка', desc: 'Хибна ціль що відволікає ворожі дрони', cost: GAME_CONFIG.DECOY_COST, hotkey: 'T', onClick: onPlaceDecoy, disabled: money < GAME_CONFIG.DECOY_COST, accentColor: '#facc15' },
-    { label: 'ГЛШ', fullName: 'Глушилка дронів', desc: 'Тимчасово уповільнює всі ворожі дрони', cost: GAME_CONFIG.DRONE_JAMMER_COST, onClick: onDroneJammer, disabled: money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0, timer: droneJammerTimer, accentColor: '#38bdf8' },
-    { label: 'СГН', fullName: 'Сигнальна ракета', desc: 'Підсвічує всі дрони та їхні цілі', cost: GAME_CONFIG.SIGNAL_FLARE_COST, onClick: onSignalFlare, disabled: money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0, timer: signalFlareTimer, accentColor: '#facc15' },
-  ];
-
-  const economyItems: DropdownItem[] = [
-    { label: 'x2$', fullName: 'Подвійний тариф', desc: 'Тимчасово подвоює дохід за пасажирів', cost: GAME_CONFIG.DOUBLE_FARE_COST, onClick: onDoubleFare, disabled: money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0, active: doubleFareTimer > 0, timer: doubleFareTimer, accentColor: '#4ade80' },
-    { label: 'ДСТ', fullName: 'Десант пасажирів', desc: 'Додати пасажирів на випадкові станції', cost: GAME_CONFIG.PASSENGER_AIRDROP_COST, onClick: onPassengerAirdrop, disabled: money < GAME_CONFIG.PASSENGER_AIRDROP_COST, accentColor: '#c084fc' },
-    { label: '-HP', fullName: 'Екстрений фонд', desc: 'Обміняти одне життя на поповнення бюджету', onClick: onEmergencyFund, disabled: lives <= 1, accentColor: '#ef4444' },
-  ];
-
-  const emergencyItems: DropdownItem[] = [
-    { label: 'СТОП', fullName: 'Екстрене гальмування', desc: 'Зупинити всі потяги для безпеки', cost: GAME_CONFIG.EMERGENCY_BRAKE_COST, onClick: onEmergencyBrake, disabled: money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0, timer: emergencyBrakeTimer, accentColor: '#ef4444' },
-    { label: 'НІЧ', fullName: 'Режим блекауту', desc: 'Дрони гірше бачать станції', onClick: onBlackout, active: blackoutMode, accentColor: '#94a3b8' },
-    { label: 'РЕМ', fullName: 'Ремонтна бригада', desc: 'Ремонтники до найпошкодженішої станції', cost: GAME_CONFIG.REINFORCEMENT_COST, hotkey: 'R', onClick: onReinforcements, disabled: money < GAME_CONFIG.REINFORCEMENT_COST, accentColor: '#fb923c' },
-    { label: 'ГЕН', fullName: 'Генератор', desc: 'Автономне живлення при блекауті', cost: GAME_CONFIG.GENERATOR_COST, onClick: onBuyGenerator, disabled: money < GAME_CONFIG.GENERATOR_COST, accentColor: '#4ade80' },
-  ];
-
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
-  const networkItems: DropdownItem[] = [];
-  lines.forEach(l => {
-    const hasClosedSeg = closedSegments.some(s => s.line === l);
-    const lineLabel = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
-    const c = METRO_LINES[l].color;
-    if (!hasClosedSeg) {
-      networkItems.push({
-        label: `🚧${lineLabel}`, fullName: `Закрити сегмент ${lineLabel}`, desc: 'Тимчасово блокувати ділянку лінії (30с)',
-        cost: 15, onClick: () => onCloseSegment(l), disabled: money < 15, accentColor: c,
-      });
-    } else {
-      networkItems.push({
-        label: `✅${lineLabel}`, fullName: `Відкрити ${lineLabel}`, desc: 'Зняти блокування з лінії',
-        onClick: () => onReopenLine(l), active: true, accentColor: c,
-      });
-    }
-  });
-  networkItems.push(
-    { label: '⚡M1', fullName: 'Прискорення M1', desc: 'x2 швидкість потягів на лінії', cost: GAME_CONFIG.SPEED_BOOST_COST, onClick: () => onSpeedBoost('red'), disabled: money < GAME_CONFIG.SPEED_BOOST_COST || speedBoostCooldown > 0, accentColor: METRO_LINES.red.color },
-    { label: '🚄M1', fullName: 'Експрес M1', desc: 'x3 швидкість, пропуск зупинок', cost: GAME_CONFIG.EXPRESS_LINE_COST, onClick: () => onExpressLine('red'), disabled: money < GAME_CONFIG.EXPRESS_LINE_COST || expressTimer > 0, timer: expressTimer, accentColor: METRO_LINES.red.color },
-  );
-
-  const divider = <div className="w-px self-stretch" style={{ background: 'rgba(255,255,255,0.08)' }} />;
+  const hasClosedRed = closedSegments.some(s => s.line === 'red');
+  const hasClosedBlue = closedSegments.some(s => s.line === 'blue');
+  const hasClosedGreen = closedSegments.some(s => s.line === 'green');
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
-      <div className="flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-md"
+      <div className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl backdrop-blur-md"
         style={{
-          background: 'rgba(8, 12, 24, 0.98)',
-          border: '1px solid rgba(255,255,255,0.14)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+          background: 'rgba(8, 12, 24, 0.97)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}>
-        <TrainBtn line="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
-        <TrainBtn line="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
-        <TrainBtn line="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+        {/* Train buttons */}
+        <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
+        <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
+        <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
 
-        {divider}
-        <DropdownGroup title="Мережа" items={networkItems} accentColor="#a855f7" />
-        {divider}
-        <DropdownGroup title="Оборона" items={defenseItems} accentColor="#38bdf8" />
-        {divider}
-        <DropdownGroup title="Економіка" items={economyItems} accentColor="#4ade80" />
-        {divider}
-        <DropdownGroup title="Термінові" items={emergencyItems} accentColor="#fb923c" />
+        <Divider />
+
+        {/* Defense */}
+        <ActionBtn icon={<Radar size={16} />} label="Радар" desc="Раннє попередження дронів"
+          cost={GAME_CONFIG.RADAR_COST} onClick={onBuyRadar}
+          disabled={money < GAME_CONFIG.RADAR_COST || radarActive} active={radarActive} color="#38bdf8" />
+        <ActionBtn icon={<Target size={16} />} label="Приманка" desc="Хибна ціль для дронів"
+          cost={GAME_CONFIG.DECOY_COST} hotkey="T" onClick={onPlaceDecoy}
+          disabled={money < GAME_CONFIG.DECOY_COST} color="#facc15" />
+        <ActionBtn icon={<Crosshair size={16} />} label="Глушилка" desc="Уповільнює всі дрони"
+          cost={GAME_CONFIG.DRONE_JAMMER_COST} onClick={onDroneJammer}
+          disabled={money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0}
+          cooldown={droneJammerTimer > 0 ? droneJammerTimer / 15000 : 0} color="#38bdf8" />
+        <ActionBtn icon={<Zap size={16} />} label="Сигнальна ракета" desc="Підсвічує дрони та цілі"
+          cost={GAME_CONFIG.SIGNAL_FLARE_COST} onClick={onSignalFlare}
+          disabled={money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0}
+          cooldown={signalFlareTimer > 0 ? signalFlareTimer / 10000 : 0} color="#facc15" />
+
+        <Divider />
+
+        {/* Economy */}
+        <ActionBtn icon={<DollarSign size={16} />} label="x2 Тариф" desc="Подвійний дохід"
+          cost={GAME_CONFIG.DOUBLE_FARE_COST} onClick={onDoubleFare}
+          disabled={money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0}
+          active={doubleFareTimer > 0} cooldown={doubleFareTimer > 0 ? doubleFareTimer / 20000 : 0} color="#4ade80" />
+        <ActionBtn icon={<Users size={16} />} label="Десант" desc="Додає пасажирів"
+          cost={GAME_CONFIG.PASSENGER_AIRDROP_COST} onClick={onPassengerAirdrop}
+          disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST} color="#c084fc" />
+        <ActionBtn icon={<AlertTriangle size={16} />} label="Екстрений фонд" desc="HP → гроші"
+          onClick={onEmergencyFund} disabled={lives <= 1} color="#ef4444" />
+
+        <Divider />
+
+        {/* Emergency */}
+        <ActionBtn icon={<RotateCcw size={16} />} label="Стоп" desc="Зупинити всі потяги"
+          cost={GAME_CONFIG.EMERGENCY_BRAKE_COST} onClick={onEmergencyBrake}
+          disabled={money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0}
+          cooldown={emergencyBrakeTimer > 0 ? emergencyBrakeTimer / 8000 : 0} color="#ef4444" />
+        <ActionBtn icon={<Moon size={16} />} label="Блекаут" desc="Дрони гірше бачать"
+          onClick={onBlackout} active={blackoutMode} color="#94a3b8" />
+        <ActionBtn icon={<Wrench size={16} />} label="Ремонт" desc="Ремонтники до станції"
+          cost={GAME_CONFIG.REINFORCEMENT_COST} hotkey="R" onClick={onReinforcements}
+          disabled={money < GAME_CONFIG.REINFORCEMENT_COST} color="#fb923c" />
+        <ActionBtn icon={<Gauge size={16} />} label="Генератор" desc="Автономне живлення"
+          cost={GAME_CONFIG.GENERATOR_COST} onClick={onBuyGenerator}
+          disabled={money < GAME_CONFIG.GENERATOR_COST} color="#4ade80" />
+
+        <Divider />
+
+        {/* Network — close/open segments */}
+        {lines.map(l => {
+          const c = METRO_LINES[l].color;
+          const isClosed = closedSegments.some(s => s.line === l);
+          const label = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
+          return (
+            <ActionBtn
+              key={l}
+              icon={isClosed ? <Unlock size={14} /> : <Lock size={14} />}
+              label={isClosed ? `Відкрити ${label}` : `Закрити ${label}`}
+              desc={isClosed ? 'Зняти блокування' : 'Блокувати сегмент (30с)'}
+              cost={isClosed ? undefined : 15}
+              onClick={() => isClosed ? onReopenLine(l) : onCloseSegment(l)}
+              disabled={!isClosed && money < 15}
+              active={isClosed}
+              color={c}
+            />
+          );
+        })}
       </div>
     </div>
   );
