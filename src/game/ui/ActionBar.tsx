@@ -90,11 +90,11 @@ function DropdownGroup({ title, items, accentColor }: {
       {open && (
         <div className="absolute bottom-full left-0 mb-1.5 z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-150"
           style={{ minWidth: '280px' }}>
-          <div className="rounded-lg p-2 flex flex-col gap-0.5"
+          <div className="rounded-lg p-2 flex flex-col gap-0.5 backdrop-blur-md"
             style={{
               background: 'rgba(8, 12, 24, 0.98)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06)',
             }}>
             {items.map((item, i) => (
               <DropdownItemBtn key={i} item={item} onClose={() => setOpen(false)} />
@@ -241,11 +241,11 @@ export const ActionBar = React.memo(function ActionBar({
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
-      <div className="flex items-center gap-2 px-4 py-3 rounded-xl"
+      <div className="flex items-center gap-2 px-4 py-3 rounded-xl backdrop-blur-md"
         style={{
-          background: 'rgba(8, 12, 24, 0.95)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+          background: 'rgba(8, 12, 24, 0.98)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
         }}>
         {/* Direct train buttons */}
         <TrainBtn line="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
