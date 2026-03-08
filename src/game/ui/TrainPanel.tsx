@@ -142,7 +142,6 @@ function PanelBtn({ icon, label, onClick, disabled, active, color }: {
         background: active ? `${color}20` : `${color}10`,
         borderLeft: `2px solid ${disabled ? 'transparent' : color}`,
         color,
-        ringColor: active ? color : undefined,
       }}>
       {icon}
       {label}

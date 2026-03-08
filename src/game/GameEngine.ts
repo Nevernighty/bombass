@@ -158,6 +158,8 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     passiveIncomeTimer: 0,
     victoryLapActive: false,
     swarmWarningTimer: 0,
+    // Phase 17
+    closedSegments: [],
     _cachedLineStations: {},
   };
 }
