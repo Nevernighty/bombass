@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, globalEventBus } from './GameEngine';
+import { createInitialState, handleQteInput, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, attackDrone, globalEventBus } from './GameEngine';
 import { GameState } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -90,6 +90,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   const handleStationHover = useCallback((stationId: string | null) => {
     stateRef.current.hoveredStation = stationId;
+  }, []);
+
+  const handleDroneClick = useCallback((droneId: string) => {
+    audioRef.current.playClick();
+    stateRef.current = attackDrone({ ...stateRef.current }, droneId);
+    setHudState({ ...stateRef.current });
   }, []);
 
   useEffect(() => {
@@ -244,6 +250,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onStationClick={handleStationClick}
             onTrainClick={handleTrainClick}
             onStationHover={handleStationHover}
+            onDroneClick={handleDroneClick}
           />
         </Suspense>
       </Canvas>
@@ -311,6 +318,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             totalDrones={state.totalDrones}
             networkEfficiency={state.networkEfficiency}
             isNight={state.isNight}
+            waveIndex={state.waveIndex}
+            isAirRaid={state.isAirRaid}
             onSpeedChange={handleSpeedChange}
           />
 
