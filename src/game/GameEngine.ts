@@ -164,6 +164,12 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     activeEvents: [],
     hoveredElement: null,
     eventLog: [],
+    // Phase 20
+    pendingStations: [],
+    isDrawingLine: false,
+    drawLineFrom: null,
+    drawLineTo: null,
+    trainSpawnEffects: [],
     _cachedLineStations: {},
   };
 }
