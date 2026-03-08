@@ -102,6 +102,16 @@ export const STATIONS = [
   { id: 'g15', name: 'Boryspilska', nameUa: 'Бориспільська', x: 0.88, y: 0.56, line: 'green' as const, depth: 'shallow' as const, isTransfer: false },
 ];
 
+// O(1) station lookup by ID
+export const STATION_MAP = new Map(STATIONS.map(s => [s.id, s]));
+
+// Pre-computed line station lists (in original order)
+export const LINE_STATIONS: Record<string, string[]> = {
+  red: STATIONS.filter(s => s.line === 'red').map(s => s.id),
+  blue: STATIONS.filter(s => s.line === 'blue').map(s => s.id),
+  green: STATIONS.filter(s => s.line === 'green').map(s => s.id),
+};
+
 export const DNIPRO_RIVER_POINTS = [
   { x: 0.50, y: 0.0 }, { x: 0.52, y: 0.10 }, { x: 0.54, y: 0.20 },
   { x: 0.56, y: 0.30 }, { x: 0.57, y: 0.38 }, { x: 0.56, y: 0.46 },
