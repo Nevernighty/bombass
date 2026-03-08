@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, globalEventBus } from './GameEngine';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -13,6 +13,7 @@ import { CameraControls } from './ui/CameraControls';
 import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
+import { TrainPanel } from './ui/TrainPanel';
 import { Achievement } from './types';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
@@ -97,7 +98,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
   const handleTrainClick = useCallback((trainId: string) => {
     audioRef.current.playClick();
-    stateRef.current = reverseTrain({ ...stateRef.current }, trainId);
     stateRef.current.selectedTrain = trainId;
     setHudState({ ...stateRef.current });
   }, []);
@@ -146,7 +146,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === 'f' || e.key === 'F') setCameraMode('follow');
       if (e.key === 'o' || e.key === 'O') setCameraMode('overview');
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
-      if (e.key === 'Escape') setCameraMode('free');
+      if (e.key === 'Escape') { setCameraMode('free'); stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }
       // Game action shortcuts
       if (e.key === 'q' || e.key === 'Q') {
         // Quick buy train — cycle lines
@@ -266,7 +266,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   }, []);
 
   const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
-  const selectedTrainLevel = state.selectedTrain ? (state.trains.find(t => t.id === state.selectedTrain)?.level || 1) : 1;
+  const selTrain = state.selectedTrain ? state.trains.find(t => t.id === state.selectedTrain) : null;
+  const selectedTrainLevel = selTrain?.level || 1;
 
   return (
     <div ref={containerRef} className="relative w-full h-full select-none"
@@ -577,6 +578,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             />
           )}
 
+          {selTrain && (
+            <TrainPanel
+              train={selTrain}
+              stations={state.stations}
+              money={state.money}
+              trains={state.trains}
+              onClose={() => { stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }}
+              onReroute={(l) => act(s => rerouteTrain(s, selTrain.id, l))}
+              onMerge={(otherId) => act(s => mergeTrains(s, selTrain.id, otherId))}
+              onSell={() => act(s => sellTrain(s, selTrain.id))}
+              onUpgrade={() => act(s => upgradeTrainCapacity(s, selTrain.id))}
+              onShield={() => act(s => activateTrainShield(s, selTrain.id))}
+              onReverse={() => act(s => reverseTrain(s, selTrain.id))}
+            />
+          )}
+
           <ActionBar
             money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
             radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
@@ -584,9 +601,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
             droneJammerTimer={state.droneJammerTimer} emergencyBrakeTimer={state.emergencyBrakeTimer}
             stationMagnetTimer={state.stationMagnetTimer} lives={state.lives}
+            closedSegments={state.closedSegments}
             onBuyTrain={(l) => act(s => purchaseTrain(s, l))}
             onReinforcements={() => act(s => callReinforcements(s))}
-            onUpgradeTrain={() => state.selectedTrain ? act(s => upgradeTrainCapacity(s, state.selectedTrain!)) : undefined}
             onBuyGenerator={() => act(s => buyGenerator(s))}
             onBuyRadar={() => act(s => buyRadar(s))}
             onPlaceDecoy={() => act(s => placeDecoy(s))}
@@ -599,7 +616,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
             onDroneJammer={() => act(s => activateDroneJammer(s))}
             onEmergencyFund={() => act(s => emergencyFund(s))}
-            onTrainShield={() => state.selectedTrain ? act(s => activateTrainShield(s, state.selectedTrain!)) : undefined}
+            onCloseSegment={(line) => {
+              const lineStations = state._cachedLineStations[line];
+              if (lineStations && lineStations.length >= 2) {
+                const mid = Math.floor(lineStations.length / 2);
+                act(s => closeLineSegment(s, line, lineStations[mid - 1], lineStations[mid]));
+              }
+            }}
+            onReopenLine={(line) => act(s => reopenLineSegment(s, line))}
           />
 
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
