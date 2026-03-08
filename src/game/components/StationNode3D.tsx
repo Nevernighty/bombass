@@ -4,6 +4,7 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from '../types';
 import { METRO_LINES, toWorld, GAME_CONFIG } from '../constants';
+import { getValidPendingTargets } from '../GameEngine';
 
 interface StationNode3DProps {
   stationId: string;
@@ -153,6 +154,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     if (!st || !groupRef.current) return;
 
     const isPending = s.pendingStations.includes(stationId);
+    const isValidTarget = isPending && s.isDrawingLine && s.drawLineFrom
+      ? getValidPendingTargets(s, s.drawLineFrom).includes(stationId) : false;
     const effectiveColor = isPending ? '#666666' : lineColor;
 
     // Hover scale — spring to 1.25x
@@ -215,10 +218,15 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     if (pendingRingRef.current) {
       pendingRingRef.current.visible = isPending;
       if (isPending) {
-        const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.2;
+        const pulseSpeed = isValidTarget ? 0.008 : 0.004;
+        const pulseSize = isValidTarget ? 0.35 : 0.2;
+        const baseOpacity = isValidTarget ? 0.5 : 0.3;
+        const pulse = 1 + Math.sin(Date.now() * pulseSpeed) * pulseSize;
         pendingRingRef.current.scale.set(pulse, pulse, 1);
-        (pendingRingRef.current.material as THREE.MeshBasicMaterial).opacity = 0.3 + Math.sin(Date.now() * 0.003) * 0.15;
-        pendingRingRef.current.rotation.z += delta * 0.5;
+        const ringColor = isValidTarget ? (s.drawLineColor || '#4ade80') : '#9ca3af';
+        (pendingRingRef.current.material as THREE.MeshBasicMaterial).color.set(ringColor);
+        (pendingRingRef.current.material as THREE.MeshBasicMaterial).opacity = baseOpacity + Math.sin(Date.now() * 0.003) * 0.15;
+        pendingRingRef.current.rotation.z += delta * (isValidTarget ? 1.5 : 0.5);
       }
     }
 
@@ -272,8 +280,9 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         type: 'station',
         id: stationId,
         name: st.nameUa,
-        details: isPending ? '🔗 Проведи лінію щоб підключити' :
-          st.isDestroyed ? 'Зруйновано' : `HP: ${st.hp}/${st.maxHp} | Пасажири: ${st.passengers.length}/${st.maxPassengers}`,
+        details: isPending
+          ? (isValidTarget ? '✅ Відпусти щоб підключити!' : '🔗 Клікни кінцеву станцію лінії')
+          : st.isDestroyed ? 'Зруйновано' : `HP: ${st.hp}/${st.maxHp} | Пасажири: ${st.passengers.length}/${st.maxPassengers}`,
       };
     }
   });
