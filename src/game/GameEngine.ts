@@ -69,6 +69,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     jellyOffset: { x: 0, y: 0 }, jellyVel: { x: 0, y: 0 },
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
     isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
+    hasSAM: false, samCooldown: 0, hasAATurret: false, turretCooldown: 0, stationIncome: 0,
   }));
 
   const trains: Train[] = [];
@@ -104,7 +105,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
-    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 },
+    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3 },
     score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
@@ -142,6 +143,12 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     stationMagnetId: null, stationMagnetTimer: 0,
     winConditionMet: false,
     modeTimer: 0,
+    // Phase 6
+    interceptorDrones: [],
+    tracerLines: [],
+    isRaining: false,
+    weatherTimer: 30000 + Math.random() * 60000,
+    autoRepairTimer: 0,
     _cachedLineStations: {},
   };
 }
