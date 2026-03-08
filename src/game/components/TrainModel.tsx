@@ -42,13 +42,22 @@ function GLBTrain({ lineColor }: { lineColor: string }) {
 
 useGLTF.preload('/models/metro_wagon_type_d.glb');
 
+// Boarding dot animation state
+interface BoardingDot {
+  start: THREE.Vector3;
+  end: THREE.Vector3;
+  progress: number;
+}
+
 export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const smoothPos = useRef(new THREE.Vector3(0, TRAIN_BASE_Y, 0));
   const smoothAngle = useRef<number | null>(null);
   const lastMovementAngle = useRef<number>(0);
   const shieldMeshRef = useRef<THREE.Mesh>(null);
-  const isHoveredRef = useRef(false);
+  const boardingDotsRef = useRef<BoardingDot[]>([]);
+  const dotMeshRefs = useRef<(THREE.Mesh | null)[]>([null, null, null]);
+  const wasDwelling = useRef(false);
 
   const train = useMemo(() => stateRef.current.trains.find(t => t.id === trainId), [trainId]);
   if (!train) return null;
@@ -61,7 +70,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     const t = state.trains.find(tr => tr.id === trainId);
     if (!t || !groupRef.current) return;
 
-    // Determine if train is on a bridge station
     const route = getActiveLineStations(state, t.line);
     const currentStationId = route[t.routeIndex];
     const nextIdx = Math.max(0, Math.min(route.length - 1, t.routeIndex + t.direction));
@@ -70,7 +78,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     const nextIsBridge = BRIDGE_STATION_IDS.has(nextStationId);
 
     const [wx, , wz] = toWorld(t.x, t.y);
-    // Interpolate height for bridge transitions
     let targetY = TRAIN_BASE_Y;
     if (currentIsBridge && nextIsBridge) {
       targetY = BRIDGE_Y;
@@ -79,8 +86,10 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     }
 
     const targetPos = new THREE.Vector3(wx, targetY, wz);
-    const lerpFactor = Math.min(1, delta * 10);
-    smoothPos.current.lerp(targetPos, lerpFactor);
+
+    // Critically damped spring interpolation — no jumping
+    const springFactor = 1 - Math.exp(-8 * delta);
+    smoothPos.current.lerp(targetPos, springFactor);
     groupRef.current.position.copy(smoothPos.current);
 
     // Rotation toward next station
@@ -101,8 +110,44 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
     let diff = targetAngle - smoothAngle.current;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    smoothAngle.current += diff * 0.4;
+    smoothAngle.current += diff * (1 - Math.exp(-6 * delta));
     groupRef.current.rotation.y = smoothAngle.current;
+
+    // Boarding dots animation
+    if (t.isDwelling && !wasDwelling.current) {
+      // Just started dwelling — spawn boarding dots
+      const curSt = STATION_MAP.get(currentStationId);
+      if (curSt) {
+        const [sx, , sz] = toWorld(curSt.x, curSt.y);
+        boardingDotsRef.current = [];
+        const dotCount = Math.min(3, t.passengers.length + 1);
+        for (let d = 0; d < dotCount; d++) {
+          const angle = (d / dotCount) * Math.PI * 2;
+          boardingDotsRef.current.push({
+            start: new THREE.Vector3(sx + Math.cos(angle) * 2, 0.5, sz + Math.sin(angle) * 2),
+            end: new THREE.Vector3(wx, targetY + 0.3, wz),
+            progress: 0,
+          });
+        }
+      }
+    }
+    wasDwelling.current = t.isDwelling;
+
+    // Animate boarding dots
+    for (let i = 0; i < 3; i++) {
+      const dot = boardingDotsRef.current[i];
+      const mesh = dotMeshRefs.current[i];
+      if (dot && mesh) {
+        dot.progress = Math.min(1, dot.progress + delta * 2);
+        const p = dot.progress;
+        mesh.position.lerpVectors(dot.start, dot.end, p);
+        mesh.position.y += Math.sin(p * Math.PI) * 0.8; // arc
+        mesh.visible = p < 1;
+        mesh.scale.setScalar(0.12 * (1 - p * 0.5));
+      } else if (mesh) {
+        mesh.visible = false;
+      }
+    }
 
     // Shield
     if (shieldMeshRef.current) {
@@ -116,36 +161,28 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
 
   const isSelected = stateRef.current.selectedTrain === trainId;
   const fillRatio = train.passengers.length / train.capacity;
-  const capacityColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
+  const ringColor = fillRatio > 0.8 ? '#ff4444' : fillRatio > 0.4 ? '#ffaa00' : '#44ff44';
 
   return (
     <group
       ref={groupRef}
       onClick={(e) => { e.stopPropagation(); onClick?.(trainId); }}
-      onPointerEnter={() => { isHoveredRef.current = true; document.body.style.cursor = 'pointer'; }}
-      onPointerLeave={() => { isHoveredRef.current = false; document.body.style.cursor = 'default'; }}
+      onPointerEnter={() => { document.body.style.cursor = 'pointer'; }}
+      onPointerLeave={() => { document.body.style.cursor = 'default'; }}
     >
       <GLBTrain lineColor={lineColor} />
 
-      {/* Small ground shadow */}
+      {/* Ground shadow */}
       <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.5, 12]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.25} depthWrite={false} />
       </mesh>
 
-      {/* Subtle ground glow */}
+      {/* Capacity ring */}
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.3, 0.6, 16]} />
-        <meshBasicMaterial color={lineColor} transparent opacity={0.3} side={THREE.DoubleSide} />
+        <ringGeometry args={[0.3, 0.5, 16]} />
+        <meshBasicMaterial color={ringColor} transparent opacity={fillRatio > 0 ? 0.5 : 0.15} side={THREE.DoubleSide} />
       </mesh>
-
-      {/* Capacity indicator bar */}
-      {fillRatio > 0 && (
-        <mesh position={[0, -0.15, 0]}>
-          <boxGeometry args={[0.15, 0.03, 0.5 * Math.max(0.1, fillRatio)]} />
-          <meshStandardMaterial color={capacityColor} emissive={capacityColor} emissiveIntensity={0.5} transparent opacity={0.8} />
-        </mesh>
-      )}
 
       {/* Shield sphere */}
       <mesh ref={shieldMeshRef} visible={false}>
@@ -160,6 +197,14 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
           <meshBasicMaterial color="#ffcc00" transparent opacity={0.6} side={THREE.DoubleSide} />
         </mesh>
       )}
+
+      {/* Boarding dots */}
+      {[0, 1, 2].map(i => (
+        <mesh key={i} ref={el => { dotMeshRefs.current[i] = el; }} visible={false}>
+          <sphereGeometry args={[1, 6, 6]} />
+          <meshBasicMaterial color={lineColor} />
+        </mesh>
+      ))}
 
       {/* Labels */}
       <Billboard>
@@ -188,7 +233,6 @@ export function TrainModel({ trainId, stateRef, onClick }: TrainModelProps) {
         </Text>
       </Billboard>
 
-      {/* Headlight */}
       <pointLight color={lineColor} intensity={0.5} distance={3} position={[0, 0.15, 0.4]} />
     </group>
   );

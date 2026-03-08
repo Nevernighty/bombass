@@ -10,27 +10,30 @@ interface MetroLine3DProps {
   stateRef: React.MutableRefObject<GameState>;
 }
 
-const TUBE_RADIUS = 0.18;
-const GLOW_RADIUS = 0.35;
+const TUBE_RADIUS = 0.08;
+const GLOW_RADIUS = 0.15;
 const BASE_HEIGHT = 0.2;
 const BRIDGE_HEIGHT = 3.5;
 
 export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const pulseRef = useRef<THREE.Mesh>(null);
   const geometryRef = useRef<THREE.TubeGeometry | null>(null);
   const glowGeometryRef = useRef<THREE.TubeGeometry | null>(null);
   const prevPointsKey = useRef('');
+  const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
 
   const { color } = METRO_LINES[line];
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     const state = stateRef.current;
     const activeIds = getActiveLineStations(state, line);
 
     if (activeIds.length < 2) {
       if (meshRef.current) meshRef.current.visible = false;
       if (glowRef.current) glowRef.current.visible = false;
+      if (pulseRef.current) pulseRef.current.visible = false;
       return;
     }
 
@@ -38,7 +41,6 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     if (key !== prevPointsKey.current) {
       prevPointsKey.current = key;
 
-      // Build points with bridge elevation
       const points: THREE.Vector3[] = [];
       activeIds.forEach(id => {
         const st = STATION_MAP.get(id);
@@ -53,13 +55,14 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
       if (points.length < 2) return;
 
       const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
+      curveRef.current = curve;
 
       geometryRef.current?.dispose();
       glowGeometryRef.current?.dispose();
 
       const segments = Math.max(points.length * 16, 48);
-      const tubeGeo = new THREE.TubeGeometry(curve, segments, TUBE_RADIUS, 8, false);
-      const glowGeo = new THREE.TubeGeometry(curve, segments, GLOW_RADIUS, 8, false);
+      const tubeGeo = new THREE.TubeGeometry(curve, segments, TUBE_RADIUS, 6, false);
+      const glowGeo = new THREE.TubeGeometry(curve, segments, GLOW_RADIUS, 6, false);
 
       geometryRef.current = tubeGeo;
       glowGeometryRef.current = glowGeo;
@@ -73,11 +76,21 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
 
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.35 : 0.18;
+      mat.opacity = state.isNight ? 0.25 : 0.1;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 1.0 : 0.6;
+      mat.emissiveIntensity = state.isNight ? 0.7 : 0.4;
+    }
+
+    // Animated energy pulse
+    if (pulseRef.current && curveRef.current) {
+      const t = (clock.elapsedTime * 0.33 + (line === 'red' ? 0 : line === 'blue' ? 1 : 2)) % 1;
+      const pos = curveRef.current.getPoint(t);
+      pulseRef.current.position.copy(pos);
+      pulseRef.current.visible = true;
+      const scale = 0.25 + Math.sin(clock.elapsedTime * 6) * 0.08;
+      pulseRef.current.scale.set(scale, scale, scale);
     }
   });
 
@@ -88,18 +101,23 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   return (
     <group>
       <mesh ref={meshRef} visible={false}>
-        <tubeGeometry args={[initCurve, 4, TUBE_RADIUS, 8, false]} />
+        <tubeGeometry args={[initCurve, 4, TUBE_RADIUS, 6, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.6}
+          emissiveIntensity={0.4}
           metalness={0.5}
           roughness={0.3}
         />
       </mesh>
       <mesh ref={glowRef} visible={false}>
-        <tubeGeometry args={[initCurve, 4, GLOW_RADIUS, 8, false]} />
-        <meshBasicMaterial color={color} transparent opacity={0.18} side={THREE.DoubleSide} />
+        <tubeGeometry args={[initCurve, 4, GLOW_RADIUS, 6, false]} />
+        <meshBasicMaterial color={color} transparent opacity={0.1} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Energy pulse */}
+      <mesh ref={pulseRef} visible={false}>
+        <sphereGeometry args={[1, 8, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0.8} />
       </mesh>
     </group>
   );
