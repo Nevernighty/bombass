@@ -87,9 +87,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const handleStationClick = useCallback((stationId: string) => {
     audioRef.current.playClick();
     const state = stateRef.current;
+
+    // Line drawing: if we're drawing and clicked a pending station, connect it
+    if (state.isDrawingLine && state.drawLineFrom && state.pendingStations.includes(stationId)) {
+      stateRef.current = connectStation({ ...state }, stationId, state.drawLineFrom);
+      setHudState({ ...stateRef.current });
+      return;
+    }
+
+    // Start drawing line from an active end-of-line station
+    if (state.pendingStations.length > 0 && state.activeStationIds.includes(stationId)) {
+      stateRef.current = { ...state, isDrawingLine: true, drawLineFrom: stationId, hoveredStation: stationId };
+      setSelectedStation(stationId);
+      setHudState({ ...stateRef.current });
+      return;
+    }
+
+    // If drawing and clicked something else, cancel
+    if (state.isDrawingLine) {
+      stateRef.current = { ...state, isDrawingLine: false, drawLineFrom: null, drawLineTo: null };
+    }
+
     const station = state.stations.find(s => s.id === stationId);
     if (station && (station.isDestroyed || station.isOnFire)) {
-      stateRef.current = dispatchRepair({ ...state }, stationId);
+      stateRef.current = dispatchRepair({ ...stateRef.current }, stationId);
     }
     stateRef.current = { ...stateRef.current, hoveredStation: stationId };
     setSelectedStation(stationId);
