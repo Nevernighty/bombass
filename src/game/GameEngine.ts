@@ -1142,6 +1142,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updatePhase5Timers(s, realDt);
   updatePhase6Systems(s, realDt, globalEventBus);
   updatePhase7Systems(s, realDt);
+  updateGameEvents(s, realDt, globalEventBus);
   updateAchievements(s);
   updateWinConditions(s);
   updatePhysics(s, realDt);
@@ -1600,4 +1601,84 @@ export function reopenLineSegment(state: GameState, line: string): GameState {
 // Keep for backward compat
 export function handleQteInput(state: GameState, key: string, audio: AudioEngine): GameState {
   return state;
+}
+
+// ===== Phase 18: Dynamic Events & Building Repair =====
+export function repairBuilding(state: GameState, buildingIdx: number): GameState {
+  if (state.money < 10) return state;
+  const b = state.buildings[buildingIdx];
+  if (!b || b.isDestroyed || b.hp >= b.maxHp) return state;
+  state.money -= 10;
+  b.hp = Math.min(b.maxHp, b.hp + 25);
+  addNotification(state, '🔧 +25HP', b.x, b.y, '#4ade80');
+  return state;
+}
+
+function updateGameEvents(s: GameState, realDt: number, events: EventBus): void {
+  // Decay active events
+  s.activeEvents = s.activeEvents.filter(ev => {
+    ev.timer -= realDt;
+    return ev.timer > 0;
+  });
+
+  // Random event spawner — every 45-90s
+  const shouldSpawn = s.elapsedTime > 30000 && s.activeEvents.length < 2 && Math.random() < realDt / 60000;
+  if (shouldSpawn) {
+    const roll = Math.random();
+    let nextId = `evt_${Date.now()}`;
+
+    if (roll < 0.3) {
+      // Rush Surge — double passenger spawns for 15s
+      s.activeEvents.push({ id: nextId, type: 'rush_surge', timer: 15000 });
+      s.rushHourActive = true;
+      s.rushHourCooldown = 15000;
+      addNotification(s, '🚇 Хвиля пасажирів!', 0.5, 0.4, '#f59e0b');
+      s.eventLog.push('Хвиля пасажирів!');
+    } else if (roll < 0.55) {
+      // VIP Passenger
+      const activeSet = new Set(s.activeStationIds);
+      const openStations = s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed && st.isOpen && st.passengers.length < st.maxPassengers);
+      if (openStations.length > 0) {
+        const station = openStations[Math.floor(Math.random() * openStations.length)];
+        const shapes: ('circle' | 'square' | 'triangle' | 'diamond' | 'star')[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
+        const possibleShapes = shapes.filter(sh => sh !== station.shape);
+        const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
+        station.passengers.push({
+          id: nextId, shape, spawnTime: s.elapsedTime, stationId: station.id, patience: 30000, isVIP: true,
+        });
+        s.activeEvents.push({ id: nextId, type: 'vip_passenger', timer: 30000, data: { stationId: station.id } });
+        addNotification(s, '⭐ VIP пасажир!', station.x, station.y, '#fbbf24');
+        s.eventLog.push('VIP пасажир з\'явився!');
+      }
+    } else if (roll < 0.75) {
+      // Power Flicker — visual only, brief
+      s.activeEvents.push({ id: nextId, type: 'power_flicker', timer: 3000 });
+      s.screenPulseTimer = 1000;
+      s.screenPulseColor = '#6366f1';
+      addNotification(s, '⚡ Коливання напруги!', 0.5, 0.5, '#818cf8');
+      s.eventLog.push('Коливання напруги');
+    } else {
+      // Emergency Evac — overflow one station
+      const activeSet = new Set(s.activeStationIds);
+      const crowded = s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed && st.passengers.length > 3);
+      if (crowded.length > 0) {
+        const station = crowded[Math.floor(Math.random() * crowded.length)];
+        const shapes: ('circle' | 'square' | 'triangle' | 'diamond' | 'star')[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
+        for (let i = 0; i < 3 && station.passengers.length < station.maxPassengers; i++) {
+          const possibleShapes = shapes.filter(sh => sh !== station.shape);
+          station.passengers.push({
+            id: `evac_${i}_${Date.now()}`,
+            shape: possibleShapes[Math.floor(Math.random() * possibleShapes.length)],
+            spawnTime: s.elapsedTime, stationId: station.id, patience: 12000,
+          });
+        }
+        s.activeEvents.push({ id: nextId, type: 'emergency_evac', timer: 15000, data: { stationId: station.id } });
+        addNotification(s, '🚨 Евакуація!', station.x, station.y, '#ef4444');
+        s.eventLog.push(`Евакуація: ${station.nameUa}`);
+      }
+    }
+  }
+
+  // Keep event log trimmed
+  while (s.eventLog.length > 20) s.eventLog.shift();
 }
