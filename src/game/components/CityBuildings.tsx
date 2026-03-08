@@ -41,7 +41,6 @@ export function generateBuildingData() {
 
 const BUILDING_DATA = generateBuildingData();
 
-// Generate streetlight positions
 function generateStreetlights() {
   const rand = makeRng(77);
   const lights: { wx: number; wz: number }[] = [];
@@ -68,6 +67,7 @@ interface CityBuildingsProps {
 export function CityBuildings({ stateRef }: CityBuildingsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const windowMeshRef = useRef<THREE.InstancedMesh>(null);
+  const rubbleMeshRef = useRef<THREE.InstancedMesh>(null);
   const lightPoleRef = useRef<THREE.InstancedMesh>(null);
   const lightGlowRef = useRef<THREE.InstancedMesh>(null);
   const initialized = useRef(false);
@@ -84,7 +84,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     return { baseColors: cols };
   }, []);
 
-  // Initialize building instances
   useEffect(() => {
     if (!meshRef.current) return;
     BUILDING_DATA.forEach((b, i) => {
@@ -97,10 +96,8 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
 
-    // Initialize window glow instances
     if (windowMeshRef.current) {
       BUILDING_DATA.forEach((b, i) => {
-        // Windows on front face
         tempObject.position.set(b.wx, b.h * 0.6, b.wz + b.d / 2 + 0.01);
         tempObject.scale.set(b.w * 0.8, b.h * 0.5, 0.05);
         tempObject.updateMatrix();
@@ -109,7 +106,17 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       windowMeshRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    // Initialize streetlight poles
+    // Initialize rubble (all hidden initially)
+    if (rubbleMeshRef.current) {
+      for (let i = 0; i < BUILDING_DATA.length; i++) {
+        tempObject.position.set(0, -100, 0);
+        tempObject.scale.set(0, 0, 0);
+        tempObject.updateMatrix();
+        rubbleMeshRef.current.setMatrixAt(i, tempObject.matrix);
+      }
+      rubbleMeshRef.current.instanceMatrix.needsUpdate = true;
+    }
+
     if (lightPoleRef.current) {
       STREETLIGHT_DATA.forEach((l, i) => {
         tempObject.position.set(l.wx, 1.5, l.wz);
@@ -120,7 +127,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       lightPoleRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    // Initialize streetlight glow spheres
     if (lightGlowRef.current) {
       STREETLIGHT_DATA.forEach((l, i) => {
         tempObject.position.set(l.wx, 3.2, l.wz);
@@ -134,17 +140,18 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     initialized.current = true;
   }, [baseColors]);
 
-  // Update buildings based on destruction state
   useFrame(() => {
     if (!meshRef.current || !initialized.current || !stateRef) return;
     const state = stateRef.current;
     if (!state.buildings || state.buildings.length === 0) return;
 
     let needsUpdate = false;
+    let rubbleNeedsUpdate = false;
     for (let i = 0; i < state.buildings.length && i < BUILDING_DATA.length; i++) {
       const bs = state.buildings[i];
       const b = BUILDING_DATA[i];
       if (bs.isDestroyed) {
+        // Flatten building
         tempObject.position.set(b.wx, 0.05, b.wz);
         tempObject.scale.set(b.w, 0.1, b.d);
         tempObject.updateMatrix();
@@ -152,9 +159,20 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
         tempColor.set('#1a1008');
         meshRef.current!.setColorAt(i, tempColor);
         needsUpdate = true;
+
+        // Show rubble pile
+        if (rubbleMeshRef.current) {
+          tempObject.position.set(b.wx, 0.15, b.wz);
+          tempObject.scale.set(b.w * 1.2, 0.3, b.d * 1.2);
+          tempObject.updateMatrix();
+          rubbleMeshRef.current.setMatrixAt(i, tempObject.matrix);
+          tempColor.set('#2a1a0a');
+          rubbleMeshRef.current.setColorAt(i, tempColor);
+          rubbleNeedsUpdate = true;
+        }
       } else if (bs.hp < bs.maxHp) {
         const ratio = bs.hp / bs.maxHp;
-        const h = b.h * ratio;
+        const h = b.h * (0.3 + ratio * 0.7); // Min 30% height
         tempObject.position.set(b.wx, h / 2, b.wz);
         tempObject.scale.set(b.w, h, b.d);
         tempObject.updateMatrix();
@@ -167,6 +185,26 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     if (needsUpdate) {
       meshRef.current.instanceMatrix.needsUpdate = true;
       if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+    }
+    if (rubbleNeedsUpdate && rubbleMeshRef.current) {
+      rubbleMeshRef.current.instanceMatrix.needsUpdate = true;
+      if (rubbleMeshRef.current.instanceColor) rubbleMeshRef.current.instanceColor.needsUpdate = true;
+    }
+
+    // Update window emissive based on night
+    if (windowMeshRef.current) {
+      const mat = windowMeshRef.current.material as THREE.MeshStandardMaterial;
+      const isNight = state.isNight;
+      mat.emissiveIntensity = isNight ? 1.2 : 0.3;
+      mat.opacity = isNight ? 0.7 : 0.3;
+      mat.emissive.set(isNight ? '#ffaa44' : '#88aacc');
+    }
+
+    // Update streetlight glow based on night
+    if (lightGlowRef.current) {
+      const mat = lightGlowRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = state.isNight ? 2.5 : 0.5;
+      mat.opacity = state.isNight ? 0.9 : 0.3;
     }
   });
 
@@ -182,8 +220,8 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
         <meshStandardMaterial
           metalness={0.15}
           roughness={0.85}
-          emissive="#332200"
-          emissiveIntensity={0.15}
+          emissive="#443300"
+          emissiveIntensity={0.2}
         />
       </instancedMesh>
 
@@ -201,6 +239,22 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
           transparent
           opacity={0.4}
           side={THREE.DoubleSide}
+        />
+      </instancedMesh>
+
+      {/* Rubble piles at destroyed buildings */}
+      <instancedMesh
+        ref={rubbleMeshRef}
+        args={[undefined, undefined, BUILDING_DATA.length]}
+        frustumCulled={false}
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial
+          color="#2a1a0a"
+          metalness={0.1}
+          roughness={0.95}
+          emissive="#110800"
+          emissiveIntensity={0.1}
         />
       </instancedMesh>
 

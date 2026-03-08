@@ -29,8 +29,9 @@ interface SceneContentProps {
 
 function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
   const { camera } = useThree();
+  const cinematicTimeRef = useRef(0);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const state = stateRef.current;
     const cam = state.camera;
 
@@ -42,9 +43,30 @@ function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameS
     ortho.zoom = 10 * cam.zoom;
     ortho.updateProjectionMatrix();
 
-    const baseX = 25;
+    const orbitAngle = cam.orbitAngle;
+
+    if (cam.mode === 'follow' && state.selectedTrain) {
+      const train = state.trains.find(t => t.id === state.selectedTrain);
+      if (train) {
+        const [wx, , wz] = toWorld(train.x, train.y);
+        cam.targetX = -wx;
+        cam.targetY = -wz;
+      }
+    } else if (cam.mode === 'cinematic') {
+      cinematicTimeRef.current += delta * cam.orbitSpeed;
+      const radius = 35;
+      const cx = Math.sin(cinematicTimeRef.current) * radius;
+      const cz = Math.cos(cinematicTimeRef.current) * radius;
+      cam.targetX = -cx * 0.3;
+      cam.targetY = -cz * 0.3;
+    }
+
+    // Apply orbit rotation
+    const dist = 45;
+    const baseX = Math.sin(orbitAngle) * dist;
+    const baseZ = Math.cos(orbitAngle) * dist;
     const baseY = 45;
-    const baseZ = 25;
+
     ortho.position.set(baseX - cam.x, baseY, baseZ - cam.y);
     ortho.lookAt(-cam.x, 0, -cam.y);
 
@@ -92,11 +114,15 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
   const prevStationsRef = useRef('');
   const prevTrainsRef = useRef('');
   const prevDronesRef = useRef('');
+  const frameCountRef = useRef(0);
   const [activeStations, setActiveStations] = React.useState<string[]>(stateRef.current.activeStationIds);
   const [trainIds, setTrainIds] = React.useState<string[]>(stateRef.current.trains.map(t => t.id));
   const [droneIds, setDroneIds] = React.useState<string[]>([]);
 
   useFrame(() => {
+    frameCountRef.current++;
+    if (frameCountRef.current % 3 !== 0) return; // Throttle to every 3 frames
+
     const state = stateRef.current;
     const stKey = state.activeStationIds.join(',');
     if (stKey !== prevStationsRef.current) {
@@ -136,9 +162,10 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
   );
 }
 
-// Cloud layer for atmosphere
+// Cloud layer using InstancedMesh for performance
 function CloudLayer({ isNight }: { isNight: boolean }) {
-  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const tempObj = useMemo(() => new THREE.Object3D(), []);
 
   const cloudData = useMemo(() => {
     const clouds = [];
@@ -147,6 +174,7 @@ function CloudLayer({ isNight }: { isNight: boolean }) {
         x: (Math.random() - 0.5) * 120,
         z: (Math.random() - 0.5) * 100,
         scale: 8 + Math.random() * 20,
+        scaleY: 0.6,
         speed: 0.2 + Math.random() * 0.3,
       });
     }
@@ -154,37 +182,37 @@ function CloudLayer({ isNight }: { isNight: boolean }) {
   }, []);
 
   useFrame(({ clock }) => {
-    if (!groupRef.current) return;
-    groupRef.current.children.forEach((child, i) => {
-      const cd = cloudData[i];
-      if (cd) {
-        child.position.x = cd.x + Math.sin(clock.elapsedTime * cd.speed * 0.1) * 5;
-      }
+    if (!meshRef.current) return;
+    cloudData.forEach((c, i) => {
+      const x = c.x + Math.sin(clock.elapsedTime * c.speed * 0.1) * 5;
+      tempObj.position.set(x, 35, c.z);
+      tempObj.rotation.set(-Math.PI / 2, 0, 0);
+      tempObj.scale.set(c.scale, c.scale * c.scaleY, 1);
+      tempObj.updateMatrix();
+      meshRef.current!.setMatrixAt(i, tempObj.matrix);
     });
+    meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <group ref={groupRef}>
-      {cloudData.map((c, i) => (
-        <mesh key={i} position={[c.x, 35, c.z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[c.scale, c.scale * 0.6]} />
-          <meshStandardMaterial
-            color={isNight ? '#1a2040' : '#aabbcc'}
-            emissive={isNight ? '#111133' : '#ddeeff'}
-            emissiveIntensity={isNight ? 0.1 : 0.05}
-            transparent
-            opacity={isNight ? 0.15 : 0.12}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, cloudData.length]} frustumCulled={false}>
+      <planeGeometry args={[1, 1]} />
+      <meshStandardMaterial
+        color={isNight ? '#1a2040' : '#aabbcc'}
+        emissive={isNight ? '#111133' : '#ddeeff'}
+        emissiveIntensity={isNight ? 0.1 : 0.05}
+        transparent
+        opacity={isNight ? 0.15 : 0.12}
+        side={THREE.DoubleSide}
+      />
+    </instancedMesh>
   );
 }
 
-// Ambient particles (fireflies at night)
+// Ambient particles using uniform-based animation (no per-frame needsUpdate)
 function AmbientParticles({ isNight }: { isNight: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
+  const basePositions = useRef<Float32Array | null>(null);
 
   const { positions, colors } = useMemo(() => {
     const count = 40;
@@ -202,11 +230,17 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
     return { positions: pos, colors: col };
   }, []);
 
+  // Store base positions once
+  React.useEffect(() => {
+    basePositions.current = new Float32Array(positions);
+  }, [positions]);
+
   useFrame(({ clock }) => {
-    if (!pointsRef.current) return;
+    if (!pointsRef.current || !basePositions.current) return;
     const posAttr = pointsRef.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const base = basePositions.current;
     for (let i = 0; i < posAttr.count; i++) {
-      posAttr.setY(i, posAttr.getY(i) + Math.sin(clock.elapsedTime + i) * 0.003);
+      posAttr.setY(i, base[i * 3 + 1] + Math.sin(clock.elapsedTime * 0.5 + i) * 0.5);
     }
     posAttr.needsUpdate = true;
   });
@@ -224,32 +258,175 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
   );
 }
 
-// Signal flare lines from drones to targets
+// Signal flare lines - pre-allocated pool
 function SignalFlareLines({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
-  const linesRef = useRef<THREE.Group>(null);
-  const [visible, setVisible] = React.useState(false);
+  const linesGroupRef = useRef<THREE.Group>(null);
+  const linePool = useMemo(() => {
+    const pool: THREE.Line[] = [];
+    for (let i = 0; i < 20; i++) {
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({ color: '#ff4444', transparent: true, opacity: 0.4 });
+      pool.push(new THREE.Line(geo, mat));
+    }
+    return pool;
+  }, []);
 
   useFrame(() => {
-    setVisible(stateRef.current.signalFlareTimer > 0);
+    const state = stateRef.current;
+    const visible = state.signalFlareTimer > 0;
+    const activeDrones = visible ? state.drones.filter(d => !d.isDestroyed) : [];
+
+    linePool.forEach((line, i) => {
+      if (i < activeDrones.length && visible) {
+        const d = activeDrones[i];
+        const target = state.stations.find(s => s.id === d.targetStationId);
+        if (target) {
+          const [dx, , dz] = toWorld(d.x, d.y);
+          const [tx, , tz] = toWorld(target.x, target.y);
+          const posArr = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+          posArr.setXYZ(0, dx, 3, dz);
+          posArr.setXYZ(1, tx, 1, tz);
+          posArr.needsUpdate = true;
+          line.visible = true;
+        } else {
+          line.visible = false;
+        }
+      } else {
+        line.visible = false;
+      }
+    });
   });
 
-  if (!visible) return null;
-
-  const state = stateRef.current;
   return (
-    <group ref={linesRef}>
-      {state.drones.filter(d => !d.isDestroyed).map(d => {
-        const target = state.stations.find(s => s.id === d.targetStationId);
-        if (!target) return null;
-        const [dx, , dz] = toWorld(d.x, d.y);
-        const [tx, , tz] = toWorld(target.x, target.y);
-        const points = [new THREE.Vector3(dx, 3, dz), new THREE.Vector3(tx, 1, tz)];
-        const geo = new THREE.BufferGeometry().setFromPoints(points);
-        return (
-          <primitive key={d.id} object={new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#ff4444', transparent: true, opacity: 0.4 }))} />
-        );
-      })}
+    <group ref={linesGroupRef}>
+      {linePool.map((line, i) => (
+        <primitive key={i} object={line} />
+      ))}
     </group>
+  );
+}
+
+// Tracer lines for SAM/AA fire
+function TracerLinesLayer({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+  const linesGroupRef = useRef<THREE.Group>(null);
+  const linePool = useMemo(() => {
+    const pool: THREE.Line[] = [];
+    for (let i = 0; i < 15; i++) {
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({ color: '#00ff88', transparent: true, opacity: 0.8, linewidth: 2 });
+      pool.push(new THREE.Line(geo, mat));
+    }
+    return pool;
+  }, []);
+
+  useFrame(() => {
+    const tracers = stateRef.current.tracerLines;
+    linePool.forEach((line, i) => {
+      if (i < tracers.length) {
+        const t = tracers[i];
+        const [fx, , fz] = toWorld(t.fromX, t.fromY);
+        const [tx, , tz] = toWorld(t.toX, t.toY);
+        const posArr = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+        posArr.setXYZ(0, fx, 2, fz);
+        posArr.setXYZ(1, tx, 5, tz);
+        posArr.needsUpdate = true;
+        (line.material as THREE.LineBasicMaterial).opacity = t.timer / 500;
+        (line.material as THREE.LineBasicMaterial).color.set(t.color);
+        line.visible = true;
+      } else {
+        line.visible = false;
+      }
+    });
+  });
+
+  return (
+    <group ref={linesGroupRef}>
+      {linePool.map((line, i) => (
+        <primitive key={i} object={line} />
+      ))}
+    </group>
+  );
+}
+
+// Interceptor drone visuals
+function InterceptorDronesLayer({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
+  const meshesRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (!meshesRef.current) return;
+    const interceptors = stateRef.current.interceptorDrones;
+    meshesRef.current.children.forEach((child, i) => {
+      if (i < interceptors.length) {
+        const iDrone = interceptors[i];
+        const [wx, , wz] = toWorld(iDrone.x, iDrone.y);
+        child.position.set(wx, 7, wz);
+        child.visible = true;
+        // Face target
+        const target = stateRef.current.drones.find(d => d.id === iDrone.targetDroneId);
+        if (target) {
+          const [tx, , tz] = toWorld(target.x, target.y);
+          child.lookAt(tx, 7, tz);
+        }
+      } else {
+        child.visible = false;
+      }
+    });
+  });
+
+  return (
+    <group ref={meshesRef}>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <group key={i} visible={false}>
+          <mesh>
+            <coneGeometry args={[0.3, 1.2, 6]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.8} />
+          </mesh>
+          <pointLight color="#22c55e" intensity={0.5} distance={4} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Rain particle system
+function RainEffect({ isRaining }: { isRaining: boolean }) {
+  const pointsRef = useRef<THREE.Points>(null);
+
+  const { positions } = useMemo(() => {
+    const count = 300;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 120;
+      pos[i * 3 + 1] = Math.random() * 30;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 100;
+    }
+    return { positions: pos };
+  }, []);
+
+  useFrame(() => {
+    if (!pointsRef.current || !isRaining) return;
+    const posAttr = pointsRef.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < posAttr.count; i++) {
+      let y = posAttr.getY(i) - 0.5;
+      if (y < 0) y = 25 + Math.random() * 5;
+      posAttr.setY(i, y);
+    }
+    posAttr.needsUpdate = true;
+  });
+
+  if (!isRaining) return null;
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial size={0.05} color="#8899bb" transparent opacity={0.4} sizeAttenuation />
+    </points>
   );
 }
 
@@ -266,9 +443,7 @@ function SceneContent({
   const fogColor = state.isNight ? '#0a1025' : '#0a0e1a';
   const groundColor = state.isNight ? '#0a1025' : '#0c1220';
 
-  // Skybox gradient colors
   const skyTop = state.isNight ? '#050818' : '#1a3050';
-  const skyHorizon = state.isNight ? '#1a1530' : '#4a6080';
 
   return (
     <>
@@ -276,7 +451,7 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
-      <fog attach="fog" args={[fogColor, 80, 180]} />
+      <fog attach="fog" args={[fogColor, 80, 200]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
@@ -288,24 +463,34 @@ function SceneContent({
       {state.isAirRaid && (
         <pointLight position={[0, 30, 0]} color="#ff2200" intensity={0.4 + Math.sin(Date.now() * 0.004) * 0.25} distance={120} />
       )}
+      {/* Enhanced night lighting — 6 city glow lights */}
       {state.isNight && (
         <>
-          <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.3} distance={80} />
-          <pointLight position={[-20, 5, -10]} color="#ffaa44" intensity={0.15} distance={50} />
-          <pointLight position={[15, 5, 15]} color="#ffaa44" intensity={0.15} distance={50} />
+          <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.4} distance={80} />
+          <pointLight position={[-25, 6, -15]} color="#ffaa44" intensity={0.25} distance={60} />
+          <pointLight position={[20, 6, 20]} color="#ffaa44" intensity={0.25} distance={60} />
+          <pointLight position={[-15, 5, 15]} color="#ff8833" intensity={0.2} distance={50} />
+          <pointLight position={[10, 5, -20]} color="#ffaa44" intensity={0.2} distance={50} />
+          <pointLight position={[30, 6, 0]} color="#ff9944" intensity={0.2} distance={50} />
         </>
       )}
 
       {/* Skybox gradient dome */}
       <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[120, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <sphereGeometry args={[150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshBasicMaterial color={skyTop} side={THREE.BackSide} transparent opacity={0.8} />
       </mesh>
 
-      {/* Ground */}
+      {/* Ground with slight emissive at night */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} receiveShadow>
         <planeGeometry args={[160, 130]} />
-        <meshStandardMaterial color={groundColor} metalness={0.05} roughness={0.95} />
+        <meshStandardMaterial
+          color={groundColor}
+          metalness={0.05}
+          roughness={0.95}
+          emissive={state.isNight ? '#0a0e20' : '#000000'}
+          emissiveIntensity={state.isNight ? 0.1 : 0}
+        />
       </mesh>
       <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
 
@@ -313,6 +498,7 @@ function SceneContent({
       <CityBuildings stateRef={stateRef} />
       <CloudLayer isNight={state.isNight} />
       <AmbientParticles isNight={state.isNight} />
+      <RainEffect isRaining={state.isRaining} />
 
       <MetroLine3D line="red" stateRef={stateRef} />
       <MetroLine3D line="blue" stateRef={stateRef} />
@@ -327,6 +513,8 @@ function SceneContent({
       />
 
       <SignalFlareLines stateRef={stateRef} />
+      <TracerLinesLayer stateRef={stateRef} />
+      <InterceptorDronesLayer stateRef={stateRef} />
       <DecoyMarkers stateRef={stateRef} />
       <ExplosionsLayer stateRef={stateRef} />
       <RepairUnitsLayer stateRef={stateRef} />

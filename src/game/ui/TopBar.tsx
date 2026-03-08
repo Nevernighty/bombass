@@ -1,4 +1,5 @@
 import React from 'react';
+import { CameraMode } from '../types';
 
 interface TopBarProps {
   score: number;
@@ -22,6 +23,8 @@ interface TopBarProps {
   buildingsDestroyed: number;
   gameMode: string;
   winConditionMet: boolean;
+  cameraMode: CameraMode;
+  isRaining: boolean;
   onSpeedChange: (mult: number) => void;
 }
 
@@ -38,6 +41,7 @@ export const TopBar = React.memo(function TopBar({
   networkEfficiency, isNight, waveIndex, isAirRaid,
   powerGrid, maxPower, rushHourActive, radarActive,
   satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
+  cameraMode, isRaining,
   onSpeedChange,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
@@ -97,6 +101,7 @@ export const TopBar = React.memo(function TopBar({
           <span>🎯 {dronesIntercepted}/{totalDrones}</span>
           <span>📊 {networkEfficiency}%</span>
           <span>{isNight ? '🌙' : '☀️'}</span>
+          {isRaining && <span>🌧️</span>}
         </div>
         <div className="flex items-center gap-2 mt-1 text-xs">
           <span style={{ color: powerPct < 20 ? '#ef4444' : powerPct < 50 ? '#f59e0b' : '#22c55e' }}>
@@ -107,6 +112,13 @@ export const TopBar = React.memo(function TopBar({
           </span>
           {buildingsDestroyed > 0 && <span style={{ color: '#ef4444' }}>🏚️ {buildingsDestroyed}</span>}
           {radarActive && <span style={{ color: '#06b6d4' }}>📡</span>}
+          <span className="text-xs px-1.5 py-0.5 rounded" style={{
+            background: 'rgba(255,255,255,0.05)',
+            color: '#6b7280',
+            border: '1px solid rgba(255,255,255,0.06)',
+          }}>
+            📷 {cameraMode === 'free' ? 'Вільна' : cameraMode === 'follow' ? 'Слідкувати' : cameraMode === 'overview' ? 'Огляд' : 'Кіно'}
+          </span>
         </div>
       </div>
     </div>

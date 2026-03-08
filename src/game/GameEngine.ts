@@ -1,5 +1,5 @@
 import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement } from './types';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
@@ -69,6 +69,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     jellyOffset: { x: 0, y: 0 }, jellyVel: { x: 0, y: 0 },
     isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
     isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
+    hasSAM: false, samCooldown: 0, hasAATurret: false, turretCooldown: 0, stationIncome: 0,
   }));
 
   const trains: Train[] = [];
@@ -104,7 +105,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
 
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
-    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 },
+    camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3 },
     score: 0, lives: scenario.startLives, combo: 1, maxCombo: 1, money: scenario.startMoney,
     passengersDelivered: 0, passengersAbandoned: 0,
     dronesIntercepted: 0, totalDrones: 0,
@@ -142,6 +143,12 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     stationMagnetId: null, stationMagnetTimer: 0,
     winConditionMet: false,
     modeTimer: 0,
+    // Phase 6
+    interceptorDrones: [],
+    tracerLines: [],
+    isRaining: false,
+    weatherTimer: 30000 + Math.random() * 60000,
+    autoRepairTimer: 0,
     _cachedLineStations: {},
   };
 }
@@ -750,6 +757,122 @@ function updatePhase5Timers(s: GameState, realDt: number): void {
   }
 }
 
+// ==================== SYSTEM: Phase 6 (Interceptors, SAM, Weather, Auto-repair) ====================
+function updatePhase6Systems(s: GameState, realDt: number, events: EventBus): void {
+  // --- Interceptor drones chase enemy drones ---
+  s.interceptorDrones = s.interceptorDrones.filter(iDrone => {
+    const target = s.drones.find(d => d.id === iDrone.targetDroneId && !d.isDestroyed);
+    if (!target) return false;
+    const dx = target.x - iDrone.x, dy = target.y - iDrone.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.015) {
+      target.hp -= 2;
+      if (target.hp <= 0) {
+        target.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 20;
+        s.money += 12;
+        s.explosions.push({ x: target.x, y: target.y, radius: 0, maxRadius: 30, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: target.x, y: target.y });
+        addNotification(s, '🛩️ Перехоплення!', target.x, target.y, '#22c55e');
+      }
+      return false;
+    }
+    const moveSpeed = iDrone.speed * realDt / 1000;
+    iDrone.x += (dx / dist) * moveSpeed * 0.05;
+    iDrone.y += (dy / dist) * moveSpeed * 0.05;
+    return true;
+  });
+
+  // --- SAM Battery auto-fire ---
+  for (const st of s.stations) {
+    if (!st.hasSAM || st.isDestroyed) continue;
+    if (st.samCooldown > 0) { st.samCooldown -= realDt; continue; }
+    const nearestDrone = s.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+      const dx = st.x - d.x, dy = st.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.2 && (!best || dist < best.dist)) return { drone: d, dist };
+      return best;
+    }, null as { drone: Drone; dist: number } | null);
+    if (nearestDrone) {
+      nearestDrone.drone.hp--;
+      st.samCooldown = 2000;
+      s.tracerLines.push({
+        id: uid(), fromX: st.x, fromY: st.y,
+        toX: nearestDrone.drone.x, toY: nearestDrone.drone.y,
+        timer: 500, color: '#00ff88',
+      });
+      addNotification(s, '🚀', nearestDrone.drone.x, nearestDrone.drone.y, '#22c55e');
+      if (nearestDrone.drone.hp <= 0) {
+        nearestDrone.drone.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 15;
+        s.money += 10;
+        s.explosions.push({ x: nearestDrone.drone.x, y: nearestDrone.drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: nearestDrone.drone.x, y: nearestDrone.drone.y });
+      }
+    }
+  }
+
+  // --- AA Turret fast fire ---
+  for (const st of s.stations) {
+    if (!st.hasAATurret || st.isDestroyed) continue;
+    if (st.turretCooldown > 0) { st.turretCooldown -= realDt; continue; }
+    const nearestDrone = s.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+      const dx = st.x - d.x, dy = st.y - d.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.1 && (!best || dist < best.dist)) return { drone: d, dist };
+      return best;
+    }, null as { drone: Drone; dist: number } | null);
+    if (nearestDrone) {
+      nearestDrone.drone.hp--;
+      st.turretCooldown = 1000;
+      s.tracerLines.push({
+        id: uid(), fromX: st.x, fromY: st.y,
+        toX: nearestDrone.drone.x, toY: nearestDrone.drone.y,
+        timer: 300, color: '#ffaa00',
+      });
+      if (nearestDrone.drone.hp <= 0) {
+        nearestDrone.drone.isDestroyed = true;
+        s.dronesIntercepted++;
+        s.score += 10;
+        s.money += 8;
+        s.explosions.push({ x: nearestDrone.drone.x, y: nearestDrone.drone.y, radius: 0, maxRadius: 20, alpha: 1, time: 0 });
+        events.emit({ type: 'DRONE_DESTROYED', x: nearestDrone.drone.x, y: nearestDrone.drone.y });
+      }
+    }
+  }
+
+  // --- Tracer lines decay ---
+  s.tracerLines = s.tracerLines.filter(t => {
+    t.timer -= realDt;
+    return t.timer > 0;
+  });
+
+  // --- Weather system ---
+  s.weatherTimer -= realDt;
+  if (s.weatherTimer <= 0) {
+    s.isRaining = !s.isRaining;
+    s.weatherTimer = s.isRaining ? (15000 + Math.random() * 30000) : (30000 + Math.random() * 60000);
+    if (s.isRaining) {
+      addNotification(s, '🌧️ Дощ: дрони -20% швидкість', 0.5, 0.3, '#6b7280');
+    }
+  }
+
+  // --- Auto-repair: stations regenerate 1 HP/5s when not under attack ---
+  s.autoRepairTimer += realDt;
+  if (s.autoRepairTimer >= 5000) {
+    s.autoRepairTimer = 0;
+    const activeSet = new Set(s.activeStationIds);
+    for (const st of s.stations) {
+      if (!activeSet.has(st.id) || st.isDestroyed || st.isOnFire) continue;
+      if (st.hp < st.maxHp) {
+        st.hp = Math.min(st.maxHp, st.hp + 1);
+      }
+    }
+  }
+}
+
 // ==================== SYSTEM: Achievements ====================
 function updateAchievements(s: GameState): void {
   function unlock(id: string) {
@@ -952,6 +1075,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateRushHour(s, realDt);
   updateComboRewards(s);
   updatePhase5Timers(s, realDt);
+  updatePhase6Systems(s, realDt, globalEventBus);
   updateAchievements(s);
   updateWinConditions(s);
   updatePhysics(s, realDt);
@@ -1273,6 +1397,46 @@ export function emergencyFund(state: GameState): GameState {
   state.lives--;
   state.money += 80;
   addNotification(state, '💔 -1 ❤️ → +80💰', 0.5, 0.5, '#ef4444');
+  return state;
+}
+
+// ===== Phase 6 Actions =====
+export function buySAMBattery(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.hasSAM || state.money < GAME_CONFIG.SAM_BATTERY_COST) return state;
+  state.money -= GAME_CONFIG.SAM_BATTERY_COST;
+  station.hasSAM = true;
+  addNotification(state, '🚀 ЗРК встановлено!', station.x, station.y, '#22c55e');
+  return state;
+}
+
+export function buyAATurret(state: GameState, stationId: string): GameState {
+  const station = getStation(state, stationId);
+  if (!station || station.hasAATurret || state.money < GAME_CONFIG.AA_TURRET_COST) return state;
+  state.money -= GAME_CONFIG.AA_TURRET_COST;
+  station.hasAATurret = true;
+  addNotification(state, '🔫 Турель встановлено!', station.x, station.y, '#f59e0b');
+  return state;
+}
+
+export function launchInterceptor(state: GameState, stationId: string): GameState {
+  if (state.money < GAME_CONFIG.INTERCEPTOR_COST) return state;
+  const station = getStation(state, stationId);
+  if (!station) return state;
+  const nearestDrone = state.drones.filter(d => !d.isDestroyed).reduce((best, d) => {
+    const dx = station.x - d.x, dy = station.y - d.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (!best || dist < best.dist) return { drone: d, dist };
+    return best;
+  }, null as { drone: Drone; dist: number } | null);
+  if (!nearestDrone) return state;
+  state.money -= GAME_CONFIG.INTERCEPTOR_COST;
+  state.interceptorDrones.push({
+    id: uid(), x: station.x, y: station.y,
+    targetDroneId: nearestDrone.drone.id, speed: 2.5,
+    sourceStationId: stationId,
+  });
+  addNotification(state, '🛩️ Перехоплювач запущено!', station.x, station.y, '#22c55e');
   return state;
 }
 
