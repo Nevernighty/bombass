@@ -315,6 +315,21 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
       return t;
     }
 
+    // Check closed segments
+    const nextStationId = route[nextIdx];
+    const curStationId = route[t.routeIndex];
+    const isSegmentClosed = s.closedSegments.some(seg =>
+      seg.line === t.line &&
+      ((seg.from === curStationId && seg.to === nextStationId) ||
+       (seg.from === nextStationId && seg.to === curStationId))
+    );
+    if (isSegmentClosed) {
+      t.direction = (t.direction * -1) as 1 | -1;
+      t.isDwelling = true;
+      t.dwellTimer = GAME_CONFIG.DWELL_TIME;
+      return t;
+    }
+
     t.progress += (t.speed * speedMult * realDt) / 2500;
 
     const curStConst = STATION_MAP.get(route[t.routeIndex]);
@@ -1526,6 +1541,49 @@ export function activateTrainShield(state: GameState, trainId: string): GameStat
   state.money -= 30;
   train.shieldTimer = 15000;
   addNotification(state, '🛡️ Щит потяга!', train.x, train.y, '#3b82f6');
+  return state;
+}
+
+// ===== Phase 17: Line Management =====
+export function sellTrain(state: GameState, trainId: string): GameState {
+  const train = state.trains.find(t => t.id === trainId);
+  if (!train) return state;
+  // Dump passengers at nearest station
+  const activeSet = new Set(state.activeStationIds);
+  const nearestStation = state.stations
+    .filter(s => activeSet.has(s.id) && !s.isDestroyed && s.isOpen)
+    .sort((a, b) => {
+      const da = Math.abs(a.x - train.x) + Math.abs(a.y - train.y);
+      const db = Math.abs(b.x - train.x) + Math.abs(b.y - train.y);
+      return da - db;
+    })[0];
+  if (nearestStation) {
+    for (const p of train.passengers) {
+      if (nearestStation.passengers.length < nearestStation.maxPassengers) {
+        nearestStation.passengers.push({ ...p, stationId: nearestStation.id });
+      }
+    }
+  }
+  state.trains = state.trains.filter(t => t.id !== trainId);
+  state.money += 25;
+  state.selectedTrain = null;
+  addNotification(state, '💰 Потяг продано +$25', train.x, train.y, '#4ade80');
+  return state;
+}
+
+export function closeLineSegment(state: GameState, line: string, from: string, to: string): GameState {
+  if (state.money < 15) return state;
+  // Don't close if already closed
+  if (state.closedSegments.some(s => s.line === line && s.from === from && s.to === to)) return state;
+  state.money -= 15;
+  state.closedSegments.push({ line, from, to, timer: 30000 });
+  addNotification(state, '🚧 Сегмент закрито!', 0.5, 0.5, '#f59e0b');
+  return state;
+}
+
+export function reopenLineSegment(state: GameState, line: string): GameState {
+  state.closedSegments = state.closedSegments.filter(s => s.line !== line);
+  addNotification(state, '✅ Лінію відкрито!', 0.5, 0.5, '#22c55e');
   return state;
 }
 
