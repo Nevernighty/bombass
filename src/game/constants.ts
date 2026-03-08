@@ -134,9 +134,9 @@ export const BRIDGE_STATION_IDS = new Set(STATIONS.filter(s => (s as any).isBrid
 
 export const DNIPRO_RIVER_POINTS = [
   { x: 0.55, y: 0.0 }, { x: 0.57, y: 0.10 }, { x: 0.58, y: 0.20 },
-  { x: 0.59, y: 0.30 }, { x: 0.60, y: 0.38 }, { x: 0.59, y: 0.46 },
-  { x: 0.58, y: 0.55 }, { x: 0.57, y: 0.62 }, { x: 0.59, y: 0.70 },
-  { x: 0.61, y: 0.80 }, { x: 0.59, y: 0.90 }, { x: 0.58, y: 1.0 },
+  { x: 0.62, y: 0.30 }, { x: 0.63, y: 0.38 }, { x: 0.62, y: 0.46 },
+  { x: 0.61, y: 0.55 }, { x: 0.60, y: 0.62 }, { x: 0.62, y: 0.70 },
+  { x: 0.63, y: 0.80 }, { x: 0.61, y: 0.90 }, { x: 0.60, y: 1.0 },
 ];
 
 export const SURFACE_ROUTES = [

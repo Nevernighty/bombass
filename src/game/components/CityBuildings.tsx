@@ -1,80 +1,104 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { STATIONS, toWorld } from '../constants';
 import { GameState } from '../types';
 
-const BUILDING_COUNT = 120;
-const STREETLIGHT_COUNT = 40;
+const BUILDINGS_PER_STATION = 3;
 const tempObject = new THREE.Object3D();
 const tempColor = new THREE.Color();
+
+interface BuildingDef {
+  x: number; y: number; wx: number; wz: number;
+  h: number; w: number; d: number;
+  type: 'tower' | 'apartment' | 'commercial';
+  stationId: string; districtName: string;
+}
+
+interface DebrisParticle {
+  pos: THREE.Vector3; vel: THREE.Vector3; life: number; maxLife: number;
+}
+
+interface SmokeParticle {
+  pos: THREE.Vector3; life: number; maxLife: number; scale: number;
+}
 
 function makeRng(seed: number) {
   let s = seed;
   return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
 
-export function generateBuildingData() {
+const DISTRICT_NAMES: Record<string, string> = {
+  'r1': 'Академмістечко', 'r2': 'Житомирська', 'r3': 'Святошин', 'r4': 'Нивки',
+  'r5': 'Берестейська', 'r6': 'Шулявська', 'r7': 'КПІ', 'r8': 'Вокзальна',
+  'r9': 'Університет', 'r10': 'Театральна', 'r11': 'Хрещатик', 'r12': 'Арсенальна',
+  'r13': 'Дніпро', 'r14': 'Гідропарк', 'r15': 'Лівобережна', 'r16': 'Дарниця',
+  'r17': 'Чернігівська', 'r18': 'Лісова',
+  'b1': 'Героїв Дніпра', 'b2': 'Мінська', 'b3': 'Оболонь', 'b4': 'Почайна',
+  'b5': 'Т. Шевченка', 'b6': 'Контрактова', 'b7': 'Поштова', 'b8': 'Майдан',
+  'b9': 'Пл. Героїв', 'b10': 'Олімпійська', 'b11': 'Палац Україна', 'b12': 'Либідська',
+  'b13': 'Деміївська', 'b14': 'Голосіївська', 'b15': 'Васильківська', 'b16': 'Іподром',
+  'g1': 'Сирець', 'g2': 'Дорогожичі', 'g3': "Лук'янівська", 'g4': 'Золоті ворота',
+  'g5': 'Палац спорту', 'g6': 'Кловська', 'g7': 'Печерська', 'g8': 'Дружби народів',
+  'g9': 'Видубичі', 'g10': 'Славутич', 'g11': 'Осокорки', 'g12': 'Позняки',
+  'g13': 'Харківська', 'g14': 'Вирлиця', 'g15': 'Бориспільська',
+};
+
+export function generateBuildingData(): BuildingDef[] {
   const rand = makeRng(42);
-  const buildings: { x: number; y: number; h: number; w: number; d: number; wx: number; wz: number; hasRooftop: boolean; quadrant: number }[] = [];
+  const buildings: BuildingDef[] = [];
 
-  for (let i = 0; i < 200 && buildings.length < BUILDING_COUNT; i++) {
-    const nx = rand();
-    const ny = rand();
-    const [wx, , wz] = toWorld(nx, ny);
+  // Select ~15 stations spread across the map for building clusters
+  const stationSubset = STATIONS.filter((_, i) => i % 3 === 0 || STATIONS[i].isTransfer);
 
-    const tooClose = STATIONS.some(s => {
-      const [sx, , sz] = toWorld(s.x, s.y);
-      const dx = wx - sx, dz = wz - sz;
-      return Math.sqrt(dx * dx + dz * dz) < 5.5;
-    });
-    if (tooClose) continue;
+  for (const station of stationSubset) {
+    const [sx, , sz] = toWorld(station.x, station.y);
+    const count = station.isTransfer ? 4 : BUILDINGS_PER_STATION;
 
-    // More height variety: some tall towers, some low
-    const roll = rand();
-    let h: number;
-    if (roll < 0.15) h = 5 + rand() * 3; // tall towers
-    else if (roll < 0.4) h = 2 + rand() * 3; // medium
-    else h = 0.5 + rand() * 1.5; // low buildings
+    for (let j = 0; j < count; j++) {
+      const angle = (j / count) * Math.PI * 2 + rand() * 0.8;
+      const dist = 5 + rand() * 6;
+      const wx = sx + Math.cos(angle) * dist;
+      const wz = sz + Math.sin(angle) * dist;
 
-    const w = 0.5 + rand() * 1.8;
-    const d = 0.5 + rand() * 1.8;
-    const hasRooftop = rand() < 0.3;
-    const quadrant = (nx < 0.5 ? 0 : 1) + (ny < 0.5 ? 0 : 2);
+      // Building type
+      const roll = rand();
+      let type: 'tower' | 'apartment' | 'commercial';
+      let h: number, w: number, d: number;
+      if (roll < 0.2) {
+        type = 'tower'; h = 6 + rand() * 5; w = 1.5 + rand() * 1; d = 1.5 + rand() * 1;
+      } else if (roll < 0.6) {
+        type = 'apartment'; h = 3 + rand() * 3; w = 2.5 + rand() * 2; d = 2 + rand() * 1.5;
+      } else {
+        type = 'commercial'; h = 1 + rand() * 1.5; w = 2 + rand() * 2.5; d = 2 + rand() * 2;
+      }
 
-    buildings.push({ x: nx, y: ny, h, w, d, wx, wz, hasRooftop, quadrant });
+      buildings.push({
+        x: (wx / 200) + 0.5, y: (wz / 160) + 0.5,
+        wx, wz, h, w, d, type,
+        stationId: station.id,
+        districtName: DISTRICT_NAMES[station.id] || station.nameUa,
+      });
+    }
+
+    if (buildings.length >= 45) break;
   }
+
   return buildings;
 }
 
 const BUILDING_DATA = generateBuildingData();
 
-function generateStreetlights() {
-  const rand = makeRng(77);
-  const lights: { wx: number; wz: number }[] = [];
-  for (let i = 0; i < 80 && lights.length < STREETLIGHT_COUNT; i++) {
-    const nx = rand();
-    const ny = rand();
-    const [wx, , wz] = toWorld(nx, ny);
-    const tooClose = STATIONS.some(s => {
-      const [sx, , sz] = toWorld(s.x, s.y);
-      return Math.sqrt((wx - sx) ** 2 + (wz - sz) ** 2) < 3;
-    });
-    if (tooClose) continue;
-    lights.push({ wx, wz });
+// Color palette per building type
+function getBuildingColor(type: string, rand: () => number): THREE.Color {
+  if (type === 'tower') {
+    return new THREE.Color().setHSL(210 / 360, 0.08 + rand() * 0.1, 0.15 + rand() * 0.08);
+  } else if (type === 'apartment') {
+    return new THREE.Color().setHSL(30 / 360, 0.05 + rand() * 0.08, 0.18 + rand() * 0.1);
   }
-  return lights;
+  return new THREE.Color().setHSL(180 / 360, 0.04 + rand() * 0.06, 0.2 + rand() * 0.08);
 }
-
-const STREETLIGHT_DATA = generateStreetlights();
-
-// Quadrant-based color palettes
-const QUADRANT_PALETTES = [
-  { hue: 200, sat: [0.05, 0.15], light: [0.12, 0.22] }, // blue-gray (NW)
-  { hue: 220, sat: [0.08, 0.18], light: [0.10, 0.20] }, // slate (NE)
-  { hue: 180, sat: [0.04, 0.12], light: [0.14, 0.24] }, // teal-gray (SW)
-  { hue: 240, sat: [0.06, 0.14], light: [0.11, 0.19] }, // indigo-gray (SE)
-];
 
 interface CityBuildingsProps {
   stateRef?: React.MutableRefObject<GameState>;
@@ -83,28 +107,27 @@ interface CityBuildingsProps {
 export function CityBuildings({ stateRef }: CityBuildingsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const windowMeshRef = useRef<THREE.InstancedMesh>(null);
-  const rubbleMeshRef = useRef<THREE.InstancedMesh>(null);
-  const rooftopMeshRef = useRef<THREE.InstancedMesh>(null);
-  const lightPoleRef = useRef<THREE.InstancedMesh>(null);
-  const lightGlowRef = useRef<THREE.InstancedMesh>(null);
-  const initialized = useRef(false);
+  const [tooltip, setTooltip] = useState<{ idx: number; name: string; hp: number; maxHp: number } | null>(null);
 
-  const { baseColors, rooftopCount } = useMemo(() => {
+  // Debris particles
+  const debrisRef = useRef<DebrisParticle[]>([]);
+  const debrisInstanceRef = useRef<THREE.InstancedMesh>(null);
+  const MAX_DEBRIS = 80;
+
+  // Smoke particles
+  const smokeRef = useRef<SmokeParticle[]>([]);
+  const smokeInstanceRef = useRef<THREE.InstancedMesh>(null);
+  const MAX_SMOKE = 30;
+
+  // Track previous destroy state
+  const prevDestroyedRef = useRef<Set<number>>(new Set());
+
+  const baseColors = useMemo(() => {
     const rand = makeRng(99);
-    const cols: THREE.Color[] = [];
-    let rtCount = 0;
-    for (let i = 0; i < BUILDING_DATA.length; i++) {
-      const b = BUILDING_DATA[i];
-      const palette = QUADRANT_PALETTES[b.quadrant];
-      const hue = (palette.hue + (rand() - 0.5) * 30) / 360;
-      const sat = palette.sat[0] + rand() * (palette.sat[1] - palette.sat[0]);
-      const lightness = palette.light[0] + rand() * (palette.light[1] - palette.light[0]);
-      cols.push(new THREE.Color().setHSL(hue, sat, lightness));
-      if (b.hasRooftop) rtCount++;
-    }
-    return { baseColors: cols, rooftopCount: rtCount };
+    return BUILDING_DATA.map(b => getBuildingColor(b.type, rand));
   }, []);
 
+  // Initialize building instances
   useEffect(() => {
     if (!meshRef.current) return;
     BUILDING_DATA.forEach((b, i) => {
@@ -117,95 +140,91 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
 
-    // Multi-level window planes
+    // Window planes: 2 rows per building
     if (windowMeshRef.current) {
-      BUILDING_DATA.forEach((b, i) => {
-        // Window at 60% height
-        tempObject.position.set(b.wx, b.h * 0.6, b.wz + b.d / 2 + 0.01);
-        tempObject.scale.set(b.w * 0.8, b.h * 0.15, 0.05);
-        tempObject.updateMatrix();
-        windowMeshRef.current!.setMatrixAt(i, tempObject.matrix);
+      let wIdx = 0;
+      BUILDING_DATA.forEach((b) => {
+        for (let row = 0; row < 2; row++) {
+          const yPos = b.h * (0.35 + row * 0.3);
+          // Front face
+          tempObject.position.set(b.wx, yPos, b.wz + b.d / 2 + 0.02);
+          tempObject.scale.set(b.w * 0.85, b.h * 0.08, 0.01);
+          tempObject.rotation.set(0, 0, 0);
+          tempObject.updateMatrix();
+          if (wIdx < BUILDING_DATA.length * 2) {
+            windowMeshRef.current!.setMatrixAt(wIdx, tempObject.matrix);
+            wIdx++;
+          }
+        }
       });
       windowMeshRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    // Rooftop details (antenna/AC boxes)
-    if (rooftopMeshRef.current) {
-      let rtIdx = 0;
-      BUILDING_DATA.forEach((b) => {
-        if (b.hasRooftop) {
-          tempObject.position.set(b.wx, b.h + 0.2, b.wz);
-          tempObject.scale.set(0.3, 0.4, 0.3);
-          tempObject.updateMatrix();
-          rooftopMeshRef.current!.setMatrixAt(rtIdx, tempObject.matrix);
-          rtIdx++;
-        }
-      });
-      rooftopMeshRef.current.instanceMatrix.needsUpdate = true;
-    }
-
-    // Initialize rubble
-    if (rubbleMeshRef.current) {
-      for (let i = 0; i < BUILDING_DATA.length; i++) {
+    // Init debris instances off-screen
+    if (debrisInstanceRef.current) {
+      for (let i = 0; i < MAX_DEBRIS; i++) {
         tempObject.position.set(0, -100, 0);
         tempObject.scale.set(0, 0, 0);
         tempObject.updateMatrix();
-        rubbleMeshRef.current.setMatrixAt(i, tempObject.matrix);
+        debrisInstanceRef.current.setMatrixAt(i, tempObject.matrix);
       }
-      rubbleMeshRef.current.instanceMatrix.needsUpdate = true;
+      debrisInstanceRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    if (lightPoleRef.current) {
-      STREETLIGHT_DATA.forEach((l, i) => {
-        tempObject.position.set(l.wx, 1.5, l.wz);
-        tempObject.scale.set(0.08, 3, 0.08);
+    // Init smoke instances off-screen
+    if (smokeInstanceRef.current) {
+      for (let i = 0; i < MAX_SMOKE; i++) {
+        tempObject.position.set(0, -100, 0);
+        tempObject.scale.set(0, 0, 0);
         tempObject.updateMatrix();
-        lightPoleRef.current!.setMatrixAt(i, tempObject.matrix);
-      });
-      lightPoleRef.current.instanceMatrix.needsUpdate = true;
+        smokeInstanceRef.current.setMatrixAt(i, tempObject.matrix);
+      }
+      smokeInstanceRef.current.instanceMatrix.needsUpdate = true;
     }
-
-    if (lightGlowRef.current) {
-      STREETLIGHT_DATA.forEach((l, i) => {
-        tempObject.position.set(l.wx, 3.2, l.wz);
-        tempObject.scale.set(0.3, 0.3, 0.3);
-        tempObject.updateMatrix();
-        lightGlowRef.current!.setMatrixAt(i, tempObject.matrix);
-      });
-      lightGlowRef.current.instanceMatrix.needsUpdate = true;
-    }
-
-    initialized.current = true;
   }, [baseColors]);
 
-  useFrame(() => {
-    if (!meshRef.current || !initialized.current || !stateRef) return;
+  useFrame((_, delta) => {
+    if (!meshRef.current || !stateRef) return;
     const state = stateRef.current;
     if (!state.buildings || state.buildings.length === 0) return;
 
     let needsUpdate = false;
-    let rubbleNeedsUpdate = false;
+
     for (let i = 0; i < state.buildings.length && i < BUILDING_DATA.length; i++) {
       const bs = state.buildings[i];
       const b = BUILDING_DATA[i];
+
       if (bs.isDestroyed) {
+        // Spawn debris when newly destroyed
+        if (!prevDestroyedRef.current.has(i)) {
+          prevDestroyedRef.current.add(i);
+          // Spawn 10 debris particles
+          for (let d = 0; d < 10; d++) {
+            const angle = (d / 10) * Math.PI * 2 + Math.random() * 0.5;
+            const speed = 3 + Math.random() * 5;
+            debrisRef.current.push({
+              pos: new THREE.Vector3(b.wx + (Math.random() - 0.5) * b.w, b.h * 0.5, b.wz + (Math.random() - 0.5) * b.d),
+              vel: new THREE.Vector3(Math.cos(angle) * speed, 4 + Math.random() * 6, Math.sin(angle) * speed),
+              life: 2.0, maxLife: 2.0,
+            });
+          }
+          // Spawn smoke
+          for (let s = 0; s < 3; s++) {
+            smokeRef.current.push({
+              pos: new THREE.Vector3(b.wx + (Math.random() - 0.5) * 1, 0.5, b.wz + (Math.random() - 0.5) * 1),
+              life: 4.0, maxLife: 4.0, scale: 0.5,
+            });
+          }
+        }
+
+        // Flatten destroyed building
         tempObject.position.set(b.wx, 0.05, b.wz);
-        tempObject.scale.set(b.w, 0.1, b.d);
+        tempObject.scale.set(b.w * 1.1, 0.1, b.d * 1.1);
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
-        tempColor.set('#1a1008');
+        tempColor.set('#1a0f05');
         meshRef.current!.setColorAt(i, tempColor);
         needsUpdate = true;
-
-        if (rubbleMeshRef.current) {
-          tempObject.position.set(b.wx, 0.15, b.wz);
-          tempObject.scale.set(b.w * 1.2, 0.3, b.d * 1.2);
-          tempObject.updateMatrix();
-          rubbleMeshRef.current.setMatrixAt(i, tempObject.matrix);
-          tempColor.set('#2a1a0a');
-          rubbleMeshRef.current.setColorAt(i, tempColor);
-          rubbleNeedsUpdate = true;
-        }
       } else if (bs.hp < bs.maxHp) {
         const ratio = bs.hp / bs.maxHp;
         const h = b.h * (0.3 + ratio * 0.7);
@@ -216,70 +235,168 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
         tempColor.copy(baseColors[i]).lerp(new THREE.Color('#331100'), 1 - ratio);
         meshRef.current!.setColorAt(i, tempColor);
         needsUpdate = true;
+
+        // Add smoke for damaged buildings
+        if (ratio < 0.5 && Math.random() < delta * 0.5) {
+          if (smokeRef.current.length < MAX_SMOKE) {
+            smokeRef.current.push({
+              pos: new THREE.Vector3(b.wx, h, b.wz),
+              life: 3.0, maxLife: 3.0, scale: 0.3,
+            });
+          }
+        }
       }
     }
+
     if (needsUpdate) {
       meshRef.current.instanceMatrix.needsUpdate = true;
       if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
     }
-    if (rubbleNeedsUpdate && rubbleMeshRef.current) {
-      rubbleMeshRef.current.instanceMatrix.needsUpdate = true;
-      if (rubbleMeshRef.current.instanceColor) rubbleMeshRef.current.instanceColor.needsUpdate = true;
+
+    // Update debris particles
+    if (debrisInstanceRef.current) {
+      const debris = debrisRef.current;
+      // Remove dead
+      for (let i = debris.length - 1; i >= 0; i--) {
+        debris[i].life -= delta;
+        if (debris[i].life <= 0) debris.splice(i, 1);
+      }
+      // Limit
+      while (debris.length > MAX_DEBRIS) debris.shift();
+
+      for (let i = 0; i < MAX_DEBRIS; i++) {
+        if (i < debris.length) {
+          const d = debris[i];
+          d.vel.y -= 15 * delta; // gravity
+          d.pos.addScaledVector(d.vel, delta);
+          if (d.pos.y < 0.1) { d.pos.y = 0.1; d.vel.y *= -0.3; d.vel.x *= 0.8; d.vel.z *= 0.8; }
+          const s = 0.15 + (d.life / d.maxLife) * 0.2;
+          tempObject.position.copy(d.pos);
+          tempObject.scale.set(s, s * 0.7, s);
+          tempObject.rotation.set(d.life * 8, d.life * 5, d.life * 3);
+          tempObject.updateMatrix();
+          debrisInstanceRef.current.setMatrixAt(i, tempObject.matrix);
+          tempColor.setHSL(30 / 360, 0.2, 0.1 + (1 - d.life / d.maxLife) * 0.05);
+          debrisInstanceRef.current.setColorAt(i, tempColor);
+        } else {
+          tempObject.position.set(0, -100, 0);
+          tempObject.scale.set(0, 0, 0);
+          tempObject.updateMatrix();
+          debrisInstanceRef.current.setMatrixAt(i, tempObject.matrix);
+        }
+      }
+      debrisInstanceRef.current.instanceMatrix.needsUpdate = true;
+      if (debrisInstanceRef.current.instanceColor) debrisInstanceRef.current.instanceColor.needsUpdate = true;
     }
 
-    // Update window emissive based on night
+    // Update smoke particles
+    if (smokeInstanceRef.current) {
+      const smokes = smokeRef.current;
+      for (let i = smokes.length - 1; i >= 0; i--) {
+        smokes[i].life -= delta;
+        if (smokes[i].life <= 0) smokes.splice(i, 1);
+      }
+      while (smokes.length > MAX_SMOKE) smokes.shift();
+
+      for (let i = 0; i < MAX_SMOKE; i++) {
+        if (i < smokes.length) {
+          const s = smokes[i];
+          s.pos.y += delta * 2;
+          s.pos.x += (Math.random() - 0.5) * delta * 0.5;
+          s.scale += delta * 0.8;
+          const alpha = s.life / s.maxLife;
+          tempObject.position.copy(s.pos);
+          tempObject.scale.set(s.scale, s.scale, s.scale);
+          tempObject.updateMatrix();
+          smokeInstanceRef.current.setMatrixAt(i, tempObject.matrix);
+        } else {
+          tempObject.position.set(0, -100, 0);
+          tempObject.scale.set(0, 0, 0);
+          tempObject.updateMatrix();
+          smokeInstanceRef.current.setMatrixAt(i, tempObject.matrix);
+        }
+      }
+      smokeInstanceRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Window emissive
     if (windowMeshRef.current) {
       const mat = windowMeshRef.current.material as THREE.MeshStandardMaterial;
       const isNight = state.isNight;
-      mat.emissiveIntensity = isNight ? 1.2 : 0.3;
-      mat.opacity = isNight ? 0.7 : 0.3;
+      mat.emissiveIntensity = isNight ? 1.5 : 0.2;
+      mat.opacity = isNight ? 0.8 : 0.3;
       mat.emissive.set(isNight ? '#ffaa44' : '#88aacc');
     }
+  });
 
-    if (lightGlowRef.current) {
-      const mat = lightGlowRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 2.5 : 0.5;
-      mat.opacity = state.isNight ? 0.9 : 0.3;
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!stateRef || !meshRef.current) return;
+    const instanceId = e.instanceId;
+    if (instanceId === undefined || instanceId >= BUILDING_DATA.length) return;
+    e.stopPropagation();
+
+    const b = BUILDING_DATA[instanceId];
+    const bs = stateRef.current.buildings[instanceId];
+    if (!bs) return;
+
+    setTooltip(prev =>
+      prev?.idx === instanceId ? null :
+      { idx: instanceId, name: b.districtName, hp: bs.hp, maxHp: bs.maxHp }
+    );
+  };
+
+  // Update tooltip HP reactively
+  useFrame(() => {
+    if (tooltip && stateRef) {
+      const bs = stateRef.current.buildings[tooltip.idx];
+      if (bs && (bs.hp !== tooltip.hp)) {
+        setTooltip(t => t ? { ...t, hp: bs.hp } : null);
+      }
     }
   });
 
   return (
     <group>
       {/* Buildings */}
-      <instancedMesh ref={meshRef} args={[undefined, undefined, BUILDING_DATA.length]} castShadow receiveShadow frustumCulled={false}>
+      <instancedMesh
+        ref={meshRef}
+        args={[undefined, undefined, BUILDING_DATA.length]}
+        castShadow receiveShadow frustumCulled={false}
+        onClick={handleClick}
+      >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial metalness={0.3} roughness={0.75} emissive="#443300" emissiveIntensity={0.35} />
+        <meshStandardMaterial metalness={0.35} roughness={0.7} />
       </instancedMesh>
 
-      {/* Window glow layer */}
-      <instancedMesh ref={windowMeshRef} args={[undefined, undefined, BUILDING_DATA.length]} frustumCulled={false}>
+      {/* Window glow rows */}
+      <instancedMesh ref={windowMeshRef} args={[undefined, undefined, BUILDING_DATA.length * 2]} frustumCulled={false}>
         <planeGeometry args={[1, 1]} />
         <meshStandardMaterial color="#000000" emissive="#ffaa44" emissiveIntensity={0.6} transparent opacity={0.4} side={THREE.DoubleSide} />
       </instancedMesh>
 
-      {/* Rooftop details */}
-      <instancedMesh ref={rooftopMeshRef} args={[undefined, undefined, rooftopCount]} frustumCulled={false}>
+      {/* Debris particles */}
+      <instancedMesh ref={debrisInstanceRef} args={[undefined, undefined, MAX_DEBRIS]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#333340" metalness={0.4} roughness={0.7} />
+        <meshStandardMaterial metalness={0.2} roughness={0.9} />
       </instancedMesh>
 
-      {/* Rubble */}
-      <instancedMesh ref={rubbleMeshRef} args={[undefined, undefined, BUILDING_DATA.length]} frustumCulled={false}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#2a1a0a" metalness={0.1} roughness={0.95} emissive="#110800" emissiveIntensity={0.1} />
-      </instancedMesh>
-
-      {/* Streetlight poles */}
-      <instancedMesh ref={lightPoleRef} args={[undefined, undefined, STREETLIGHT_DATA.length]} frustumCulled={false}>
-        <cylinderGeometry args={[1, 1, 1, 4]} />
-        <meshStandardMaterial color="#2a2a30" metalness={0.5} roughness={0.8} />
-      </instancedMesh>
-
-      {/* Streetlight glow */}
-      <instancedMesh ref={lightGlowRef} args={[undefined, undefined, STREETLIGHT_DATA.length]} frustumCulled={false}>
+      {/* Smoke particles */}
+      <instancedMesh ref={smokeInstanceRef} args={[undefined, undefined, MAX_SMOKE]} frustumCulled={false}>
         <sphereGeometry args={[1, 6, 6]} />
-        <meshStandardMaterial color="#ffcc66" emissive="#ffaa33" emissiveIntensity={1.5} transparent opacity={0.8} />
+        <meshBasicMaterial color="#222222" transparent opacity={0.35} />
       </instancedMesh>
+
+      {/* Tooltip billboard */}
+      {tooltip && BUILDING_DATA[tooltip.idx] && (
+        <Billboard position={[BUILDING_DATA[tooltip.idx].wx, BUILDING_DATA[tooltip.idx].h + 1.5, BUILDING_DATA[tooltip.idx].wz]}>
+          <Text fontSize={0.5} color="#ffffff" outlineWidth={0.05} outlineColor="#000000" anchorX="center" anchorY="middle">
+            {tooltip.name}
+          </Text>
+          <Text fontSize={0.35} color={tooltip.hp > tooltip.maxHp * 0.5 ? '#44ff44' : '#ff4444'} position={[0, -0.5, 0]} outlineWidth={0.03} outlineColor="#000000" anchorX="center" anchorY="middle">
+            {`HP: ${tooltip.hp}/${tooltip.maxHp}`}
+          </Text>
+        </Billboard>
+      )}
     </group>
   );
 }
