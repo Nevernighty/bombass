@@ -300,6 +300,12 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         }
       }}
     >
+      {/* Pending station connect ring */}
+      <mesh ref={pendingRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]} visible={false}>
+        <ringGeometry args={[size * 1.8, size * 2.2, 6]} />
+        <meshBasicMaterial color="#9ca3af" transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
+
       {/* Selection ring */}
       <mesh ref={selectRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} visible={false}>
         <ringGeometry args={[size * 1.4, size * 1.7, 24]} />
