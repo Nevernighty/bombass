@@ -3,9 +3,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { GameState } from './types';
-import { updateGame, getActiveLineStations } from './GameEngine';
+import { updateGame, getActiveLineStations, getValidPendingTargets } from './GameEngine';
 import { AudioEngine } from './AudioEngine';
-import { STATIONS, toWorld } from './constants';
+import { STATIONS, toWorld, STATION_MAP } from './constants';
 import { StationNode3D } from './components/StationNode3D';
 import { TrainModel } from './components/TrainModel';
 import { DroneModel } from './components/DroneModel';
@@ -651,6 +651,7 @@ function SceneContent({
       <ExplosionsLayer stateRef={stateRef} />
       <RepairUnitsLayer stateRef={stateRef} />
       <NotificationsLayer stateRef={stateRef} />
+      <DrawingLine stateRef={stateRef} />
     </>
   );
 }
