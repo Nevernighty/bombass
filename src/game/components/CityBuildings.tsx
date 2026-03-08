@@ -4,6 +4,7 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { STATIONS, toWorld } from '../constants';
 import { GameState } from '../types';
+import { repairBuilding } from '../GameEngine';
 
 const BUILDINGS_PER_STATION = 3;
 const tempObject = new THREE.Object3D();
@@ -49,7 +50,6 @@ export function generateBuildingData(): BuildingDef[] {
   const rand = makeRng(42);
   const buildings: BuildingDef[] = [];
 
-  // Select ~15 stations spread across the map for building clusters
   const stationSubset = STATIONS.filter((_, i) => i % 3 === 0 || STATIONS[i].isTransfer);
 
   for (const station of stationSubset) {
@@ -62,7 +62,6 @@ export function generateBuildingData(): BuildingDef[] {
       const wx = sx + Math.cos(angle) * dist;
       const wz = sz + Math.sin(angle) * dist;
 
-      // Building type
       const roll = rand();
       let type: 'tower' | 'apartment' | 'commercial';
       let h: number, w: number, d: number;
@@ -90,7 +89,6 @@ export function generateBuildingData(): BuildingDef[] {
 
 const BUILDING_DATA = generateBuildingData();
 
-// Color palette per building type
 function getBuildingColor(type: string, rand: () => number): THREE.Color {
   if (type === 'tower') {
     return new THREE.Color().setHSL(210 / 360, 0.08 + rand() * 0.1, 0.15 + rand() * 0.08);
@@ -102,24 +100,23 @@ function getBuildingColor(type: string, rand: () => number): THREE.Color {
 
 interface CityBuildingsProps {
   stateRef?: React.MutableRefObject<GameState>;
+  onRepairBuilding?: (idx: number) => void;
 }
 
-export function CityBuildings({ stateRef }: CityBuildingsProps) {
+export function CityBuildings({ stateRef, onRepairBuilding }: CityBuildingsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const windowMeshRef = useRef<THREE.InstancedMesh>(null);
-  const [tooltip, setTooltip] = useState<{ idx: number; name: string; hp: number; maxHp: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ idx: number; name: string; hp: number; maxHp: number; isDestroyed: boolean } | null>(null);
+  const hoveredIdxRef = useRef<number | null>(null);
 
-  // Debris particles
   const debrisRef = useRef<DebrisParticle[]>([]);
   const debrisInstanceRef = useRef<THREE.InstancedMesh>(null);
   const MAX_DEBRIS = 80;
 
-  // Smoke particles
   const smokeRef = useRef<SmokeParticle[]>([]);
   const smokeInstanceRef = useRef<THREE.InstancedMesh>(null);
   const MAX_SMOKE = 30;
 
-  // Track previous destroy state
   const prevDestroyedRef = useRef<Set<number>>(new Set());
 
   const baseColors = useMemo(() => {
@@ -127,7 +124,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     return BUILDING_DATA.map(b => getBuildingColor(b.type, rand));
   }, []);
 
-  // Initialize building instances
   useEffect(() => {
     if (!meshRef.current) return;
     BUILDING_DATA.forEach((b, i) => {
@@ -140,13 +136,11 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
 
-    // Window planes: 2 rows per building
     if (windowMeshRef.current) {
       let wIdx = 0;
       BUILDING_DATA.forEach((b) => {
         for (let row = 0; row < 2; row++) {
           const yPos = b.h * (0.35 + row * 0.3);
-          // Front face
           tempObject.position.set(b.wx, yPos, b.wz + b.d / 2 + 0.02);
           tempObject.scale.set(b.w * 0.85, b.h * 0.08, 0.01);
           tempObject.rotation.set(0, 0, 0);
@@ -160,7 +154,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       windowMeshRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    // Init debris instances off-screen
     if (debrisInstanceRef.current) {
       for (let i = 0; i < MAX_DEBRIS; i++) {
         tempObject.position.set(0, -100, 0);
@@ -171,7 +164,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       debrisInstanceRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    // Init smoke instances off-screen
     if (smokeInstanceRef.current) {
       for (let i = 0; i < MAX_SMOKE; i++) {
         tempObject.position.set(0, -100, 0);
@@ -193,12 +185,11 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     for (let i = 0; i < state.buildings.length && i < BUILDING_DATA.length; i++) {
       const bs = state.buildings[i];
       const b = BUILDING_DATA[i];
+      const isHovered = hoveredIdxRef.current === i;
 
       if (bs.isDestroyed) {
-        // Spawn debris when newly destroyed
         if (!prevDestroyedRef.current.has(i)) {
           prevDestroyedRef.current.add(i);
-          // Spawn 10 debris particles
           for (let d = 0; d < 10; d++) {
             const angle = (d / 10) * Math.PI * 2 + Math.random() * 0.5;
             const speed = 3 + Math.random() * 5;
@@ -208,7 +199,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
               life: 2.0, maxLife: 2.0,
             });
           }
-          // Spawn smoke
           for (let s = 0; s < 3; s++) {
             smokeRef.current.push({
               pos: new THREE.Vector3(b.wx + (Math.random() - 0.5) * 1, 0.5, b.wz + (Math.random() - 0.5) * 1),
@@ -217,7 +207,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
           }
         }
 
-        // Flatten destroyed building
         tempObject.position.set(b.wx, 0.05, b.wz);
         tempObject.scale.set(b.w * 1.1, 0.1, b.d * 1.1);
         tempObject.updateMatrix();
@@ -233,10 +222,10 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
         tempObject.updateMatrix();
         meshRef.current!.setMatrixAt(i, tempObject.matrix);
         tempColor.copy(baseColors[i]).lerp(new THREE.Color('#331100'), 1 - ratio);
+        if (isHovered) tempColor.lerp(new THREE.Color('#ffffff'), 0.15);
         meshRef.current!.setColorAt(i, tempColor);
         needsUpdate = true;
 
-        // Add smoke for damaged buildings
         if (ratio < 0.5 && Math.random() < delta * 0.5) {
           if (smokeRef.current.length < MAX_SMOKE) {
             smokeRef.current.push({
@@ -245,6 +234,10 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
             });
           }
         }
+      } else if (isHovered) {
+        tempColor.copy(baseColors[i]).lerp(new THREE.Color('#ffffff'), 0.12);
+        meshRef.current!.setColorAt(i, tempColor);
+        needsUpdate = true;
       }
     }
 
@@ -253,21 +246,19 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
     }
 
-    // Update debris particles
+    // Debris particles
     if (debrisInstanceRef.current) {
       const debris = debrisRef.current;
-      // Remove dead
       for (let i = debris.length - 1; i >= 0; i--) {
         debris[i].life -= delta;
         if (debris[i].life <= 0) debris.splice(i, 1);
       }
-      // Limit
       while (debris.length > MAX_DEBRIS) debris.shift();
 
       for (let i = 0; i < MAX_DEBRIS; i++) {
         if (i < debris.length) {
           const d = debris[i];
-          d.vel.y -= 15 * delta; // gravity
+          d.vel.y -= 15 * delta;
           d.pos.addScaledVector(d.vel, delta);
           if (d.pos.y < 0.1) { d.pos.y = 0.1; d.vel.y *= -0.3; d.vel.x *= 0.8; d.vel.z *= 0.8; }
           const s = 0.15 + (d.life / d.maxLife) * 0.2;
@@ -289,7 +280,7 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
       if (debrisInstanceRef.current.instanceColor) debrisInstanceRef.current.instanceColor.needsUpdate = true;
     }
 
-    // Update smoke particles
+    // Smoke particles
     if (smokeInstanceRef.current) {
       const smokes = smokeRef.current;
       for (let i = smokes.length - 1; i >= 0; i--) {
@@ -304,7 +295,6 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
           s.pos.y += delta * 2;
           s.pos.x += (Math.random() - 0.5) * delta * 0.5;
           s.scale += delta * 0.8;
-          const alpha = s.life / s.maxLife;
           tempObject.position.copy(s.pos);
           tempObject.scale.set(s.scale, s.scale, s.scale);
           tempObject.updateMatrix();
@@ -339,10 +329,42 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     const bs = stateRef.current.buildings[instanceId];
     if (!bs) return;
 
+    // If damaged, try repair
+    if (bs.hp < bs.maxHp && !bs.isDestroyed && stateRef) {
+      stateRef.current = repairBuilding({ ...stateRef.current }, instanceId);
+    }
+
     setTooltip(prev =>
       prev?.idx === instanceId ? null :
-      { idx: instanceId, name: b.districtName, hp: bs.hp, maxHp: bs.maxHp }
+      { idx: instanceId, name: b.districtName, hp: bs.hp, maxHp: bs.maxHp, isDestroyed: bs.isDestroyed }
     );
+  };
+
+  const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
+    const instanceId = e.instanceId;
+    if (instanceId !== undefined && instanceId < BUILDING_DATA.length) {
+      hoveredIdxRef.current = instanceId;
+      document.body.style.cursor = 'pointer';
+
+      const b = BUILDING_DATA[instanceId];
+      const bs = stateRef?.current.buildings[instanceId];
+      if (bs && stateRef) {
+        stateRef.current.hoveredElement = {
+          type: 'building',
+          id: String(instanceId),
+          name: b.districtName,
+          details: bs.isDestroyed ? 'Зруйновано' : `HP: ${bs.hp}/${bs.maxHp}`,
+        };
+      }
+    }
+  };
+
+  const handlePointerOut = () => {
+    hoveredIdxRef.current = null;
+    document.body.style.cursor = 'default';
+    if (stateRef && stateRef.current.hoveredElement?.type === 'building') {
+      stateRef.current.hoveredElement = null;
+    }
   };
 
   // Update tooltip HP reactively
@@ -350,26 +372,29 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
     if (tooltip && stateRef) {
       const bs = stateRef.current.buildings[tooltip.idx];
       if (bs && (bs.hp !== tooltip.hp)) {
-        setTooltip(t => t ? { ...t, hp: bs.hp } : null);
+        setTooltip(t => t ? { ...t, hp: bs.hp, isDestroyed: bs.isDestroyed } : null);
       }
     }
   });
 
   return (
     <group>
-      {/* Buildings */}
+      {/* Buildings — render below metro lines */}
       <instancedMesh
         ref={meshRef}
         args={[undefined, undefined, BUILDING_DATA.length]}
         castShadow receiveShadow frustumCulled={false}
+        renderOrder={5}
         onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial metalness={0.35} roughness={0.7} />
+        <meshStandardMaterial metalness={0.35} roughness={0.7} transparent opacity={0.85} />
       </instancedMesh>
 
       {/* Window glow rows */}
-      <instancedMesh ref={windowMeshRef} args={[undefined, undefined, BUILDING_DATA.length * 2]} frustumCulled={false}>
+      <instancedMesh ref={windowMeshRef} args={[undefined, undefined, BUILDING_DATA.length * 2]} frustumCulled={false} renderOrder={5}>
         <planeGeometry args={[1, 1]} />
         <meshStandardMaterial color="#000000" emissive="#ffaa44" emissiveIntensity={0.6} transparent opacity={0.4} side={THREE.DoubleSide} />
       </instancedMesh>
@@ -392,9 +417,14 @@ export function CityBuildings({ stateRef }: CityBuildingsProps) {
           <Text fontSize={0.5} color="#ffffff" outlineWidth={0.05} outlineColor="#000000" anchorX="center" anchorY="middle">
             {tooltip.name}
           </Text>
-          <Text fontSize={0.35} color={tooltip.hp > tooltip.maxHp * 0.5 ? '#44ff44' : '#ff4444'} position={[0, -0.5, 0]} outlineWidth={0.03} outlineColor="#000000" anchorX="center" anchorY="middle">
-            {`HP: ${tooltip.hp}/${tooltip.maxHp}`}
+          <Text fontSize={0.35} color={tooltip.isDestroyed ? '#888888' : tooltip.hp > tooltip.maxHp * 0.5 ? '#44ff44' : '#ff4444'} position={[0, -0.5, 0]} outlineWidth={0.03} outlineColor="#000000" anchorX="center" anchorY="middle">
+            {tooltip.isDestroyed ? 'Зруйновано' : `HP: ${tooltip.hp}/${tooltip.maxHp}`}
           </Text>
+          {!tooltip.isDestroyed && tooltip.hp < tooltip.maxHp && (
+            <Text fontSize={0.3} color="#4ade80" position={[0, -0.9, 0]} outlineWidth={0.03} outlineColor="#000000" anchorX="center" anchorY="middle">
+              Клік = Ремонт $10
+            </Text>
+          )}
         </Billboard>
       )}
     </group>

@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, globalEventBus } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, globalEventBus } from './GameEngine';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
@@ -534,6 +534,71 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             passiveIncome={state.activeStationIds.length}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
+
+          {/* Event Ticker — scrolling recent events */}
+          {state.eventLog.length > 0 && (
+            <div className="absolute top-11 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ maxWidth: '500px' }}>
+              <div className="flex gap-4 animate-marquee text-[11px] font-bold whitespace-nowrap" style={{ color: 'hsl(var(--game-accent))' }}>
+                {state.eventLog.slice(-5).map((e, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded" style={{ background: 'rgba(8,12,24,0.8)' }}>
+                    {e}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active Events indicators */}
+          {state.activeEvents.length > 0 && (
+            <div className="absolute top-14 left-4 flex flex-col gap-1 pointer-events-none">
+              {state.activeEvents.map(ev => (
+                <div key={ev.id} className="text-[11px] font-bold px-3 py-1 rounded-lg animate-pulse"
+                  style={{
+                    background: ev.type === 'rush_surge' ? 'rgba(245,158,11,0.85)' :
+                      ev.type === 'vip_passenger' ? 'rgba(251,191,36,0.85)' :
+                      ev.type === 'power_flicker' ? 'rgba(99,102,241,0.85)' :
+                      'rgba(239,68,68,0.85)',
+                    color: ev.type === 'rush_surge' || ev.type === 'vip_passenger' ? '#1a1a2e' : '#fff',
+                  }}>
+                  {ev.type === 'rush_surge' && '🚇 Хвиля пасажирів'}
+                  {ev.type === 'vip_passenger' && '⭐ VIP пасажир'}
+                  {ev.type === 'power_flicker' && '⚡ Коливання'}
+                  {ev.type === 'emergency_evac' && '🚨 Евакуація'}
+                  <span className="ml-2 font-mono text-[10px]">{Math.ceil(ev.timer / 1000)}с</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Hover Tooltip — follows elements */}
+          {state.hoveredElement && (
+            <div className="absolute top-16 right-4 pointer-events-none z-50 animate-in fade-in-0 duration-100"
+              style={{ minWidth: '180px' }}>
+              <div className="rounded-lg px-3 py-2 backdrop-blur-md"
+                style={{
+                  background: 'rgba(8, 12, 24, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+                }}>
+                <div className="text-[12px] font-bold" style={{
+                  color: state.hoveredElement.type === 'station' ? '#e0e0e0' :
+                    state.hoveredElement.type === 'train' ? '#fbbf24' :
+                    state.hoveredElement.type === 'building' ? '#94a3b8' : '#ef4444',
+                }}>
+                  {state.hoveredElement.type === 'station' && '📍 '}
+                  {state.hoveredElement.type === 'train' && '🚇 '}
+                  {state.hoveredElement.type === 'building' && '🏢 '}
+                  {state.hoveredElement.type === 'drone' && '🎯 '}
+                  {state.hoveredElement.name || state.hoveredElement.id}
+                </div>
+                {state.hoveredElement.details && (
+                  <div className="text-[10px] mt-0.5" style={{ color: 'rgba(180,190,210,0.8)' }}>
+                    {state.hoveredElement.details}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {state.isAirRaid && (
             <div className="absolute top-14 left-1/2 -translate-x-1/2 text-white px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
