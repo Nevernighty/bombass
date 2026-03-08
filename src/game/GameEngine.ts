@@ -1,5 +1,5 @@
 import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement } from './types';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
@@ -959,6 +959,7 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateRushHour(s, realDt);
   updateComboRewards(s);
   updatePhase5Timers(s, realDt);
+  updatePhase6Systems(s, realDt, globalEventBus);
   updateAchievements(s);
   updateWinConditions(s);
   updatePhysics(s, realDt);
