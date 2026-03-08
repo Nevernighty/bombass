@@ -412,66 +412,117 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* START SCREEN */}
       {!state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{
-          background: 'hsla(var(--game-bg), 0.96)',
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden" style={{
+          background: 'hsla(var(--game-bg), 0.98)',
         }}>
-          <div className="text-center p-8 rounded-xl max-w-2xl w-full mx-4 game-panel">
-            <h1 className="text-5xl font-bold mb-1 tracking-tight" style={{ color: 'hsl(var(--foreground))' }}>
-              {'KYIV TRANSIT'.split('').map((ch, i) => (
-                <span key={i} className="inline-block" style={{
-                  animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
-                }}>
-                  {ch === ' ' ? '\u00A0' : ch}
-                </span>
-              ))}
-            </h1>
-            <p className="text-lg mb-6 font-bold tracking-[0.3em]" style={{
-              color: 'hsl(var(--game-accent))',
-              animation: 'title-letter 0.5s ease-out 0.5s both',
-            }}>RESILIENCE</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-              {(Object.values(SCENARIOS)).map((sc, idx) => (
-                <button key={sc.id} onClick={() => startGame(sc.id)}
-                  className="game-btn-hover p-4 rounded-lg text-left transition-all hover:border-[hsl(var(--game-accent))]/40"
-                  style={{
-                    background: 'hsla(var(--muted), 0.3)',
-                    border: '1px solid hsl(var(--border))',
-                    animation: `mode-card-in 0.4s ease-out ${0.6 + idx * 0.08}s both`,
+          {/* Animated background grid */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            backgroundImage: 'radial-gradient(circle at 25% 25%, hsla(var(--game-accent), 0.03) 0%, transparent 50%), radial-gradient(circle at 75% 75%, hsla(var(--game-blue), 0.03) 0%, transparent 50%)',
+            animation: 'bg-gradient-pulse 8s ease-in-out infinite',
+            backgroundSize: '200% 200%',
+          }} />
+          {/* Subtle metro line decoration */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.04]" style={{
+            backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 40px, hsl(var(--game-accent)) 40px, hsl(var(--game-accent)) 41px)`,
+          }} />
+
+          <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6">
+            {/* Title */}
+            <div className="text-center mb-8">
+              <h1 className="text-6xl font-black mb-1 tracking-tighter" style={{ color: 'hsl(var(--foreground))' }}>
+                {'KYIV TRANSIT'.split('').map((ch, i) => (
+                  <span key={i} className="inline-block" style={{
+                    animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
                   }}>
-                  <p className="text-sm font-bold mb-1" style={{ color: 'hsl(var(--foreground))' }}>{sc.nameUa}</p>
-                  <p className="text-[11px] leading-tight mb-2" style={{ color: 'hsl(var(--muted-foreground))' }}>{sc.descriptionUa}</p>
-                  <div className="h-1 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${(sc.difficulty / 5) * 100}%`,
-                      background: sc.difficulty <= 2 ? 'hsl(145, 63%, 49%)' : sc.difficulty <= 3 ? 'hsl(var(--game-accent))' : 'hsl(var(--destructive))',
-                    }} />
-                  </div>
-                  {sc.id === 'classic' && (
-                    <span className="block text-[10px] font-bold mt-2 tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>
-                      ▶ ГРАТИ
-                    </span>
-                  )}
-                </button>
-              ))}
+                    {ch === ' ' ? '\u00A0' : ch}
+                  </span>
+                ))}
+              </h1>
+              <p className="text-xl font-black tracking-[0.5em] mb-3" style={{
+                color: 'hsl(var(--game-accent))',
+                animation: 'title-letter 0.5s ease-out 0.5s both',
+              }}>RESILIENCE</p>
+              <p className="text-[13px] max-w-md mx-auto" style={{
+                color: 'hsl(var(--game-muted))',
+                animation: 'title-letter 0.5s ease-out 0.7s both',
+              }}>
+                Керуй метро Києва під ворожими атаками. Будуй оборону, перевози пасажирів, захисти місто.
+              </p>
             </div>
 
-            <div className="mb-4 p-3 rounded-lg text-left" style={{
-              background: 'hsla(var(--muted), 0.2)',
-              border: '1px solid hsl(var(--border))',
-              animation: 'title-letter 0.4s ease-out 1s both',
+            {/* Scenario cards */}
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+              {Object.values(SCENARIOS).map((sc, idx) => {
+                const diffColors = ['', 'hsl(var(--game-green))', 'hsl(var(--game-green))', 'hsl(var(--game-accent))', 'hsl(var(--destructive))', 'hsl(var(--destructive))'];
+                const diffColor = diffColors[sc.difficulty] || 'hsl(var(--game-muted))';
+                const isClassic = sc.id === 'classic';
+                return (
+                  <button key={sc.id} onClick={() => startGame(sc.id)}
+                    className="game-btn-hover relative p-5 rounded-xl text-left transition-all group"
+                    style={{
+                      background: isClassic ? 'hsla(var(--game-accent), 0.06)' : 'hsla(var(--game-glass), 0.5)',
+                      border: isClassic ? '1px solid hsla(var(--game-accent), 0.25)' : '1px solid hsla(var(--game-glass-border), 0.4)',
+                      animation: `mode-card-in 0.4s ease-out ${0.8 + idx * 0.1}s both`,
+                    }}>
+                    {isClassic && (
+                      <span className="absolute -top-2 right-3 text-[9px] font-black px-2 py-0.5 rounded-full tracking-wider"
+                        style={{ background: 'hsl(var(--game-accent))', color: 'hsl(var(--game-bg))' }}>
+                        РЕКОМЕНД.
+                      </span>
+                    )}
+                    <div className="flex items-start gap-3 mb-3">
+                      <span className="text-2xl">{sc.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{sc.nameUa}</p>
+                        <p className="text-[10px] leading-snug" style={{ color: 'hsl(var(--game-muted))' }}>{sc.descriptionUa}</p>
+                      </div>
+                    </div>
+                    {/* Difficulty stars */}
+                    <div className="flex items-center gap-1 mb-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <span key={i} className="text-[11px]" style={{
+                          color: i < sc.difficulty ? diffColor : 'hsla(var(--game-muted), 0.3)',
+                        }}>★</span>
+                      ))}
+                      <span className="text-[9px] ml-1 font-bold" style={{ color: diffColor }}>
+                        {sc.difficulty <= 2 ? 'Легко' : sc.difficulty === 3 ? 'Середньо' : sc.difficulty === 4 ? 'Складно' : 'Хардкор'}
+                      </span>
+                    </div>
+                    {/* Win condition */}
+                    {sc.winCondition && (
+                      <p className="text-[9px] font-mono" style={{ color: 'hsla(var(--game-muted), 0.7)' }}>
+                        🎯 {sc.winCondition.type === 'passengers' ? `${sc.winCondition.target} пас.` :
+                             sc.winCondition.type === 'survive' ? `Вижити ${sc.winCondition.target / 60000} хв` :
+                             `Захист ${sc.winCondition.target / 60000} хв`}
+                        {sc.timeLimit ? ` · ⏱ ${sc.timeLimit / 60000} хв` : ' · ∞'}
+                      </p>
+                    )}
+                    {!sc.winCondition && (
+                      <p className="text-[9px] font-mono" style={{ color: 'hsla(var(--game-muted), 0.7)' }}>
+                        ∞ Нескінченний режим
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Controls */}
+            <div className="w-full p-3 rounded-xl text-center" style={{
+              background: 'hsla(var(--game-glass), 0.3)',
+              border: '1px solid hsla(var(--game-glass-border), 0.2)',
+              animation: 'title-letter 0.4s ease-out 1.4s both',
             }}>
-              <p className="text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Як грати</p>
-              <div className="grid grid-cols-2 gap-2 text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
-                <p>🚇 Купуй потяги M1/M2/M3 для перевезення пасажирів</p>
-                <p>🏗️ Клікай по станціях для апгрейдів та оборони</p>
-                <p>🎯 Клікай по дронах щоб збивати їх</p>
-                <p>🛡️ Пережий повітряні тривоги та достав пасажирів</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] font-mono" style={{ color: 'hsl(var(--game-muted))' }}>
+                <p>WASD — рух камери</p>
+                <p>Колесо — зум</p>
+                <p>ПКМ — обертання</p>
+                <p>Клік — взаємодія</p>
+                <p>Пробіл — пауза</p>
+                <p>1-4 — швидкість гри</p>
+                <p>Q/E/R/T — швидкі дії</p>
+                <p>F/O/C — режими камери</p>
               </div>
-            </div>
-
-            <div className="text-[11px] space-y-0.5 font-mono" style={{ color: 'hsl(var(--muted-foreground))', animation: 'title-letter 0.4s ease-out 1.2s both' }}>
-              <p>WASD рух · Колесо зум · ПКМ обертання · Клік по дрону</p>
-              <p>Пробіл пауза · 1-4 швидкість · F/O/C камера · Q/E/R/T дії</p>
             </div>
           </div>
         </div>
