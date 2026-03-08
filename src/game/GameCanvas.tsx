@@ -565,9 +565,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               {state.activeEvents.map(ev => {
                 const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
                   rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
-                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир' },
+                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!' },
                   power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
                   emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
+                  power_surge: { bg: 'rgba(34,197,94,0.9)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!' },
                 };
                 const c = configs[ev.type] || configs.rush_surge;
                 const timerPct = Math.min(100, (ev.timer / 15000) * 100);
