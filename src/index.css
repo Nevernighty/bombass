@@ -109,6 +109,14 @@
   .text-game-bg {
     color: hsl(var(--game-bg));
   }
+
+  .game-panel {
+    background: hsla(var(--game-glass), 0.9);
+    border: 1px solid hsla(var(--game-glass-border), 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
 }
 
 /* ====== Phase 8 Animations ====== */

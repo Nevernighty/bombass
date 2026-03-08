@@ -546,7 +546,7 @@ function GroundPlane({ isNight }: { isNight: boolean }) {
         <planeGeometry args={[30, 130]} />
         <meshStandardMaterial color={isNight ? '#0c1230' : '#0e1428'} transparent opacity={0.5} />
       </mesh>
-      <gridHelper args={[160, 32, '#121a30', '#121a30']} position={[0, 0.01, 0]} />
+      {/* Grid removed for cleaner look */}
     </>
   );
 }
@@ -557,7 +557,7 @@ function SceneContent({
 }: SceneContentProps) {
   const state = stateRef.current;
 
-  const ambientIntensity = state.isNight ? 0.4 : 0.5;
+  const ambientIntensity = state.isNight ? 0.35 : 0.45;
   const ambientColor = state.isNight ? '#4455aa' : '#e8e8ff';
   const dirIntensity = state.isNight ? 0.35 : 0.7;
   const dirColor = state.isNight ? '#6688cc' : '#ffffee';
@@ -573,7 +573,7 @@ function SceneContent({
       <CameraController stateRef={stateRef} />
       <GameLoop stateRef={stateRef} audioRef={audioRef} onStateChange={onStateChange} />
 
-      <fog attach="fog" args={[fogColor, 80, 200]} />
+      <fog attach="fog" args={[fogColor, 60, 150]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
       <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />

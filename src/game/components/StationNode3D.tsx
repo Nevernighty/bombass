@@ -215,7 +215,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     }
   });
 
-  const size = 2.0;
+  const size = 2.5;
 
   return (
     <group
@@ -243,9 +243,9 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         <meshStandardMaterial
           color={lineColor}
           emissive={lineColor}
-          emissiveIntensity={0.15}
+          emissiveIntensity={0.25}
           transparent
-          opacity={0.6}
+          opacity={0.8}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -258,8 +258,8 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           color={lineColor}
           emissive={lineColor}
           emissiveIntensity={0.25}
-          metalness={0.3}
-          roughness={0.4}
+          metalness={0.5}
+          roughness={0.3}
         />
       </mesh>
 
@@ -326,7 +326,7 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       <Billboard>
         <Text
           position={[0, size + 2.0, 0]}
-          fontSize={0.55}
+          fontSize={0.65}
           color="#e0e0e0"
           anchorX="center"
           anchorY="bottom"

@@ -46,8 +46,8 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         glowGeometryRef.current?.dispose();
 
         const segments = Math.max(points.length * 16, 48);
-        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.5, 8, false);
-        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.0, 8, false);
+        const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.7, 8, false);
+        const glowGeo = new THREE.TubeGeometry(curve, segments, 1.5, 8, false);
 
         geometryRef.current = tubeGeo;
         glowGeometryRef.current = glowGeo;
@@ -60,11 +60,11 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
     // Night glow
     if (glowRef.current) {
       const mat = glowRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = state.isNight ? 0.35 : 0.15;
+      mat.opacity = state.isNight ? 0.45 : 0.2;
     }
     if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = state.isNight ? 0.8 : 0.4;
+      mat.emissiveIntensity = state.isNight ? 1.2 : 0.5;
     }
 
     // Animated energy pulse
@@ -86,7 +86,7 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
   return (
     <group>
       <mesh ref={meshRef}>
-        <tubeGeometry args={[initCurve, 2, 0.5, 8, false]} />
+        <tubeGeometry args={[initCurve, 2, 0.7, 8, false]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -96,12 +96,12 @@ export function MetroLine3D({ line, stateRef }: MetroLine3DProps) {
         />
       </mesh>
       <mesh ref={glowRef}>
-        <tubeGeometry args={[initCurve, 2, 1.0, 8, false]} />
+        <tubeGeometry args={[initCurve, 2, 1.5, 8, false]} />
         <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
       {/* Energy pulse sphere */}
       <mesh ref={pulseRef} visible={false}>
-        <sphereGeometry args={[0.6, 8, 8]} />
+        <sphereGeometry args={[1.0, 8, 8]} />
         <meshBasicMaterial color={color} transparent opacity={0.8} />
       </mesh>
     </group>
