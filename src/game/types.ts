@@ -28,6 +28,7 @@ export interface GameStation {
   level: number;
   isSheltering: boolean;
   tunnelSealTimer: number;
+  magnetTimer: number;
 }
 
 export interface Passenger {
@@ -68,7 +69,7 @@ export interface Drone {
   droneType: DroneType;
   hp: number;
   maxHp: number;
-  targetBuildingIdx: number; // -1 = targeting station
+  targetBuildingIdx: number;
 }
 
 export interface SurfaceVehicle {
@@ -113,7 +114,7 @@ export interface Camera {
 
 export interface BuildingState {
   id: number;
-  x: number; // normalized
+  x: number;
   y: number;
   hp: number;
   maxHp: number;
@@ -129,6 +130,17 @@ export interface Decoy {
   y: number;
   timer: number;
   hp: number;
+}
+
+export type GameMode = 'classic' | 'rush_hour' | 'siege' | 'blackout' | 'bridge_defense';
+
+export interface Achievement {
+  id: string;
+  nameUa: string;
+  icon: string;
+  condition: string;
+  unlocked: boolean;
+  unlockedAt?: number;
 }
 
 export interface GameState {
@@ -171,7 +183,7 @@ export interface GameState {
   nextStationUnlockTime: number;
   notifications: GameNotification[];
   waveIndex: number;
-  // New Phase 4 fields
+  // Phase 4
   buildings: BuildingState[];
   selectedDroneId: string | null;
   powerGrid: number;
@@ -188,6 +200,21 @@ export interface GameState {
   speedBoostCooldown: number;
   comboMilestones: number[];
   buildingsDestroyed: number;
+  // Phase 5
+  gameMode: GameMode;
+  achievements: Achievement[];
+  satisfactionRate: number;
+  doubleFareTimer: number;
+  expressLineId: string | null;
+  expressTimer: number;
+  blackoutMode: boolean;
+  signalFlareTimer: number;
+  droneJammerTimer: number;
+  emergencyBrakeTimer: number;
+  stationMagnetId: string | null;
+  stationMagnetTimer: number;
+  winConditionMet: boolean;
+  modeTimer: number;
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
 }
