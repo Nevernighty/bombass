@@ -35,6 +35,9 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
   const shieldRef = useRef<THREE.Mesh>(null);
   const turretRef = useRef<THREE.Group>(null);
   const pulseRef = useRef<THREE.Mesh>(null);
+  const selectRingRef = useRef<THREE.Mesh>(null);
+  const isHoveredRef = useRef(false);
+  const hoverScaleRef = useRef(1);
 
   const station = useMemo(() => {
     return stateRef.current.stations.find(s => s.id === stationId);
@@ -50,34 +53,39 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
     const st = s.stations.find(ss => ss.id === stationId);
     if (!st || !groupRef.current) return;
 
+    // Hover scale smoothing
+    const targetScale = isHoveredRef.current ? 1.12 : 1;
+    hoverScaleRef.current += (targetScale - hoverScaleRef.current) * 0.15;
+
     // Jelly wobble
-    const jellyScaleX = 1 + Math.sin(st.jellyOffset.x * 0.5) * 0.12;
-    const jellyScaleZ = 1 + Math.sin(st.jellyOffset.y * 0.5) * 0.12;
-    const jellyScaleY = 1 + Math.sin((st.jellyOffset.x + st.jellyOffset.y) * 0.3) * 0.08;
+    const jellyScaleX = hoverScaleRef.current * (1 + Math.sin(st.jellyOffset.x * 0.5) * 0.12);
+    const jellyScaleZ = hoverScaleRef.current * (1 + Math.sin(st.jellyOffset.y * 0.5) * 0.12);
+    const jellyScaleY = hoverScaleRef.current * (1 + Math.sin((st.jellyOffset.x + st.jellyOffset.y) * 0.3) * 0.08);
     groupRef.current.scale.set(jellyScaleX, jellyScaleY, jellyScaleZ);
 
     const [px, , pz] = toWorld(st.x + st.jellyOffset.x * 0.001, st.y + st.jellyOffset.y * 0.001);
     groupRef.current.position.set(px, 0.4, pz);
 
     if (matRef.current) {
+      const emissiveBoost = isHoveredRef.current ? 0.3 : 0;
       if (st.isDestroyed) {
         matRef.current.color.set('#333333');
         matRef.current.emissive.set('#000000');
       } else if (st.isOnFire) {
         matRef.current.emissive.set('#ff4400');
-        matRef.current.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
+        matRef.current.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3 + emissiveBoost;
       } else if (st.hp < st.maxHp) {
         const hpRatio = st.hp / st.maxHp;
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(hpRatio < 0.5 ? '#cc2200' : lineColor);
-        matRef.current.emissiveIntensity = hpRatio < 0.5 ? 0.4 : 0.25;
+        matRef.current.emissiveIntensity = (hpRatio < 0.5 ? 0.4 : 0.25) + emissiveBoost;
       } else if (st.passengers.length >= st.maxPassengers - 1) {
         matRef.current.emissive.set('#ff0000');
-        matRef.current.emissiveIntensity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2;
+        matRef.current.emissiveIntensity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2 + emissiveBoost;
       } else {
         matRef.current.color.set(lineColor);
         matRef.current.emissive.set(lineColor);
-        matRef.current.emissiveIntensity = s.isNight ? 1.0 : 0.25;
+        matRef.current.emissiveIntensity = (s.isNight ? 1.0 : 0.25) + emissiveBoost;
       }
     }
 
@@ -127,6 +135,19 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         pulseRef.current.visible = false;
       }
     }
+
+    // Selection ring expand animation
+    if (selectRingRef.current) {
+      const isSelected = s.hoveredStation === stationId;
+      selectRingRef.current.visible = isSelected;
+      if (isSelected) {
+        const t = Date.now() * 0.003;
+        const ringScale = 1 + Math.sin(t) * 0.08;
+        selectRingRef.current.scale.set(ringScale, ringScale, 1);
+        (selectRingRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 + Math.sin(t * 2) * 0.15;
+        selectRingRef.current.rotation.z += delta * 0.3;
+      }
+    }
   });
 
   const size = 1.5;
@@ -136,9 +157,15 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       ref={groupRef}
       position={[wx, 0.4, wz]}
       onClick={(e) => { e.stopPropagation(); onClick?.(stationId); }}
-      onPointerEnter={() => onHover?.(stationId)}
-      onPointerLeave={() => onHover?.(null)}
+      onPointerEnter={() => { isHoveredRef.current = true; onHover?.(stationId); }}
+      onPointerLeave={() => { isHoveredRef.current = false; onHover?.(null); }}
     >
+      {/* Selection ring */}
+      <mesh ref={selectRingRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} visible={false}>
+        <ringGeometry args={[size * 1.4, size * 1.7, 24]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.4} side={THREE.DoubleSide} />
+      </mesh>
+
       {/* Pulse ring for waiting passengers */}
       <mesh ref={pulseRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.15, 0]} visible={false}>
         <ringGeometry args={[size * 1.0, size * 1.3, 24]} />
@@ -189,12 +216,10 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
 
       {/* AA turret / SAM visual */}
       <group ref={turretRef} position={[0, size + 0.3, 0]} visible={false}>
-        {/* Turret base */}
         <mesh position={[0, 0, 0]}>
           <cylinderGeometry args={[0.2, 0.3, 0.3, 6]} />
           <meshStandardMaterial color="#3a3a4a" metalness={0.7} roughness={0.3} />
         </mesh>
-        {/* Turret barrel */}
         <mesh position={[0, 0.1, 0.3]} rotation={[-Math.PI / 6, 0, 0]}>
           <cylinderGeometry args={[0.05, 0.05, 0.6, 4]} />
           <meshStandardMaterial color="#2a2a3a" metalness={0.8} roughness={0.2} />
