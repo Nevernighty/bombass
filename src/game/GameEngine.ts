@@ -1135,10 +1135,18 @@ export function attackDrone(state: GameState, droneId: string): GameState {
   if (drone.hp <= 0) {
     drone.isDestroyed = true;
     state.dronesIntercepted++;
-    state.score += Math.round(10 * state.combo);
+    const earned = Math.round(10 * state.combo);
+    state.score += earned;
     state.money += 15;
     state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
-    addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
+    addNotification(state, `🎯 +${earned}`, drone.x, drone.y, '#f1c40f');
+    state.killFlashTimer = 300;
+    state.floatingScores.push({ id: uid(), text: `+${earned}`, x: 50, y: 40, color: '#fbbf24', timer: 1500, scale: 1.2 });
+    // Critical hit chance
+    if (Math.random() < 0.1) {
+      state.score += earned;
+      state.floatingScores.push({ id: uid(), text: 'КРИТ!', x: 52, y: 35, color: '#ef4444', timer: 1200, scale: 1.5 });
+    }
     globalEventBus.emit({ type: 'DRONE_DESTROYED', x: drone.x, y: drone.y });
     state.selectedDroneId = null;
   } else {
