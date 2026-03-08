@@ -1,10 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { STATIONS, toWorld } from '../constants';
 
 const BUILDING_COUNT = 120;
 const tempObject = new THREE.Object3D();
-const tempColor = new THREE.Color();
 
 export function CityBuildings() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -47,8 +46,8 @@ export function CityBuildings() {
     return { matrices: mats, colors: cols };
   }, []);
 
-  // Set instance matrices and colors once
-  useMemo(() => {
+  // useEffect so meshRef.current is available after mount
+  useEffect(() => {
     if (!meshRef.current) return;
     matrices.forEach((mat, i) => {
       meshRef.current!.setMatrixAt(i, mat);

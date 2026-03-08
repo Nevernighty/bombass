@@ -230,6 +230,31 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
             addNotification(s, `+${earned}`, arrStation.x, arrStation.y, '#2ecc71');
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
           }
+
+          // Transfer logic: at transfer stations, unload passengers whose
+          // destination shape doesn't exist on current line but does on another active line
+          if (arrStation.isTransfer) {
+            const currentLineShapes = new Set<PassengerShape>();
+            const activeSet = new Set(s.activeStationIds);
+            for (const sid of (s._cachedLineStations[t.line] || [])) {
+              const st = getStation(s, sid);
+              if (st && !st.isDestroyed && activeSet.has(st.id)) currentLineShapes.add(st.shape);
+            }
+            const transferPassengers = t.passengers.filter(p => !currentLineShapes.has(p.shape));
+            if (transferPassengers.length > 0) {
+              const spaceAtStation = arrStation.maxPassengers - arrStation.passengers.length;
+              const toTransfer = transferPassengers.slice(0, spaceAtStation);
+              toTransfer.forEach(p => {
+                arrStation.passengers.push({ ...p, stationId: arrStation.id });
+              });
+              const transferIds = new Set(toTransfer.map(p => p.id));
+              t.passengers = t.passengers.filter(p => !transferIds.has(p.id));
+              if (toTransfer.length > 0) {
+                addNotification(s, `🔄 ${toTransfer.length}`, arrStation.x, arrStation.y, '#a29bfe');
+              }
+            }
+          }
+
           // Load
           const space = t.capacity - t.passengers.length;
           if (space > 0 && arrStation.passengers.length > 0) {
@@ -580,6 +605,28 @@ export function handleQteInput(state: GameState, key: string, audio: AudioEngine
     }
     state.qteActive = false;
     state.qteDroneId = null;
+  }
+  globalEventBus.flush();
+  return state;
+}
+
+// ===== Click-to-attack drone =====
+export function attackDrone(state: GameState, droneId: string): GameState {
+  if (state.money < 5) return state;
+  const drone = state.drones.find(d => d.id === droneId && !d.isDestroyed);
+  if (!drone) return state;
+  state.money -= 5;
+  drone.hp--;
+  if (drone.hp <= 0) {
+    drone.isDestroyed = true;
+    state.dronesIntercepted++;
+    state.score += Math.round(10 * state.combo);
+    state.money += 15;
+    state.explosions.push({ x: drone.x, y: drone.y, radius: 0, maxRadius: 25, alpha: 1, time: 0 });
+    addNotification(state, `🎯 +${Math.round(10 * state.combo)}`, drone.x, drone.y, '#f1c40f');
+    globalEventBus.emit({ type: 'DRONE_DESTROYED', x: drone.x, y: drone.y });
+  } else {
+    addNotification(state, `💥 ${drone.hp}/${drone.maxHp}`, drone.x, drone.y, '#e67e22');
   }
   globalEventBus.flush();
   return state;

@@ -23,6 +23,7 @@ interface SceneContentProps {
   onStationClick: (id: string) => void;
   onTrainClick: (id: string) => void;
   onStationHover: (id: string | null) => void;
+  onDroneClick?: (id: string) => void;
 }
 
 function CameraController({ stateRef }: { stateRef: React.MutableRefObject<GameState> }) {
@@ -81,15 +82,13 @@ function GameLoop({ stateRef, audioRef, onStateChange }: {
 }
 
 // Manages dynamic entity lists via refs — no React state re-renders
-function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHover }: {
+function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHover, onDroneClick }: {
   stateRef: React.MutableRefObject<GameState>;
   onStationClick: (id: string) => void;
   onTrainClick: (id: string) => void;
   onStationHover: (id: string | null) => void;
+  onDroneClick?: (id: string) => void;
 }) {
-  const stationGroupRef = useRef<THREE.Group>(null);
-  const trainGroupRef = useRef<THREE.Group>(null);
-  const droneGroupRef = useRef<THREE.Group>(null);
   const prevStationsRef = useRef('');
   const prevTrainsRef = useRef('');
   const prevDronesRef = useRef('');
@@ -118,19 +117,19 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
 
   return (
     <>
-      <group ref={stationGroupRef}>
+      <group>
         {activeStations.map(id => (
           <StationNode3D key={id} stationId={id} stateRef={stateRef} onClick={onStationClick} onHover={onStationHover} />
         ))}
       </group>
-      <group ref={trainGroupRef}>
+      <group>
         {trainIds.map(id => (
           <TrainModel key={id} trainId={id} stateRef={stateRef} onClick={onTrainClick} />
         ))}
       </group>
-      <group ref={droneGroupRef}>
+      <group>
         {droneIds.map(id => (
-          <DroneModel key={id} droneId={id} stateRef={stateRef} />
+          <DroneModel key={id} droneId={id} stateRef={stateRef} onClick={onDroneClick} />
         ))}
       </group>
     </>
@@ -139,7 +138,7 @@ function DynamicEntities({ stateRef, onStationClick, onTrainClick, onStationHove
 
 function SceneContent({
   stateRef, audioRef, onStateChange,
-  onStationClick, onTrainClick, onStationHover,
+  onStationClick, onTrainClick, onStationHover, onDroneClick,
 }: SceneContentProps) {
   const state = stateRef.current;
 
@@ -187,6 +186,7 @@ function SceneContent({
         onStationClick={onStationClick}
         onTrainClick={onTrainClick}
         onStationHover={onStationHover}
+        onDroneClick={onDroneClick}
       />
 
       <ExplosionsLayer stateRef={stateRef} />

@@ -2,8 +2,8 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameState, GameStation } from '../types';
-import { METRO_LINES, SHAPE_COLORS, STATION_MAP, toWorld, GAME_CONFIG } from '../constants';
+import { GameState } from '../types';
+import { METRO_LINES, toWorld, GAME_CONFIG } from '../constants';
 
 interface StationNode3DProps {
   stationId: string;
@@ -64,6 +64,12 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       } else if (st.isOnFire) {
         matRef.current.emissive.set('#ff4400');
         matRef.current.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
+      } else if (st.hp < st.maxHp) {
+        // Damaged tint — lerp toward red based on damage
+        const hpRatio = st.hp / st.maxHp;
+        matRef.current.color.set(lineColor);
+        matRef.current.emissive.set(hpRatio < 0.5 ? '#cc2200' : lineColor);
+        matRef.current.emissiveIntensity = hpRatio < 0.5 ? 0.4 : 0.25;
       } else if (st.passengers.length >= st.maxPassengers - 1) {
         matRef.current.emissive.set('#ff0000');
         matRef.current.emissiveIntensity = 0.3 + Math.sin(Date.now() * 0.005) * 0.2;
@@ -92,7 +98,6 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
   });
 
   const size = 1.5;
-  const isHovered = stateRef.current.hoveredStation === stationId;
 
   return (
     <group
@@ -153,10 +158,10 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
       {/* Fire light */}
       <pointLight ref={fireRef} color="#ff4400" intensity={0} distance={6} position={[0, 1.5, 0]} visible={false} />
 
-      {/* Station name */}
+      {/* Station name — positioned higher to avoid overlap */}
       <Billboard>
         <Text
-          position={[0, size + 1.2, 0]}
+          position={[0, size + 1.8, 0]}
           fontSize={0.42}
           color="#e0e0e0"
           anchorX="center"
@@ -169,10 +174,10 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
         </Text>
       </Billboard>
 
-      {/* Passenger count */}
+      {/* Compact passenger count — only when >0 */}
       <Billboard>
         <Text
-          position={[0, size + 0.6, 0]}
+          position={[0, size + 1.3, 0]}
           fontSize={0.35}
           color={station.passengers.length >= station.maxPassengers - 1 ? '#ff4444' : '#ffcc00'}
           anchorX="center"
@@ -183,66 +188,6 @@ export function StationNode3D({ stationId, stateRef, onClick, onHover }: Station
           {station.passengers.length > 0 ? `${station.passengers.length}/${station.maxPassengers}` : ''}
         </Text>
       </Billboard>
-
-      {/* HP bar */}
-      {station.hp < station.maxHp && (
-        <Billboard>
-          <mesh position={[0, size + 0.3, 0]}>
-            <planeGeometry args={[2, 0.15]} />
-            <meshBasicMaterial color="#333" transparent opacity={0.5} />
-          </mesh>
-          <mesh position={[(station.hp / station.maxHp - 1) * 1, size + 0.3, 0.01]}>
-            <planeGeometry args={[2 * (station.hp / station.maxHp), 0.12]} />
-            <meshBasicMaterial color={station.hp > 50 ? '#2ecc71' : '#e74c3c'} />
-          </mesh>
-        </Billboard>
-      )}
-
-      {/* Passenger shapes orbiting */}
-      <PassengerIndicators stationId={stationId} stateRef={stateRef} radius={size + 0.4} />
-    </group>
-  );
-}
-
-function PassengerIndicators({ stationId, stateRef, radius }: { stationId: string; stateRef: React.MutableRefObject<GameState>; radius: number }) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame(() => {
-    const state = stateRef.current;
-    const station = state.stations.find(s => s.id === stationId);
-    if (!station || !groupRef.current) return;
-
-    const children = groupRef.current.children;
-    const maxShow = Math.min(station.passengers.length, 8);
-
-    for (let i = 0; i < children.length; i++) {
-      if (i < maxShow) {
-        const angle = (i / maxShow) * Math.PI * 2 - Math.PI / 2 + Date.now() * 0.0005;
-        children[i].position.set(
-          Math.cos(angle) * radius,
-          0.2 + Math.sin(Date.now() * 0.003 + i) * 0.08,
-          Math.sin(angle) * radius
-        );
-        children[i].visible = true;
-        const p = station.passengers[i];
-        if (p) {
-          const color = SHAPE_COLORS[p.shape];
-          ((children[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(color);
-        }
-      } else {
-        children[i].visible = false;
-      }
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      {Array.from({ length: 8 }).map((_, i) => (
-        <mesh key={i} visible={false}>
-          <sphereGeometry args={[0.2, 6, 6]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-      ))}
     </group>
   );
 }
