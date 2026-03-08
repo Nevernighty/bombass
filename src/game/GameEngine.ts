@@ -1674,6 +1674,30 @@ export function repairBuilding(state: GameState, buildingIdx: number): GameState
   return state;
 }
 
+// ===== Phase 20: Connect pending station =====
+export function connectStation(state: GameState, pendingStationId: string, fromStationId: string): GameState {
+  if (!state.pendingStations.includes(pendingStationId)) return state;
+  if (!state.activeStationIds.includes(fromStationId)) return state;
+  state.pendingStations = state.pendingStations.filter(id => id !== pendingStationId);
+  state.activeStationIds.push(pendingStationId);
+  const st = getStation(state, pendingStationId);
+  if (st) {
+    st.jellyVel.y = -5; st.jellyVel.x = 3;
+    addNotification(state, '✅ Станцію підключено!', st.x, st.y, '#4ade80');
+  }
+  // Recache
+  const activeSet = new Set(state.activeStationIds);
+  state._cachedLineStations = {
+    red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
+    blue: LINE_STATIONS.blue.filter(id => activeSet.has(id)),
+    green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
+  };
+  state.isDrawingLine = false;
+  state.drawLineFrom = null;
+  state.drawLineTo = null;
+  return state;
+}
+
 function updateGameEvents(s: GameState, realDt: number, events: EventBus): void {
   // Decay active events
   s.activeEvents = s.activeEvents.filter(ev => {
