@@ -641,6 +641,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
           )}
 
+          {/* Line Drawing Mode indicator */}
+          {state.isDrawingLine && (
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse pointer-events-none"
+              style={{ background: 'rgba(156,163,175,0.9)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(156,163,175,0.4)' }}>
+              🔗 Клікни на сіру станцію щоб підключити
+            </div>
+          )}
+
+          {/* Pending stations count */}
+          {state.pendingStations.length > 0 && !state.isDrawingLine && (
+            <div className="absolute top-24 right-4 px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse pointer-events-none"
+              style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
+              🔗 {state.pendingStations.length} станц. чекають підключення
+            </div>
+
           {state.isPaused && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(6,10,20,0.6)' }}>
               <span className="text-5xl font-bold text-white">⏸ ПАУЗА</span>
