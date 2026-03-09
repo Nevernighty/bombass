@@ -676,7 +676,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
             cameraMode={state.camera.mode} isRaining={state.isRaining}
             passiveIncome={state.activeStationIds.length}
+            currentCityName={getCityConfig(state.currentCity).nameUa}
+            currentCityIcon={getCityConfig(state.currentCity).icon}
+            globalStability={state.globalStability}
+            showWorldMap={state.showWorldMap}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
+            onToggleWorldMap={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
           />
 
           {/* Notification stack below TopBar */}
