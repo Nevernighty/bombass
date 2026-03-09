@@ -1,5 +1,5 @@
 import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS, getStationsForCity, getStationMapForCity, getLineStationsForCity, getBridgeStationsForCity, getSurfaceRoutesForCity, getCityLines } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain } from './types';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain, CitySubState, CrossCityNotification } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
@@ -120,6 +120,56 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     trainsCreated++;
   }
 
+  // Initialize all city substates
+  const allCityStates: Record<string, CitySubState> = {};
+  for (const cid of Object.keys(CITIES)) {
+    if (cid === cityId) continue; // Active city uses main state arrays
+    const c = getCityConfig(cid);
+    const cStations = c.stations;
+    let si = 0;
+    const cGameStations: GameStation[] = cStations.map(s => ({
+      ...s,
+      isTransfer: s.isTransfer || false,
+      shape: assignStationShape(s, si++),
+      passengers: [],
+      hp: 100, maxHp: 100,
+      maxPassengers: GAME_CONFIG.MAX_PASSENGERS_PER_STATION,
+      isDestroyed: false, isOnFire: false, fireTimer: 0,
+      isRepairing: false, repairProgress: 0,
+      jellyOffset: { x: 0, y: 0 }, jellyVel: { x: 0, y: 0 },
+      isOpen: true, shelterCount: 0, hasAntiAir: false, shieldTimer: 0, level: 1,
+      isSheltering: false, tunnelSealTimer: 0, magnetTimer: 0,
+      hasSAM: false, samCooldown: 0, hasAATurret: false, turretCooldown: 0, stationIncome: 0,
+      isFortified: false, empCooldown: 0, panicTimer: 0, passiveIncomeAccum: 0,
+    }));
+    allCityStates[cid] = {
+      cityId: cid,
+      stations: cGameStations,
+      trains: [],
+      drones: [],
+      buildings: [],
+      explosions: [],
+      repairUnits: [],
+      interceptorDrones: [],
+      tracerLines: [],
+      decoys: [],
+      surfaceVehicles: [],
+      activeStationIds: [...c.startingStations],
+      pendingStations: [],
+      score: 0, money: 30, lives: 3,
+      passengersDelivered: 0, passengersAbandoned: 0,
+      dronesIntercepted: 0, totalDrones: 0,
+      stationsDestroyed: 0, stationsRepaired: 0,
+      buildingsDestroyed: 0, satisfactionRate: 100,
+      powerGrid: 100, maxPower: 100, generators: 0,
+      isAirRaid: false, airRaidTimer: 0, nextRaidTime: 60000 + Math.random() * 30000,
+      raidDronesSpawned: 0, waveIndex: 0,
+      notifications: [],
+      _cachedLineStations: {},
+      buildingUpgrades: {},
+    };
+  }
+
   return {
     stations, trains, drones: [], surfaceVehicles: [], explosions: [], repairUnits: [],
     camera: { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0, mode: 'free' as const, orbitAngle: 0, orbitSpeed: 0.3, tiltAngle: 0.55, keysDown: new Set<string>() },
@@ -199,6 +249,10 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     } as CityState])),
     intercityTrains: [],
     globalStability: 50,
+    allCityStates,
+    crossCityNotifications: [],
+    crossCityCheckTimer: 0,
+    showWorldMap: false,
     // Tutorial
     tutorialStep: 0,
     tutorialComplete: false,
