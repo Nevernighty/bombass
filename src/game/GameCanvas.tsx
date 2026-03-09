@@ -689,7 +689,45 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             )}
           </div>
 
-          {state.isPaused && (
+          {/* Cursor-following tooltip */}
+          {state.hoveredElement && (
+            <div className="fixed pointer-events-none z-[100] animate-in fade-in-0 duration-75"
+              style={{
+                left: mousePos.x + 16,
+                top: mousePos.y - 8,
+                maxWidth: '200px',
+              }}>
+              <div className="rounded-lg px-2.5 py-1.5 backdrop-blur-md"
+                style={{
+                  background: 'rgba(8, 12, 24, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                }}>
+                <div className="text-[11px] font-bold" style={{
+                  color: state.hoveredElement.type === 'station' ? '#e0e0e0' :
+                    state.hoveredElement.type === 'train' ? '#fbbf24' :
+                    state.hoveredElement.type === 'building' ? '#94a3b8' : '#ef4444',
+                }}>
+                  {state.hoveredElement.name || state.hoveredElement.id}
+                </div>
+                {state.hoveredElement.details && (
+                  <div className="text-[9px] mt-0.5" style={{ color: 'rgba(180,190,210,0.7)' }}>
+                    {state.hoveredElement.details}
+                  </div>
+                )}
+                {state.hoveredElement.type === 'station' && state.isAirRaid && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Щит / Оборона</div>
+                )}
+                {state.hoveredElement.type === 'building' && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Ремонт $10</div>
+                )}
+                {state.hoveredElement.type === 'drone' && (
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>Клік → Збити</div>
+                )}
+              </div>
+            </div>
+          )}
+
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(6,10,20,0.6)' }}>
               <span className="text-5xl font-bold text-white">⏸ ПАУЗА</span>
             </div>
