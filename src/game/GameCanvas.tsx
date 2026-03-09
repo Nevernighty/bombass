@@ -847,6 +847,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onUpgrade={() => act(s => upgradeTrainCapacity(s, selTrain.id))}
               onShield={() => act(s => activateTrainShield(s, selTrain.id))}
               onReverse={() => act(s => reverseTrain(s, selTrain.id))}
+              onHover={() => audioRef.current.playHover()}
             />
           )}
 

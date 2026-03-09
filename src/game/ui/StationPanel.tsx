@@ -26,6 +26,7 @@ interface StationPanelProps {
   onLaunchInterceptor: () => void;
   onFortify: () => void;
   onEMP: () => void;
+  onHover?: () => void;
 }
 
 type Tab = 'defense' | 'manage' | 'info';
@@ -46,6 +47,7 @@ function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay }:
   const insufficient = cost !== undefined && disabled;
   return (
     <button onClick={onClick} disabled={disabled}
+      onMouseEnter={onHoverSound}
       className="relative flex flex-col items-center justify-center gap-1 rounded-lg transition-all cursor-pointer"
       style={{
         width: '100%',
