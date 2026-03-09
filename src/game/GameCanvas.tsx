@@ -685,56 +685,81 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
             {/* Air Raid Banner */}
             {state.isAirRaid && (
-              <div className="px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
-                style={{ background: 'rgba(220,38,38,0.85)', color: '#fff', boxShadow: '0 0 30px rgba(220,38,38,0.5)' }}>
+              <div className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider animate-pulse flex items-center gap-2"
+                style={{
+                  background: 'hsl(0 72% 45% / 1)',
+                  color: '#fff',
+                  boxShadow: '0 0 30px rgba(220,38,38,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+                  borderLeft: '4px solid hsl(0 72% 60%)',
+                }}>
                 ⚠️ ПОВІТРЯНА ТРИВОГА ⚠️
               </div>
             )}
 
             {/* Rush Hour */}
             {state.rushHourActive && (
-              <div className="px-4 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
-                style={{ background: 'rgba(234,179,8,0.85)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(234,179,8,0.4)' }}>
+              <div className="px-4 py-2 rounded-xl font-black text-xs tracking-wider animate-pulse flex items-center gap-2"
+                style={{
+                  background: 'hsl(45 90% 45% / 1)',
+                  color: '#1a1a2e',
+                  boxShadow: '0 0 20px rgba(234,179,8,0.3)',
+                  borderLeft: '4px solid hsl(45 85% 60%)',
+                }}>
                 🚇 ГОДИНА ПІК x3
               </div>
             )}
 
             {/* Active Events */}
             {state.activeEvents.length > 0 && state.activeEvents.map(ev => {
-              const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
-                rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
-                vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!' },
-                power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
-                emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
-                power_surge: { bg: 'rgba(34,197,94,0.9)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!' },
+              const configs: Record<string, { bg: string; fg: string; icon: string; text: string; accent: string }> = {
+                rush_surge: { bg: 'hsl(38 90% 40% / 1)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів', accent: 'hsl(38 90% 55%)' },
+                vip_passenger: { bg: 'hsl(45 90% 45% / 1)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!', accent: 'hsl(45 90% 60%)' },
+                power_flicker: { bg: 'hsl(239 60% 45% / 1)', fg: '#fff', icon: '⚡', text: 'Коливання живлення', accent: 'hsl(239 60% 60%)' },
+                emergency_evac: { bg: 'hsl(0 72% 45% / 1)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація', accent: 'hsl(0 72% 60%)' },
+                power_surge: { bg: 'hsl(145 63% 35% / 1)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!', accent: 'hsl(145 63% 50%)' },
               };
               const c = configs[ev.type] || configs.rush_surge;
               const timerPct = Math.min(100, (ev.timer / 15000) * 100);
               return (
-                <div key={ev.id} className="rounded-lg px-4 py-1.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
-                  style={{ background: c.bg, color: c.fg, minWidth: '240px' }}>
+                <div key={ev.id} className="rounded-xl px-4 py-2 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
+                  style={{
+                    background: c.bg,
+                    color: c.fg,
+                    minWidth: '240px',
+                    borderLeft: `4px solid ${c.accent}`,
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                  }}>
                   <span className="text-base">{c.icon}</span>
-                  <span className="text-[12px] font-bold flex-1">{c.text}</span>
-                  <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.6)' }} />
+                  <span className="text-[12px] font-black flex-1">{c.text}</span>
+                  <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.7)' }} />
                   </div>
-                  <span className="text-[10px] font-mono font-bold">{Math.ceil(ev.timer / 1000)}с</span>
+                  <span className="text-[10px] font-mono font-black">{Math.ceil(ev.timer / 1000)}с</span>
                 </div>
               );
             })}
 
             {/* Drawing Mode */}
             {state.isDrawingLine && (
-              <div className="px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
-                style={{ background: state.drawLineColor || 'rgba(156,163,175,0.9)', color: '#fff', boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.4)'}` }}>
+              <div className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider animate-pulse"
+                style={{
+                  background: 'hsl(220 25% 12% / 1)',
+                  color: '#fff',
+                  borderLeft: `4px solid ${state.drawLineColor || 'hsl(220 10% 50%)'}`,
+                  boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.3)'}40`,
+                }}>
                 🔗 Тягни до сірої станції щоб підключити
               </div>
             )}
 
             {/* Pending stations */}
             {state.pendingStations.length > 0 && !state.isDrawingLine && (
-              <div className="px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
-                style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
+              <div className="px-4 py-2 rounded-xl font-black text-xs tracking-wider animate-pulse"
+                style={{
+                  background: 'hsl(220 15% 25% / 1)',
+                  color: '#e0e0e0',
+                  borderLeft: '4px solid hsl(220 10% 50%)',
+                }}>
                 🔗 {state.pendingStations.length} станц. чекають · клікни кінцеву станцію
               </div>
             )}
