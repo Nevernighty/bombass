@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction, switchToCity } from './GameEngine';
 import { METRO_LINES, getCityLines } from './constants';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
@@ -16,6 +16,8 @@ import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
 import { TrainPanel } from './ui/TrainPanel';
+import { WorldMap } from './ui/WorldMap';
+import { CrossCityAlert } from './ui/CrossCityAlert';
 import { Achievement } from './types';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
@@ -39,7 +41,7 @@ interface GameCanvasProps {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
-  const [selectedCity, setSelectedCity] = useState('kyiv');
+  const [selectedCity, setSelectedCity] = useState('kyiv'); // only used for start screen display
   const stateRef = useRef<GameState>(createInitialState('classic', 'kyiv'));
   const audioRef = useRef<AudioEngine>(new AudioEngine());
   const isPanningRef = useRef(false);
@@ -54,7 +56,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
-    stateRef.current = createInitialState(mode, selectedCity);
+    stateRef.current = createInitialState(mode, 'kyiv');
     stateRef.current.gameStarted = true;
     audioRef.current.init();
     audioRef.current.resume();
@@ -63,6 +65,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
     prevAchCountRef.current = 0;
+    setHudState({ ...stateRef.current });
+  }, []);
+
+  const handleSwitchCity = useCallback((cityId: string) => {
+    stateRef.current = switchToCity({ ...stateRef.current }, cityId);
     setHudState({ ...stateRef.current });
   }, []);
 
@@ -470,33 +477,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               </p>
             </div>
 
-            {/* City selector */}
-            <div className="w-full mb-4" style={{ animation: 'title-letter 0.4s ease-out 0.25s both' }}>
-              <p className="text-[10px] font-black uppercase tracking-wider mb-2 text-center" style={{ color: 'hsl(var(--game-muted))' }}>ОБЕРІТЬ МІСТО</p>
-              <div className="flex justify-center gap-2 flex-wrap">
-                {CITY_IDS.map(cid => {
-                  const city = getCityConfig(cid);
-                  const isSelected = selectedCity === cid;
-                  return (
-                    <button key={cid} onClick={() => setSelectedCity(cid)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all"
-                      style={{
-                        background: isSelected ? 'hsl(var(--game-accent) / 0.15)' : 'hsl(225 40% 8%)',
-                        border: isSelected ? '2px solid hsl(var(--game-accent))' : '2px solid hsl(220 20% 16%)',
-                        color: isSelected ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))',
-                        boxShadow: isSelected ? '0 0 16px rgba(234,179,8,0.2)' : 'none',
-                      }}>
-                      <span className="text-lg">{city.icon}</span>
-                      <span>{city.nameUa}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{
-                        background: 'hsl(220 25% 12%)',
-                        color: city.type === 'metro' ? '#3498db' : '#9b59b6',
-                      }}>{city.type === 'metro' ? 'Метро' : 'Трамвай'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* All cities managed simultaneously — no city selector needed */}
 
             {/* Scenario cards */}
             <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
@@ -695,7 +676,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
             cameraMode={state.camera.mode} isRaining={state.isRaining}
             passiveIncome={state.activeStationIds.length}
+            currentCityName={getCityConfig(state.currentCity).nameUa}
+            currentCityIcon={getCityConfig(state.currentCity).icon}
+            globalStability={state.globalStability}
+            showWorldMap={state.showWorldMap}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
+            onToggleWorldMap={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
           />
 
           {/* Notification stack below TopBar */}
@@ -883,6 +869,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
           <ActionBar
             money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
+            lines={Object.entries(getCityConfig(state.currentCity).lines).map(([id, l], i) => ({ id, color: l.color, label: l.name.split(' ')[0] || `L${i+1}` }))}
             radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
             doubleFareTimer={state.doubleFareTimer} expressTimer={state.expressTimer}
             blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
@@ -916,6 +903,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
 
           <Minimap stateRef={stateRef} state={state} />
+
+          {/* World Map */}
+          <WorldMap
+            currentCity={state.currentCity}
+            cityStates={state.cityStates}
+            intercityTrains={state.intercityTrains}
+            globalStability={state.globalStability}
+            onSwitchCity={handleSwitchCity}
+            isVisible={state.showWorldMap}
+            onToggle={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
+          />
+
+          {/* Cross-City Alerts */}
+          <CrossCityAlert
+            notifications={state.crossCityNotifications}
+            onGoToCity={handleSwitchCity}
+            onDismiss={(id) => act(s => ({
+              ...s,
+              crossCityNotifications: s.crossCityNotifications.filter(n => n.id !== id),
+            }))}
+          />
         </>
       )}
     </div>

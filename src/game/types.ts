@@ -315,6 +315,10 @@ export interface GameState {
   cityStates: Record<string, CityState>;
   intercityTrains: IntercityTrain[];
   globalStability: number;
+  allCityStates: Record<string, CitySubState>;
+  crossCityNotifications: CrossCityNotification[];
+  crossCityCheckTimer: number;
+  showWorldMap: boolean;
   // Tutorial
   tutorialStep: number;
   tutorialComplete: boolean;
@@ -342,6 +346,55 @@ export interface BuildingUpgrade {
   level: number;
   income: number;
   repairRate: number;
+}
+
+export interface CitySubState {
+  cityId: string;
+  stations: GameStation[];
+  trains: Train[];
+  drones: Drone[];
+  buildings: BuildingState[];
+  explosions: Explosion[];
+  repairUnits: RepairUnit[];
+  interceptorDrones: InterceptorDrone[];
+  tracerLines: TracerLine[];
+  decoys: Decoy[];
+  surfaceVehicles: SurfaceVehicle[];
+  activeStationIds: string[];
+  pendingStations: string[];
+  score: number;
+  money: number;
+  lives: number;
+  passengersDelivered: number;
+  passengersAbandoned: number;
+  dronesIntercepted: number;
+  totalDrones: number;
+  stationsDestroyed: number;
+  stationsRepaired: number;
+  buildingsDestroyed: number;
+  satisfactionRate: number;
+  powerGrid: number;
+  maxPower: number;
+  generators: number;
+  isAirRaid: boolean;
+  airRaidTimer: number;
+  nextRaidTime: number;
+  raidDronesSpawned: number;
+  waveIndex: number;
+  notifications: GameNotification[];
+  _cachedLineStations: Record<string, string[]>;
+  buildingUpgrades: Record<number, BuildingUpgrade>;
+}
+
+export interface CrossCityNotification {
+  id: string;
+  cityId: string;
+  cityName: string;
+  cityIcon: string;
+  text: string;
+  type: 'air_raid' | 'station_destroyed' | 'overcrowded' | 'building_destroyed' | 'low_stability' | 'new_station';
+  timer: number;
+  urgency: 'normal' | 'urgent';
 }
 
 export interface GameNotification {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { METRO_LINES, GAME_CONFIG } from '../constants';
+import { GAME_CONFIG } from '../constants';
 import {
   Train, Shield, Radar, Target, Zap, DollarSign, Users, AlertTriangle,
   Wrench, Moon, Gauge, Package, Crosshair, RotateCcw, Lock, Unlock, Rocket
@@ -7,6 +7,7 @@ import {
 
 interface ActionBarProps {
   money: number;
+  lines: { id: string; color: string; label: string }[];
   selectedTrain: string | null;
   selectedTrainLevel: number;
   radarActive: boolean;
@@ -196,7 +197,7 @@ function GroupDivider() {
 }
 
 export const ActionBar = React.memo(function ActionBar({
-  money, radarActive, speedBoostCooldown,
+  money, lines: cityLines, radarActive, speedBoostCooldown,
   doubleFareTimer, expressTimer, blackoutMode,
   signalFlareTimer, droneJammerTimer, emergencyBrakeTimer,
   stationMagnetTimer, lives, closedSegments,
@@ -207,8 +208,6 @@ export const ActionBar = React.memo(function ActionBar({
   onDroneJammer, onEmergencyFund,
   onCloseSegment, onReopenLine, onHover,
 }: ActionBarProps) {
-
-  const lines: string[] = ['red', 'blue', 'green'];
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
@@ -230,9 +229,9 @@ export const ActionBar = React.memo(function ActionBar({
         <div className="flex flex-col items-center gap-1">
           <SectionLabel>ПОТЯГИ</SectionLabel>
           <div className="flex items-center gap-1.5">
-            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} onHoverSound={onHover} />
-            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} onHoverSound={onHover} />
-            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} onHoverSound={onHover} />
+            {cityLines.map(l => (
+              <TrainBtn key={l.id} line={l.id} label={l.label} money={money} onClick={() => onBuyTrain(l.id)} color={l.color} onHoverSound={onHover} />
+            ))}
           </div>
         </div>
 
@@ -304,21 +303,19 @@ export const ActionBar = React.memo(function ActionBar({
         <div className="flex flex-col items-center gap-1">
           <SectionLabel>МЕРЕЖА</SectionLabel>
           <div className="flex items-center gap-1.5">
-            {lines.map(l => {
-              const c = METRO_LINES[l].color;
-              const isClosed = closedSegments.some(s => s.line === l);
-              const lineLabel = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
+            {cityLines.map(l => {
+              const isClosed = closedSegments.some(s => s.line === l.id);
               return (
                 <ActionBtn
-                  key={l}
+                  key={l.id}
                   icon={isClosed ? <Unlock size={14} /> : <Lock size={14} />}
-                  label={isClosed ? `Відкрити ${lineLabel}` : `Закрити ${lineLabel}`}
+                  label={isClosed ? `Відкрити ${l.label}` : `Закрити ${l.label}`}
                   desc={isClosed ? 'Зняти блокування' : 'Блокувати сегмент (30с)'}
                   cost={isClosed ? undefined : 15}
-                  onClick={() => isClosed ? onReopenLine(l) : onCloseSegment(l)}
+                  onClick={() => isClosed ? onReopenLine(l.id) : onCloseSegment(l.id)}
                   disabled={!isClosed && money < 15}
                   active={isClosed}
-                  color={c}
+                  color={l.color}
                   onHoverSound={onHover}
                 />
               );

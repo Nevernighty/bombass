@@ -1,6 +1,6 @@
 import React from 'react';
 import { CameraMode } from '../types';
-import { Clock, Users, Crosshair, Zap, Smile, Building2, Moon, Sun, CloudRain, Radio, Heart } from 'lucide-react';
+import { Clock, Users, Crosshair, Zap, Smile, Building2, Moon, Sun, CloudRain, Radio, Heart, Map } from 'lucide-react';
 
 interface TopBarProps {
   score: number;
@@ -28,8 +28,13 @@ interface TopBarProps {
   cameraMode: CameraMode;
   isRaining: boolean;
   passiveIncome: number;
+  currentCityName: string;
+  currentCityIcon: string;
+  globalStability: number;
+  showWorldMap: boolean;
   mission?: { text: string; progress: number; target: number } | null;
   onSpeedChange: (mult: number) => void;
+  onToggleWorldMap: () => void;
 }
 
 function formatTime(ms: number) {
@@ -56,8 +61,9 @@ export const TopBar = React.memo(function TopBar({
   networkEfficiency, isNight, waveIndex, isAirRaid, airRaidTimer,
   powerGrid, maxPower, rushHourActive, radarActive,
   satisfactionRate, buildingsDestroyed, gameMode, winConditionMet,
-  cameraMode, isRaining, passiveIncome, mission,
-  onSpeedChange,
+  cameraMode, isRaining, passiveIncome, currentCityName, currentCityIcon,
+  globalStability, showWorldMap, mission,
+  onSpeedChange, onToggleWorldMap,
 }: TopBarProps) {
   const powerPct = Math.round((powerGrid / maxPower) * 100);
 
@@ -75,8 +81,38 @@ export const TopBar = React.memo(function TopBar({
           opacity: 0.6,
         }} />
 
-        {/* LEFT: Primary stats */}
+        {/* LEFT: City badge + Primary stats */}
         <div className="flex items-center gap-3 text-xs">
+          {/* City badge */}
+          <button onClick={onToggleWorldMap}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all"
+            style={{
+              background: showWorldMap ? 'hsl(var(--game-accent) / 0.15)' : 'hsl(220 25% 10%)',
+              border: showWorldMap ? '1px solid hsl(var(--game-accent) / 0.4)' : '1px solid hsl(220 20% 16%)',
+            }}>
+            <span className="text-sm">{currentCityIcon}</span>
+            <span className="text-[10px] font-black" style={{
+              color: showWorldMap ? 'hsl(var(--game-accent))' : 'hsl(var(--foreground))',
+            }}>{currentCityName}</span>
+            <Map size={10} style={{ color: 'hsl(var(--muted-foreground))' }} />
+          </button>
+
+          {/* Stability mini-bar */}
+          <div className="flex items-center gap-1" title={`Стабільність: ${globalStability}%`}>
+            <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(220 25% 12%)' }}>
+              <div className="h-full rounded-full transition-all duration-500" style={{
+                width: `${globalStability}%`,
+                background: globalStability >= 80 ? 'hsl(145, 63%, 55%)' :
+                  globalStability >= 50 ? 'hsl(45, 90%, 55%)' : 'hsl(0, 72%, 55%)',
+              }} />
+            </div>
+            <span className="text-[9px] font-black tabular-nums" style={{
+              color: globalStability >= 80 ? 'hsl(145, 63%, 55%)' :
+                globalStability >= 50 ? 'hsl(45, 90%, 55%)' : 'hsl(0, 72%, 55%)',
+            }}>{globalStability}%</span>
+          </div>
+
+          <div className="game-divider h-5 self-center" />
           {/* Score */}
           <div className="flex items-center gap-1.5">
             <span className="text-lg font-black tracking-tight tabular-nums" style={{
