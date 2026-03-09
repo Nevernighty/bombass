@@ -56,7 +56,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
-    stateRef.current = createInitialState(mode, selectedCity);
+    stateRef.current = createInitialState(mode, 'kyiv');
     stateRef.current.gameStarted = true;
     audioRef.current.init();
     audioRef.current.resume();
@@ -65,6 +65,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
     prevAchCountRef.current = 0;
+    setHudState({ ...stateRef.current });
+  }, []);
+
+  const handleSwitchCity = useCallback((cityId: string) => {
+    stateRef.current = switchToCity({ ...stateRef.current }, cityId);
     setHudState({ ...stateRef.current });
   }, []);
 
