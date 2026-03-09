@@ -230,9 +230,9 @@ export const ActionBar = React.memo(function ActionBar({
         <div className="flex flex-col items-center gap-1">
           <SectionLabel>ПОТЯГИ</SectionLabel>
           <div className="flex items-center gap-1.5">
-            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
-            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
-            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} onHoverSound={onHover} />
+            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} onHoverSound={onHover} />
+            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} onHoverSound={onHover} />
           </div>
         </div>
 
