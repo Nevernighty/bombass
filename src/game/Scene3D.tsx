@@ -590,7 +590,9 @@ function DrawingLine({ stateRef }: { stateRef: React.MutableRefObject<GameState>
     opacity: 0.8,
     linewidth: 2,
   }), []);
-  
+
+  const lineObject = useMemo(() => new THREE.Line(lineGeo, lineMat), [lineGeo, lineMat]);
+
   // Raycaster for screen-to-ground conversion
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
