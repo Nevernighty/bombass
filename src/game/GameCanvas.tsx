@@ -477,33 +477,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               </p>
             </div>
 
-            {/* City selector */}
-            <div className="w-full mb-4" style={{ animation: 'title-letter 0.4s ease-out 0.25s both' }}>
-              <p className="text-[10px] font-black uppercase tracking-wider mb-2 text-center" style={{ color: 'hsl(var(--game-muted))' }}>ОБЕРІТЬ МІСТО</p>
-              <div className="flex justify-center gap-2 flex-wrap">
-                {CITY_IDS.map(cid => {
-                  const city = getCityConfig(cid);
-                  const isSelected = selectedCity === cid;
-                  return (
-                    <button key={cid} onClick={() => setSelectedCity(cid)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all"
-                      style={{
-                        background: isSelected ? 'hsl(var(--game-accent) / 0.15)' : 'hsl(225 40% 8%)',
-                        border: isSelected ? '2px solid hsl(var(--game-accent))' : '2px solid hsl(220 20% 16%)',
-                        color: isSelected ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))',
-                        boxShadow: isSelected ? '0 0 16px rgba(234,179,8,0.2)' : 'none',
-                      }}>
-                      <span className="text-lg">{city.icon}</span>
-                      <span>{city.nameUa}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{
-                        background: 'hsl(220 25% 12%)',
-                        color: city.type === 'metro' ? '#3498db' : '#9b59b6',
-                      }}>{city.type === 'metro' ? 'Метро' : 'Трамвай'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* All cities managed simultaneously — no city selector needed */}
 
             {/* Scenario cards */}
             <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
@@ -923,6 +897,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
 
           <Minimap stateRef={stateRef} state={state} />
+
+          {/* World Map */}
+          <WorldMap
+            currentCity={state.currentCity}
+            cityStates={state.cityStates}
+            intercityTrains={state.intercityTrains}
+            globalStability={state.globalStability}
+            onSwitchCity={handleSwitchCity}
+            isVisible={state.showWorldMap}
+            onToggle={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
+          />
+
+          {/* Cross-City Alerts */}
+          <CrossCityAlert
+            notifications={state.crossCityNotifications}
+            onGoToCity={handleSwitchCity}
+            onDismiss={(id) => act(s => ({
+              ...s,
+              crossCityNotifications: s.crossCityNotifications.filter(n => n.id !== id),
+            }))}
+          />
         </>
       )}
     </div>
