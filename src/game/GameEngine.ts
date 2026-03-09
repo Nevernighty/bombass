@@ -1894,3 +1894,79 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
   // Keep event log trimmed
   while (s.eventLog.length > 20) s.eventLog.shift();
 }
+
+// ==================== SYSTEM: Stability ====================
+function updateStability(s: GameState): void {
+  const activeSet = new Set(s.activeStationIds);
+  const activeStations = s.stations.filter(st => activeSet.has(st.id));
+  if (activeStations.length === 0) return;
+  const healthPct = activeStations.reduce((sum, st) => sum + (st.hp / st.maxHp), 0) / activeStations.length;
+  const satisfactionPct = s.satisfactionRate / 100;
+  const buildingsPct = s.buildings.length > 0 ? s.buildings.filter(b => !b.isDestroyed).length / s.buildings.length : 1;
+  const powerPct = s.powerGrid / s.maxPower;
+  const stability = Math.round((healthPct * 30 + satisfactionPct * 30 + buildingsPct * 20 + powerPct * 20));
+  if (s.cityStates[s.currentCity]) {
+    s.cityStates[s.currentCity].stability = stability;
+    s.cityStates[s.currentCity].avgSatisfaction = s.satisfactionRate;
+  }
+  const cityStabilities = Object.values(s.cityStates).map(c => c.stability);
+  s.globalStability = Math.round(cityStabilities.reduce((a, b) => a + b, 0) / cityStabilities.length);
+}
+
+// ==================== SYSTEM: Intercity ====================
+function updateIntercity(s: GameState, realDt: number): void {
+  s.intercityTrains = s.intercityTrains.filter(it => {
+    it.progress += realDt / it.travelTime;
+    if (it.progress >= 1) {
+      const bonus = it.passengers * 5;
+      s.score += bonus;
+      s.money += Math.round(bonus * 0.3);
+      if (s.cityStates[it.toCity]) {
+        s.cityStates[it.toCity].stability = Math.min(100, s.cityStates[it.toCity].stability + 5);
+      }
+      addNotification(s, `🚄 +${bonus} міжміський!`, 0.5, 0.3, '#a855f7');
+      return false;
+    }
+    return true;
+  });
+}
+
+// ==================== SYSTEM: Tutorial ====================
+function updateTutorial(s: GameState): void {
+  if (s.tutorialComplete) return;
+  if (s.tutorialStep === 0 && s.gameStarted) s.tutorialStep = 1;
+  if (s.tutorialStep === 1 && s.hoveredStation) s.tutorialStep = 2;
+  if (s.tutorialStep === 2 && s.trains.length > 3) s.tutorialStep = 3;
+  if (s.tutorialStep === 3 && s.activeStationIds.length > 6) s.tutorialStep = 4;
+  if (s.tutorialStep === 4 && s.stations.some(st => st.hasAntiAir)) s.tutorialStep = 5;
+  if (s.tutorialStep === 5 && s.dronesIntercepted > 0) { s.tutorialStep = 6; s.tutorialComplete = true; }
+}
+
+// ==================== Intercity + Building Actions ====================
+export function sendIntercityTrain(state: GameState, targetCity: string): GameState {
+  if (state.money < GAME_CONFIG.INTERCITY_COST) return state;
+  const city = getCityConfig(state.currentCity);
+  const connection = city.intercityConnections.find(c => c.targetCity === targetCity);
+  if (!connection) return state;
+  state.money -= connection.cost;
+  state.intercityTrains.push({
+    id: uid(), fromCity: state.currentCity, toCity: targetCity,
+    progress: 0, passengers: Math.floor(Math.random() * 10) + 5, travelTime: connection.travelTime,
+  });
+  addNotification(state, `🚄 Потяг до ${getCityConfig(targetCity).nameUa}!`, 0.5, 0.5, '#a855f7');
+  return state;
+}
+
+export function upgradeBuildingAction(state: GameState, buildingIdx: number): GameState {
+  if (state.money < GAME_CONFIG.BUILDING_UPGRADE_COST) return state;
+  const b = state.buildings[buildingIdx];
+  if (!b || b.isDestroyed) return state;
+  const current = state.buildingUpgrades[buildingIdx] || { level: 0, income: 0, repairRate: 0 };
+  if (current.level >= 3) return state;
+  state.money -= GAME_CONFIG.BUILDING_UPGRADE_COST * (current.level + 1);
+  state.buildingUpgrades[buildingIdx] = { level: current.level + 1, income: (current.level + 1) * 2, repairRate: (current.level + 1) * 5 };
+  b.maxHp += 25;
+  b.hp = Math.min(b.hp + 25, b.maxHp);
+  addNotification(state, `🏗️ Будівля Рів.${current.level + 1}!`, b.x, b.y, '#4ade80');
+  return state;
+}
