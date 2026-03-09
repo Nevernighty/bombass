@@ -617,46 +617,77 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
 
-          {/* Event Ticker */}
-          {state.eventLog.length > 0 && (
-            <div className="absolute top-11 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ maxWidth: '500px' }}>
-              <div className="flex gap-4 animate-marquee text-[11px] font-bold whitespace-nowrap" style={{ color: 'hsl(var(--game-accent))' }}>
-                {state.eventLog.slice(-5).map((e, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded" style={{ background: 'rgba(8,12,24,0.8)' }}>
-                    {e}
-                  </span>
-                ))}
+          {/* Notification stack below TopBar */}
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20" style={{ maxWidth: '500px', width: '100%' }}>
+            {/* Event Ticker */}
+            {state.eventLog.length > 0 && (
+              <div className="w-full overflow-hidden">
+                <div className="flex gap-4 animate-marquee text-[11px] font-bold whitespace-nowrap" style={{ color: 'hsl(var(--game-accent))' }}>
+                  {state.eventLog.slice(-5).map((e, i) => (
+                    <span key={i} className="px-2 py-0.5 rounded" style={{ background: 'rgba(8,12,24,0.8)' }}>
+                      {e}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Active Events — full-width sliding banners */}
-          {state.activeEvents.length > 0 && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 flex flex-col gap-1 pointer-events-none">
-              {state.activeEvents.map(ev => {
-                const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
-                  rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
-                  vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!' },
-                  power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
-                  emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
-                  power_surge: { bg: 'rgba(34,197,94,0.9)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!' },
-                };
-                const c = configs[ev.type] || configs.rush_surge;
-                const timerPct = Math.min(100, (ev.timer / 15000) * 100);
-                return (
-                  <div key={ev.id} className="rounded-lg px-4 py-1.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
-                    style={{ background: c.bg, color: c.fg, minWidth: '240px' }}>
-                    <span className="text-base">{c.icon}</span>
-                    <span className="text-[12px] font-bold flex-1">{c.text}</span>
-                    <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                      <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.6)' }} />
-                    </div>
-                    <span className="text-[10px] font-mono font-bold">{Math.ceil(ev.timer / 1000)}с</span>
+            {/* Air Raid Banner */}
+            {state.isAirRaid && (
+              <div className="px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
+                style={{ background: 'rgba(220,38,38,0.85)', color: '#fff', boxShadow: '0 0 30px rgba(220,38,38,0.5)' }}>
+                ⚠️ ПОВІТРЯНА ТРИВОГА ⚠️
+              </div>
+            )}
+
+            {/* Rush Hour */}
+            {state.rushHourActive && (
+              <div className="px-4 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
+                style={{ background: 'rgba(234,179,8,0.85)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(234,179,8,0.4)' }}>
+                🚇 ГОДИНА ПІК x3
+              </div>
+            )}
+
+            {/* Active Events */}
+            {state.activeEvents.length > 0 && state.activeEvents.map(ev => {
+              const configs: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
+                rush_surge: { bg: 'rgba(245,158,11,0.9)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів' },
+                vip_passenger: { bg: 'rgba(251,191,36,0.9)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!' },
+                power_flicker: { bg: 'rgba(99,102,241,0.9)', fg: '#fff', icon: '⚡', text: 'Коливання живлення' },
+                emergency_evac: { bg: 'rgba(239,68,68,0.9)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація' },
+                power_surge: { bg: 'rgba(34,197,94,0.9)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!' },
+              };
+              const c = configs[ev.type] || configs.rush_surge;
+              const timerPct = Math.min(100, (ev.timer / 15000) * 100);
+              return (
+                <div key={ev.id} className="rounded-lg px-4 py-1.5 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
+                  style={{ background: c.bg, color: c.fg, minWidth: '240px' }}>
+                  <span className="text-base">{c.icon}</span>
+                  <span className="text-[12px] font-bold flex-1">{c.text}</span>
+                  <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.6)' }} />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <span className="text-[10px] font-mono font-bold">{Math.ceil(ev.timer / 1000)}с</span>
+                </div>
+              );
+            })}
+
+            {/* Drawing Mode */}
+            {state.isDrawingLine && (
+              <div className="px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
+                style={{ background: state.drawLineColor || 'rgba(156,163,175,0.9)', color: '#fff', boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.4)'}` }}>
+                🔗 Тягни до сірої станції щоб підключити
+              </div>
+            )}
+
+            {/* Pending stations */}
+            {state.pendingStations.length > 0 && !state.isDrawingLine && (
+              <div className="px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
+                style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
+                🔗 {state.pendingStations.length} станц. чекають · клікни кінцеву станцію
+              </div>
+            )}
+          </div>
 
           {/* Cursor-following tooltip */}
           {state.hoveredElement && (
@@ -684,7 +715,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                     {state.hoveredElement.details}
                   </div>
                 )}
-                {/* Contextual action hint */}
                 {state.hoveredElement.type === 'station' && state.isAirRaid && (
                   <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Щит / Оборона</div>
                 )}
@@ -695,36 +725,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                   <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>Клік → Збити</div>
                 )}
               </div>
-            </div>
-          )}
-
-          {state.isAirRaid && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 text-white px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse"
-              style={{ background: 'rgba(220,38,38,0.85)', boxShadow: '0 0 30px rgba(220,38,38,0.5)' }}>
-              ⚠️ ПОВІТРЯНА ТРИВОГА ⚠️
-            </div>
-          )}
-
-          {state.rushHourActive && (
-            <div className="absolute top-14 right-4 text-white px-4 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse"
-              style={{ background: 'rgba(234,179,8,0.85)', color: '#1a1a2e', boxShadow: '0 0 20px rgba(234,179,8,0.4)' }}>
-              🚇 ГОДИНА ПІК x3
-            </div>
-          )}
-
-          {/* Line Drawing Mode indicator */}
-          {state.isDrawingLine && (
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 px-6 py-2 rounded-lg font-bold text-sm tracking-wider animate-pulse pointer-events-none"
-              style={{ background: state.drawLineColor || 'rgba(156,163,175,0.9)', color: '#fff', boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.4)'}` }}>
-              🔗 Тягни до сірої станції щоб підключити
-            </div>
-          )}
-
-          {/* Pending stations count */}
-          {state.pendingStations.length > 0 && !state.isDrawingLine && (
-            <div className="absolute top-24 right-4 px-3 py-1.5 rounded-lg font-bold text-xs tracking-wider animate-pulse pointer-events-none"
-              style={{ background: 'rgba(156,163,175,0.85)', color: '#1a1a2e' }}>
-              🔗 {state.pendingStations.length} станц. чекають · клікни кінцеву станцію
             </div>
           )}
 

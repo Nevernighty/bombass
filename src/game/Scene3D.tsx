@@ -267,7 +267,7 @@ function NightSky({ isNight }: { isNight: boolean }) {
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
   const positions = useMemo(() => {
-    const count = 200;
+    const count = 100;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
@@ -304,7 +304,7 @@ function NightSky({ isNight }: { isNight: boolean }) {
         <sphereGeometry args={[4, 16, 16]} />
         <meshBasicMaterial color="#e8e0d0" />
       </mesh>
-      <pointLight position={[60, 80, -40]} color="#ccccdd" intensity={0.3} distance={200} />
+      {/* Moon light removed to reduce WebGL light count */}
     </>
   );
 }
@@ -316,7 +316,7 @@ function AmbientParticles({ isNight }: { isNight: boolean }) {
   const basePositions = useRef<Float32Array | null>(null);
 
   const { positions, colors } = useMemo(() => {
-    const count = 40;
+    const count = 20;
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -484,9 +484,8 @@ function InterceptorDronesLayer({ stateRef }: { stateRef: React.MutableRefObject
         <group key={i} visible={false}>
           <mesh>
             <coneGeometry args={[0.3, 1.2, 6]} />
-            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.8} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
           </mesh>
-          <pointLight color="#22c55e" intensity={0.5} distance={4} />
         </group>
       ))}
     </group>
@@ -499,7 +498,7 @@ function RainEffect({ isRaining }: { isRaining: boolean }) {
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
   const positions = useMemo(() => {
-    const count = 150;
+    const count = 80;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 120;
@@ -591,7 +590,9 @@ function DrawingLine({ stateRef }: { stateRef: React.MutableRefObject<GameState>
     opacity: 0.8,
     linewidth: 2,
   }), []);
-  
+
+  const lineObject = useMemo(() => new THREE.Line(lineGeo, lineMat), [lineGeo, lineMat]);
+
   // Raycaster for screen-to-ground conversion
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
@@ -650,7 +651,7 @@ function DrawingLine({ stateRef }: { stateRef: React.MutableRefObject<GameState>
   
   return (
     <>
-      <primitive ref={lineRef} object={new THREE.Line(lineGeo, lineMat)} visible={false} renderOrder={999} />
+      <primitive ref={lineRef} object={lineObject} visible={false} renderOrder={999} />
       <mesh ref={sphereRef} visible={false} renderOrder={999}>
         <sphereGeometry args={[1.2, 12, 12]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.6} depthTest={false} />
