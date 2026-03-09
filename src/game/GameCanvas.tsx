@@ -413,26 +413,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       {/* START SCREEN */}
       {!state.gameStarted && (
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden" style={{
-          background: 'hsla(var(--game-bg), 0.98)',
+          background: '#060a14',
         }}>
-          {/* Animated background grid */}
+          {/* Animated background radials */}
           <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'radial-gradient(circle at 25% 25%, hsla(var(--game-accent), 0.03) 0%, transparent 50%), radial-gradient(circle at 75% 75%, hsla(var(--game-blue), 0.03) 0%, transparent 50%)',
-            animation: 'bg-gradient-pulse 8s ease-in-out infinite',
-            backgroundSize: '200% 200%',
+            background: 'radial-gradient(ellipse at 20% 30%, rgba(229,57,53,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(30,136,229,0.06) 0%, transparent 50%), radial-gradient(ellipse at 50% 90%, rgba(67,160,71,0.04) 0%, transparent 40%)',
           }} />
-          {/* Subtle metro line decoration */}
-          <div className="absolute inset-0 pointer-events-none opacity-[0.04]" style={{
-            backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 40px, hsl(var(--game-accent)) 40px, hsl(var(--game-accent)) 41px)`,
-          }} />
+
+          {/* Drifting dots */}
+          {[
+            { x: '15%', y: '20%', delay: '0s', color: '#e53935' },
+            { x: '80%', y: '30%', delay: '2s', color: '#1e88e5' },
+            { x: '40%', y: '75%', delay: '4s', color: '#43a047' },
+            { x: '65%', y: '15%', delay: '6s', color: '#facc15' },
+            { x: '25%', y: '60%', delay: '8s', color: '#38bdf8' },
+            { x: '90%', y: '80%', delay: '3s', color: '#e53935' },
+          ].map((dot, i) => (
+            <div key={i} className="absolute w-1.5 h-1.5 rounded-full pointer-events-none animate-drift-dot"
+              style={{ left: dot.x, top: dot.y, background: dot.color, animationDelay: dot.delay, opacity: 0.3 }} />
+          ))}
+
+          {/* Decorative metro SVG lines */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]">
+            <line x1="10%" y1="30%" x2="90%" y2="30%" stroke="#e53935" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" />
+            <line x1="20%" y1="50%" x2="80%" y2="50%" stroke="#1e88e5" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" style={{ animationDelay: '1s' }} />
+            <line x1="30%" y1="70%" x2="70%" y2="70%" stroke="#43a047" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" style={{ animationDelay: '2s' }} />
+          </svg>
 
           <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6">
             {/* Title */}
             <div className="text-center mb-8">
-              <h1 className="text-6xl font-black mb-1 tracking-tighter" style={{ color: 'hsl(var(--foreground))' }}>
+              <h1 className="text-6xl font-black mb-1 tracking-tighter">
                 {'KYIV TRANSIT'.split('').map((ch, i) => (
                   <span key={i} className="inline-block" style={{
                     animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
+                    background: 'linear-gradient(180deg, #ffffff 30%, hsl(var(--game-accent)))',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
                   }}>
                     {ch === ' ' ? '\u00A0' : ch}
                   </span>
@@ -441,6 +458,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               <p className="text-xl font-black tracking-[0.5em] mb-3" style={{
                 color: 'hsl(var(--game-accent))',
                 animation: 'title-letter 0.5s ease-out 0.5s both',
+                textShadow: '0 0 20px rgba(234,179,8,0.3)',
               }}>RESILIENCE</p>
               <p className="text-[13px] max-w-md mx-auto" style={{
                 color: 'hsl(var(--game-muted))',
@@ -455,52 +473,66 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               {Object.values(SCENARIOS).map((sc, idx) => {
                 const diffColors = ['', 'hsl(var(--game-green))', 'hsl(var(--game-green))', 'hsl(var(--game-accent))', 'hsl(var(--destructive))', 'hsl(var(--destructive))'];
                 const diffColor = diffColors[sc.difficulty] || 'hsl(var(--game-muted))';
+                const diffLabels = ['', 'Легко', 'Легко', 'Середньо', 'Складно', 'Хардкор'];
                 const isClassic = sc.id === 'classic';
                 return (
                   <button key={sc.id} onClick={() => startGame(sc.id)}
-                    className="game-btn-hover relative p-5 rounded-xl text-left transition-all group"
+                    className="game-card relative p-5 rounded-xl text-left group"
                     style={{
-                      background: isClassic ? 'hsla(var(--game-accent), 0.06)' : 'hsla(var(--game-glass), 0.5)',
-                      border: isClassic ? '1px solid hsla(var(--game-accent), 0.25)' : '1px solid hsla(var(--game-glass-border), 0.4)',
+                      borderLeft: `3px solid ${diffColor}`,
                       animation: `mode-card-in 0.4s ease-out ${0.8 + idx * 0.1}s both`,
                     }}>
                     {isClassic && (
-                      <span className="absolute -top-2 right-3 text-[9px] font-black px-2 py-0.5 rounded-full tracking-wider"
-                        style={{ background: 'hsl(var(--game-accent))', color: 'hsl(var(--game-bg))' }}>
+                      <span className="absolute -top-2 right-3 text-[9px] font-black px-2.5 py-0.5 rounded-full tracking-wider"
+                        style={{
+                          background: 'hsl(var(--game-accent))',
+                          color: 'hsl(var(--game-bg))',
+                          boxShadow: '0 2px 8px rgba(234,179,8,0.3)',
+                        }}>
                         РЕКОМЕНД.
                       </span>
                     )}
                     <div className="flex items-start gap-3 mb-3">
-                      <span className="text-2xl">{sc.icon}</span>
+                      <span className="text-3xl">{sc.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-black mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{sc.nameUa}</p>
                         <p className="text-[10px] leading-snug" style={{ color: 'hsl(var(--game-muted))' }}>{sc.descriptionUa}</p>
                       </div>
                     </div>
-                    {/* Difficulty stars */}
-                    <div className="flex items-center gap-1 mb-2">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <span key={i} className="text-[11px]" style={{
-                          color: i < sc.difficulty ? diffColor : 'hsla(var(--game-muted), 0.3)',
-                        }}>★</span>
-                      ))}
-                      <span className="text-[9px] ml-1 font-bold" style={{ color: diffColor }}>
-                        {sc.difficulty <= 2 ? 'Легко' : sc.difficulty === 3 ? 'Середньо' : sc.difficulty === 4 ? 'Складно' : 'Хардкор'}
+                    {/* Difficulty bar */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(220 25% 12%)' }}>
+                        <div className="h-full rounded-full transition-all" style={{
+                          width: `${(sc.difficulty / 5) * 100}%`,
+                          background: diffColor,
+                          boxShadow: `0 0 6px ${diffColor}`,
+                        }} />
+                      </div>
+                      <span className="text-[9px] font-black" style={{ color: diffColor }}>
+                        {diffLabels[sc.difficulty]}
                       </span>
                     </div>
-                    {/* Win condition */}
+                    {/* Win condition badge */}
                     {sc.winCondition && (
-                      <p className="text-[9px] font-mono" style={{ color: 'hsla(var(--game-muted), 0.7)' }}>
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md" style={{
+                        background: 'hsl(220 25% 10%)',
+                        border: '1px solid hsl(220 20% 16%)',
+                        color: 'hsl(220 10% 55%)',
+                      }}>
                         🎯 {sc.winCondition.type === 'passengers' ? `${sc.winCondition.target} пас.` :
                              sc.winCondition.type === 'survive' ? `Вижити ${sc.winCondition.target / 60000} хв` :
                              `Захист ${sc.winCondition.target / 60000} хв`}
                         {sc.timeLimit ? ` · ⏱ ${sc.timeLimit / 60000} хв` : ' · ∞'}
-                      </p>
+                      </div>
                     )}
                     {!sc.winCondition && (
-                      <p className="text-[9px] font-mono" style={{ color: 'hsla(var(--game-muted), 0.7)' }}>
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md" style={{
+                        background: 'hsl(220 25% 10%)',
+                        border: '1px solid hsl(220 20% 16%)',
+                        color: 'hsl(220 10% 55%)',
+                      }}>
                         ∞ Нескінченний режим
-                      </p>
+                      </div>
                     )}
                   </button>
                 );
@@ -508,20 +540,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             </div>
 
             {/* Controls */}
-            <div className="w-full p-3 rounded-xl text-center" style={{
-              background: 'hsla(var(--game-glass), 0.3)',
-              border: '1px solid hsla(var(--game-glass-border), 0.2)',
+            <div className="w-full p-4 rounded-xl" style={{
+              background: 'hsl(225 45% 6% / 1)',
+              border: '1px solid hsl(220 20% 14% / 1)',
               animation: 'title-letter 0.4s ease-out 1.4s both',
             }}>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] font-mono" style={{ color: 'hsl(var(--game-muted))' }}>
-                <p>WASD — рух камери</p>
-                <p>Колесо — зум</p>
-                <p>ПКМ — обертання</p>
-                <p>Клік — взаємодія</p>
-                <p>Пробіл — пауза</p>
-                <p>1-4 — швидкість гри</p>
-                <p>Q/E/R/T — швидкі дії</p>
-                <p>F/O/C — режими камери</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]" style={{ color: 'hsl(var(--game-muted))' }}>
+                {[
+                  ['WASD', 'рух камери'],
+                  ['Колесо', 'зум'],
+                  ['ПКМ', 'обертання'],
+                  ['Клік', 'взаємодія'],
+                  ['Пробіл', 'пауза'],
+                  ['1-4', 'швидкість гри'],
+                  ['Q/E/R/T', 'швидкі дії'],
+                  ['F/O/C', 'режими камери'],
+                ].map(([key, desc], i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="kbd-key">{key}</span>
+                    <span>{desc}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -530,7 +569,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* GAME OVER / VICTORY */}
       {(state.gameOver || state.winConditionMet) && state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(6,10,20,0.94)' }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'hsl(225 45% 4% / 0.97)' }}>
           {state.winConditionMet && (
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               {Array.from({ length: 24 }).map((_, i) => (
@@ -545,17 +584,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               ))}
             </div>
           )}
-          <div className="text-center p-8 rounded-xl max-w-md game-panel" style={{
-            border: `1px solid ${state.winConditionMet ? 'hsla(145, 63%, 49%, 0.3)' : 'hsla(0, 72%, 51%, 0.15)'}`,
+          <div className="text-center p-8 rounded-2xl max-w-md" style={{
+            background: 'hsl(225 45% 6% / 1)',
+            border: state.winConditionMet
+              ? '2px solid hsl(145 63% 49% / 0.5)'
+              : '1px solid hsl(0 72% 51% / 0.2)',
+            boxShadow: state.winConditionMet
+              ? '0 0 40px rgba(34,197,94,0.15), 0 16px 48px rgba(0,0,0,0.8)'
+              : '0 16px 48px rgba(0,0,0,0.8)',
             animation: state.winConditionMet ? 'victory-glow 2s ease-in-out infinite' : undefined,
           }}>
-            <h2 className="text-3xl font-bold mb-5" style={{
-              color: state.winConditionMet ? 'hsl(145, 63%, 49%)' : 'hsl(var(--destructive))',
+            <h2 className="text-4xl font-black mb-5 tracking-tight" style={{
+              color: state.winConditionMet ? 'hsl(145, 63%, 55%)' : 'hsl(var(--destructive))',
               animation: 'title-letter 0.4s ease-out both',
+              textShadow: state.winConditionMet ? '0 0 20px rgba(34,197,94,0.3)' : '0 0 20px rgba(239,68,68,0.3)',
             }}>
               {state.winConditionMet ? 'ПЕРЕМОГА' : 'ГАМОВЕР'}
             </h2>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-5">
+            <div className="grid grid-cols-2 gap-2 text-sm mb-6">
               {[
                 { label: 'Рахунок', value: String(Math.round(state.score)), accent: true },
                 { label: 'Час', value: `${Math.floor(state.elapsedTime / 60000)}:${String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}` },
@@ -564,21 +610,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 { label: 'Макс. комбо', value: `x${state.maxCombo.toFixed(1)}` },
                 { label: 'Будівлі', value: String(state.buildingsDestroyed) },
               ].map((stat, i) => (
-                <div key={i} className="text-left" style={{ color: 'hsl(var(--muted-foreground))', animation: `stat-reveal 0.3s ease-out ${0.3 + i * 0.12}s both` }}>
-                  <span>{stat.label}</span>
-                  <span className="float-right font-bold" style={{
+                <div key={i} className="px-3 py-2 rounded-lg text-left" style={{
+                  background: i % 2 === 0 ? 'hsl(220 25% 10% / 0.5)' : 'transparent',
+                  animation: `stat-count-up 0.4s ease-out ${0.3 + i * 0.12}s both`,
+                }}>
+                  <span className="text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>{stat.label}</span>
+                  <span className="float-right font-black tabular-nums" style={{
                     color: stat.accent ? 'hsl(var(--game-accent))' : 'hsl(var(--foreground))',
                   }}>{stat.value}</span>
                 </div>
               ))}
             </div>
             {state.achievements.filter(a => a.unlocked).length > 0 && (
-              <div className="mb-5" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
-                <p className="text-[10px] mb-1.5 font-bold uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Досягнення</p>
+              <div className="mb-6" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
+                <p className="text-[10px] mb-2 font-black uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Досягнення</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {state.achievements.filter(a => a.unlocked).map((a, i) => (
-                    <span key={a.id} className="text-lg px-1 py-0.5 rounded" title={a.nameUa} style={{
-                      background: 'hsl(var(--muted))',
+                    <span key={a.id} className="text-lg px-2 py-1 rounded-lg" title={a.nameUa} style={{
+                      background: 'hsl(220 25% 10% / 1)',
+                      border: '1px solid hsl(220 20% 16% / 1)',
                       animation: `mode-card-in 0.3s ease-out ${1.4 + i * 0.1}s both`,
                     }}>{a.icon}</span>
                   ))}
@@ -586,10 +636,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               </div>
             )}
             <button onClick={restartGame}
-              className="game-btn-hover px-8 py-3 font-bold rounded-lg text-base"
+              className="game-btn-hover px-10 py-3.5 font-black rounded-xl text-base tracking-wide"
               style={{
-                background: 'hsl(var(--game-accent))',
+                background: 'linear-gradient(135deg, hsl(var(--game-accent)), hsl(45 85% 45%))',
                 color: 'hsl(var(--game-bg))',
+                boxShadow: '0 4px 16px rgba(234,179,8,0.3)',
                 animation: 'stat-reveal 0.3s ease-out 1.8s both',
               }}>
               ГРАТИ ЗНОВУ
