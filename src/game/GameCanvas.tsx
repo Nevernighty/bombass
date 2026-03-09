@@ -830,6 +830,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onLaunchInterceptor={() => act(s => launchInterceptor(s, selStation.id))}
               onFortify={() => act(s => fortifyStation(s, selStation.id))}
               onEMP={() => act(s => activateDroneEMP(s, selStation.id))}
+              onHover={() => audioRef.current.playHover()}
             />
           )}
 
@@ -846,6 +847,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               onUpgrade={() => act(s => upgradeTrainCapacity(s, selTrain.id))}
               onShield={() => act(s => activateTrainShield(s, selTrain.id))}
               onReverse={() => act(s => reverseTrain(s, selTrain.id))}
+              onHover={() => audioRef.current.playHover()}
             />
           )}
 

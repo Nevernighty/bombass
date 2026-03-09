@@ -26,6 +26,7 @@ interface StationPanelProps {
   onLaunchInterceptor: () => void;
   onFortify: () => void;
   onEMP: () => void;
+  onHover?: () => void;
 }
 
 type Tab = 'defense' | 'manage' | 'info';
@@ -39,13 +40,14 @@ function StatusChip({ icon, value, color, label }: { icon: React.ReactNode; valu
   );
 }
 
-function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay }: {
+function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay, onHoverSound }: {
   icon: React.ReactNode; label: string; cost?: number; onClick: () => void;
-  disabled?: boolean; active?: boolean; timer?: string; delay?: number;
+  disabled?: boolean; active?: boolean; timer?: string; delay?: number; onHoverSound?: () => void;
 }) {
   const insufficient = cost !== undefined && disabled;
   return (
     <button onClick={onClick} disabled={disabled}
+      onMouseEnter={onHoverSound}
       className="relative flex flex-col items-center justify-center gap-1 rounded-lg transition-all cursor-pointer"
       style={{
         width: '100%',
@@ -80,7 +82,7 @@ export const StationPanel = React.memo(function StationPanel({
   station, money, isAirRaid, speedBoostCooldown, stationMagnetTimer,
   onClose, onDeployAA, onShield, onUpgrade, onEvacuate, onToggle,
   onShelter, onSealTunnel, onSpeedBoost, onExpressLine, onStationMagnet,
-  onBuySAM, onBuyAATurret, onLaunchInterceptor, onFortify, onEMP,
+  onBuySAM, onBuyAATurret, onLaunchInterceptor, onFortify, onEMP, onHover,
 }: StationPanelProps) {
   const [tab, setTab] = useState<Tab>('defense');
   const hpPct = (station.hp / station.maxHp) * 100;
@@ -187,14 +189,14 @@ export const StationPanel = React.memo(function StationPanel({
           {tab === 'defense' && (
             <div className="grid grid-cols-3 gap-1.5" style={{ animation: 'mode-card-in 0.2s ease-out both' }}>
               {defenseActions.map((a, i) => (
-                <GridBtn key={i} {...a} delay={i * 0.04} />
+                <GridBtn key={i} {...a} delay={i * 0.04} onHoverSound={onHover} />
               ))}
             </div>
           )}
           {tab === 'manage' && (
             <div className="grid grid-cols-3 gap-1.5" style={{ animation: 'mode-card-in 0.2s ease-out both' }}>
               {manageActions.map((a, i) => (
-                <GridBtn key={i} {...a} delay={i * 0.04} />
+                <GridBtn key={i} {...a} delay={i * 0.04} onHoverSound={onHover} />
               ))}
             </div>
           )}

@@ -36,6 +36,7 @@ interface ActionBarProps {
   onEmergencyFund: () => void;
   onCloseSegment: (line: 'red' | 'blue' | 'green') => void;
   onReopenLine: (line: 'red' | 'blue' | 'green') => void;
+  onHover?: () => void;
 }
 
 interface ActionBtnProps {
@@ -49,9 +50,10 @@ interface ActionBtnProps {
   active?: boolean;
   cooldown?: number;
   color: string;
+  onHoverSound?: () => void;
 }
 
-function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active, cooldown, color }: ActionBtnProps) {
+function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active, cooldown, color, onHoverSound }: ActionBtnProps) {
   const [showTip, setShowTip] = useState(false);
   const [pressed, setPressed] = useState(false);
   const insufficient = cost !== undefined && disabled;
@@ -67,7 +69,7 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
   const cooldownPct = hasCooldown ? Math.round((1 - cooldown) * 100) : 100;
 
   return (
-    <div className="relative" onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
+    <div className="relative" onMouseEnter={() => { setShowTip(true); onHoverSound?.(); }} onMouseLeave={() => setShowTip(false)}>
       <button
         onClick={handleClick}
         disabled={disabled}
@@ -144,8 +146,8 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
   );
 }
 
-function TrainBtn({ line, label, money, onClick, color }: {
-  line: string; label: string; money: number; onClick: () => void; color: string;
+function TrainBtn({ line, label, money, onClick, color, onHoverSound }: {
+  line: string; label: string; money: number; onClick: () => void; color: string; onHoverSound?: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
   const insufficient = money < GAME_CONFIG.TRAIN_COST;
@@ -168,7 +170,7 @@ function TrainBtn({ line, label, money, onClick, color }: {
         transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease',
       }}
       onMouseEnter={(e) => {
-        if (!insufficient) (e.currentTarget as HTMLElement).style.transform = 'scale(1.1) translateY(-2px)';
+        if (!insufficient) { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1) translateY(-2px)'; onHoverSound?.(); }
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
@@ -203,7 +205,7 @@ export const ActionBar = React.memo(function ActionBar({
   onEmergencyBrake, onDoubleFare, onExpressLine,
   onBlackout, onSignalFlare, onPassengerAirdrop,
   onDroneJammer, onEmergencyFund,
-  onCloseSegment, onReopenLine,
+  onCloseSegment, onReopenLine, onHover,
 }: ActionBarProps) {
 
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
@@ -228,9 +230,9 @@ export const ActionBar = React.memo(function ActionBar({
         <div className="flex flex-col items-center gap-1">
           <SectionLabel>ПОТЯГИ</SectionLabel>
           <div className="flex items-center gap-1.5">
-            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
-            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
-            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} onHoverSound={onHover} />
+            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} onHoverSound={onHover} />
+            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} onHoverSound={onHover} />
           </div>
         </div>
 
@@ -242,18 +244,18 @@ export const ActionBar = React.memo(function ActionBar({
           <div className="flex items-center gap-1.5">
             <ActionBtn icon={<Radar size={16} />} label="Радар" desc="Раннє попередження дронів"
               cost={GAME_CONFIG.RADAR_COST} onClick={onBuyRadar}
-              disabled={money < GAME_CONFIG.RADAR_COST || radarActive} active={radarActive} color="#38bdf8" />
+              disabled={money < GAME_CONFIG.RADAR_COST || radarActive} active={radarActive} color="#38bdf8" onHoverSound={onHover} />
             <ActionBtn icon={<Target size={16} />} label="Приманка" desc="Хибна ціль для дронів"
               cost={GAME_CONFIG.DECOY_COST} hotkey="T" onClick={onPlaceDecoy}
-              disabled={money < GAME_CONFIG.DECOY_COST} color="#facc15" />
+              disabled={money < GAME_CONFIG.DECOY_COST} color="#facc15" onHoverSound={onHover} />
             <ActionBtn icon={<Crosshair size={16} />} label="Глушилка" desc="Уповільнює всі дрони"
               cost={GAME_CONFIG.DRONE_JAMMER_COST} onClick={onDroneJammer}
               disabled={money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0}
-              cooldown={droneJammerTimer > 0 ? droneJammerTimer / 15000 : 0} color="#38bdf8" />
+              cooldown={droneJammerTimer > 0 ? droneJammerTimer / 15000 : 0} color="#38bdf8" onHoverSound={onHover} />
             <ActionBtn icon={<Zap size={16} />} label="Сигнальна ракета" desc="Підсвічує дрони та цілі"
               cost={GAME_CONFIG.SIGNAL_FLARE_COST} onClick={onSignalFlare}
               disabled={money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0}
-              cooldown={signalFlareTimer > 0 ? signalFlareTimer / 10000 : 0} color="#facc15" />
+              cooldown={signalFlareTimer > 0 ? signalFlareTimer / 10000 : 0} color="#facc15" onHoverSound={onHover} />
           </div>
         </div>
 
@@ -266,12 +268,12 @@ export const ActionBar = React.memo(function ActionBar({
             <ActionBtn icon={<DollarSign size={16} />} label="x2 Тариф" desc="Подвійний дохід"
               cost={GAME_CONFIG.DOUBLE_FARE_COST} onClick={onDoubleFare}
               disabled={money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0}
-              active={doubleFareTimer > 0} cooldown={doubleFareTimer > 0 ? doubleFareTimer / 20000 : 0} color="#4ade80" />
+              active={doubleFareTimer > 0} cooldown={doubleFareTimer > 0 ? doubleFareTimer / 20000 : 0} color="#4ade80" onHoverSound={onHover} />
             <ActionBtn icon={<Users size={16} />} label="Десант" desc="Додає пасажирів"
               cost={GAME_CONFIG.PASSENGER_AIRDROP_COST} onClick={onPassengerAirdrop}
-              disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST} color="#c084fc" />
+              disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST} color="#c084fc" onHoverSound={onHover} />
             <ActionBtn icon={<AlertTriangle size={16} />} label="Екстрений фонд" desc="HP → гроші"
-              onClick={onEmergencyFund} disabled={lives <= 1} color="#ef4444" />
+              onClick={onEmergencyFund} disabled={lives <= 1} color="#ef4444" onHoverSound={onHover} />
           </div>
         </div>
 
@@ -284,15 +286,15 @@ export const ActionBar = React.memo(function ActionBar({
             <ActionBtn icon={<RotateCcw size={16} />} label="Стоп" desc="Зупинити всі потяги"
               cost={GAME_CONFIG.EMERGENCY_BRAKE_COST} onClick={onEmergencyBrake}
               disabled={money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0}
-              cooldown={emergencyBrakeTimer > 0 ? emergencyBrakeTimer / 8000 : 0} color="#ef4444" />
+              cooldown={emergencyBrakeTimer > 0 ? emergencyBrakeTimer / 8000 : 0} color="#ef4444" onHoverSound={onHover} />
             <ActionBtn icon={<Moon size={16} />} label="Блекаут" desc="Дрони гірше бачать"
-              onClick={onBlackout} active={blackoutMode} color="#94a3b8" />
+              onClick={onBlackout} active={blackoutMode} color="#94a3b8" onHoverSound={onHover} />
             <ActionBtn icon={<Wrench size={16} />} label="Ремонт" desc="Ремонтники до станції"
               cost={GAME_CONFIG.REINFORCEMENT_COST} hotkey="R" onClick={onReinforcements}
-              disabled={money < GAME_CONFIG.REINFORCEMENT_COST} color="#fb923c" />
+              disabled={money < GAME_CONFIG.REINFORCEMENT_COST} color="#fb923c" onHoverSound={onHover} />
             <ActionBtn icon={<Gauge size={16} />} label="Генератор" desc="Автономне живлення"
               cost={GAME_CONFIG.GENERATOR_COST} onClick={onBuyGenerator}
-              disabled={money < GAME_CONFIG.GENERATOR_COST} color="#4ade80" />
+              disabled={money < GAME_CONFIG.GENERATOR_COST} color="#4ade80" onHoverSound={onHover} />
           </div>
         </div>
 
@@ -317,6 +319,7 @@ export const ActionBar = React.memo(function ActionBar({
                   disabled={!isClosed && money < 15}
                   active={isClosed}
                   color={c}
+                  onHoverSound={onHover}
                 />
               );
             })}
