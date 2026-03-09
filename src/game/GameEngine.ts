@@ -174,6 +174,21 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     drawMouseWorldPos: null,
     trainSpawnEffects: [],
     _cachedLineStations: {},
+    // Multi-city
+    currentCity: cityId,
+    cityStates: Object.fromEntries(Object.keys(CITIES).map(cid => [cid, {
+      cityId: cid,
+      stability: 50,
+      avgSatisfaction: 100,
+      buildingsManaged: 0,
+    } as CityState])),
+    intercityTrains: [],
+    globalStability: 50,
+    // Tutorial
+    tutorialStep: 0,
+    tutorialComplete: false,
+    // Building upgrades
+    buildingUpgrades: {},
   };
 }
 
