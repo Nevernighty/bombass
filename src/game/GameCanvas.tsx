@@ -179,7 +179,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
       if (e.key === 'Escape') { setCameraMode('free'); stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }
       if (e.key === 'q' || e.key === 'Q') {
-        const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+        const lines: string[] = ['red', 'blue', 'green'];
         const counts = lines.map(l => stateRef.current.trains.filter(t => t.line === l).length);
         const minLine = lines[counts.indexOf(Math.min(...counts))];
         act(s => purchaseTrain(s, minLine));
