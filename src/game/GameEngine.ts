@@ -1245,6 +1245,9 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateGameEvents(s, realDt, globalEventBus);
   updateAchievements(s);
   updateWinConditions(s);
+  updateStability(s);
+  updateIntercity(s, realDt);
+  updateTutorial(s);
   updatePhysics(s, realDt);
 
   globalEventBus.flush();
