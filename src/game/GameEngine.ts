@@ -55,7 +55,7 @@ function initAchievements(): Achievement[] {
   }));
 }
 
-export function createInitialState(mode: GameMode = 'classic'): GameState {
+export function createInitialState(mode: GameMode = 'classic', cityId: string = 'kyiv'): GameState {
   const scenario = SCENARIOS[mode];
   let stationIndex = 0;
   const stations: GameStation[] = STATIONS.map(s => ({
