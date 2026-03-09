@@ -1859,8 +1859,8 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
       s.eventLog.push('Енергосплеск: +10HP');
     } else if (roll < 0.9) {
       // Tunnel Flood — close random segment for 20s
-      const lines = ['red', 'blue', 'green'];
-      const line = lines[Math.floor(Math.random() * lines.length)];
+      const cityLineKeys = Object.keys(s._cachedLineStations);
+      const line = cityLineKeys[Math.floor(Math.random() * cityLineKeys.length)];
       const lineStations = s._cachedLineStations[line];
       if (lineStations && lineStations.length >= 2) {
         const idx = Math.floor(Math.random() * (lineStations.length - 1));

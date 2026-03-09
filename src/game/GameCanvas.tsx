@@ -1,11 +1,12 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus } from './GameEngine';
-import { METRO_LINES } from './constants';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction } from './GameEngine';
+import { METRO_LINES, getCityLines } from './constants';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
 import { SCENARIOS } from './config/scenarios';
+import { CITIES, getCityConfig, CITY_IDS } from './config/cities';
 import SceneContent from './Scene3D';
 import { TopBar } from './ui/TopBar';
 import { StationPanel } from './ui/StationPanel';
