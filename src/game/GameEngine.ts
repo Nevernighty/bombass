@@ -57,8 +57,19 @@ function initAchievements(): Achievement[] {
 
 export function createInitialState(mode: GameMode = 'classic', cityId: string = 'kyiv'): GameState {
   const scenario = SCENARIOS[mode];
+  const city = getCityConfig(cityId);
+  const cityStations = city.stations;
+  const cityStationMap = getStationMapForCity(cityId);
+  const cityLineStations = getLineStationsForCity(cityId);
+  const cityStarting = city.startingStations;
+  
+  // Determine which lines to use — use scenario's activeLines if they exist in this city, otherwise use all city lines
+  const cityLineKeys = Object.keys(city.lines);
+  const linesToUse = scenario.activeLines.filter(l => cityLineKeys.includes(l));
+  const effectiveLines = linesToUse.length > 0 ? linesToUse : cityLineKeys;
+
   let stationIndex = 0;
-  const stations: GameStation[] = STATIONS.map(s => ({
+  const stations: GameStation[] = cityStations.map(s => ({
     ...s,
     isTransfer: s.isTransfer || false,
     shape: assignStationShape(s, stationIndex++),
@@ -75,12 +86,14 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
   }));
 
   const trains: Train[] = [];
-  const linesToUse = scenario.activeLines;
   let trainsCreated = 0;
-  linesToUse.forEach(line => {
-    const lineStartStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
-    if (lineStartStations.length < 2) return;
-    const st = STATION_MAP.get(lineStartStations[0])!;
+  effectiveLines.forEach(line => {
+    const lineStartStations = cityStarting.filter(id => {
+      const st = cityStationMap.get(id);
+      return st && st.line === line;
+    });
+    if (lineStartStations.length < 1) return;
+    const st = cityStationMap.get(lineStartStations[0])!;
     if (trainsCreated < scenario.startTrains) {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
@@ -90,12 +103,14 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
       trainsCreated++;
     }
   });
-  // If mode wants more trains, add extras
   while (trainsCreated < scenario.startTrains) {
-    const line = linesToUse[trainsCreated % linesToUse.length];
-    const lineStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
+    const line = effectiveLines[trainsCreated % effectiveLines.length];
+    const lineStations = cityStarting.filter(id => {
+      const st = cityStationMap.get(id);
+      return st && st.line === line;
+    });
     if (lineStations.length > 0) {
-      const st = STATION_MAP.get(lineStations[Math.min(1, lineStations.length - 1)])!;
+      const st = cityStationMap.get(lineStations[Math.min(1, lineStations.length - 1)])!;
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: -1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
