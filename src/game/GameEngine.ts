@@ -17,7 +17,7 @@ export function getStation(state: GameState, id: string) {
 }
 
 const SHAPES: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
-const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5'];
+const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5']; // Legacy default
 
 const UNLOCK_ORDER: Record<string, string[]> = {
   red: ['r9', 'r12', 'r8', 'r13', 'r7', 'r14', 'r6', 'r15', 'r5', 'r16', 'r4', 'r17', 'r3', 'r18', 'r2', 'r1'],
@@ -25,7 +25,7 @@ const UNLOCK_ORDER: Record<string, string[]> = {
   green: ['g3', 'g6', 'g2', 'g7', 'g1', 'g8', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15'],
 };
 
-const STATION_UNLOCK_INTERVAL = 20000;
+const STATION_UNLOCK_INTERVAL = 45000; // Slower pacing
 const RUSH_HOUR_INTERVAL = 90000;
 const RUSH_HOUR_DURATION = 15000;
 const RUSH_HOUR_WARNING = 5000;
