@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { METRO_LINES, GAME_CONFIG } from '../constants';
-import { ProgressRing } from './ProgressRing';
 import {
   Train, Shield, Radar, Target, Zap, DollarSign, Users, AlertTriangle,
   Wrench, Moon, Gauge, Package, Crosshair, RotateCcw, Lock, Unlock, Rocket
@@ -48,7 +47,7 @@ interface ActionBtnProps {
   onClick: () => void;
   disabled?: boolean;
   active?: boolean;
-  cooldown?: number; // 0-1 ratio
+  cooldown?: number;
   color: string;
 }
 
@@ -64,36 +63,59 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
     onClick();
   }, [disabled, onClick]);
 
+  const hasCooldown = cooldown !== undefined && cooldown > 0;
+  const cooldownPct = hasCooldown ? Math.round((1 - cooldown) * 100) : 100;
+
   return (
     <div className="relative" onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
       <button
         onClick={handleClick}
         disabled={disabled}
-        className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all
-          ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
-          ${pressed ? 'scale-90' : ''}
-          ${active ? 'ring-2 ring-offset-1 ring-offset-transparent' : ''}`}
+        className="relative flex items-center justify-center transition-all"
         style={{
-          background: active ? `${color}30` : `${color}12`,
-          border: `2px solid ${active ? color : color + '40'}`,
-          color,
-          
-          boxShadow: active ? `0 0 12px ${color}40` : 'none',
+          width: 40, height: 40,
+          borderRadius: 10,
+          background: active
+            ? `color-mix(in srgb, ${color} 20%, hsl(225 45% 7%))`
+            : 'hsl(225 40% 8% / 1)',
+          border: `2px solid ${active ? color : 'hsl(220 20% 16% / 1)'}`,
+          color: disabled ? 'hsl(220 10% 30%)' : color,
+          boxShadow: active ? `0 0 16px ${color}30, inset 0 0 8px ${color}10` : '0 2px 8px rgba(0,0,0,0.3)',
+          opacity: disabled ? 0.35 : 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          transform: pressed ? 'scale(0.9)' : 'scale(1)',
+          transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled) (e.currentTarget as HTMLElement).style.transform = 'scale(1.12) translateY(-2px)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
         }}
       >
         {icon}
-        {/* Cooldown overlay */}
-        {cooldown !== undefined && cooldown > 0 && (
-          <ProgressRing progress={1 - cooldown} size={40} strokeWidth={2} color={color} bgColor="rgba(255,255,255,0.05)" />
+        {/* Conic cooldown sweep */}
+        {hasCooldown && (
+          <div className="absolute inset-0 rounded-[10px] overflow-hidden pointer-events-none" style={{
+            background: `conic-gradient(transparent ${cooldownPct}%, rgba(0,0,0,0.6) ${cooldownPct}%)`,
+          }} />
+        )}
+        {/* Active ring pulse */}
+        {active && (
+          <div className="absolute inset-[-3px] rounded-[12px] pointer-events-none animate-breath-glow" style={{
+            border: `1px solid ${color}40`,
+          }} />
         )}
       </button>
 
       {/* Cost badge */}
       {cost !== undefined && (
-        <span className="absolute -bottom-1 -right-1 text-[8px] font-bold px-1 rounded-full leading-tight"
+        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap"
           style={{
-            background: insufficient ? 'hsl(0, 72%, 45%)' : 'hsl(145, 63%, 35%)',
+            background: insufficient ? 'hsl(0 72% 40%)' : 'hsl(145 55% 30%)',
             color: '#fff',
+            border: '1px solid rgba(0,0,0,0.3)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
           }}>
           ${cost}
         </span>
@@ -101,24 +123,20 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
 
       {/* Hotkey badge */}
       {hotkey && (
-        <span className="absolute -top-1 -right-1 text-[8px] font-mono font-bold px-1 rounded"
-          style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}>
-          {hotkey}
-        </span>
+        <span className="kbd-key absolute -top-1.5 -right-1.5">{hotkey}</span>
       )}
 
       {/* Tooltip */}
       {showTip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 animate-in fade-in-0 slide-in-from-bottom-1 duration-100"
-          style={{ width: '160px' }}>
-          <div className="rounded-lg px-2.5 py-1.5 text-left"
-            style={{
-              background: 'rgba(8, 12, 24, 0.98)',
-              border: `1px solid ${color}40`,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
-            }}>
-            <p className="text-[11px] font-bold" style={{ color }}>{label}</p>
-            <p className="text-[9px] leading-snug mt-0.5" style={{ color: 'rgba(180,190,210,0.7)' }}>{desc}</p>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none z-50"
+          style={{ width: '170px', animation: 'slide-up-fade 0.15s ease-out' }}>
+          <div className="rounded-lg px-3 py-2 text-left" style={{
+            background: 'hsl(225 45% 6% / 1)',
+            border: `1px solid ${color}30`,
+            boxShadow: `0 8px 24px rgba(0,0,0,0.7), 0 0 12px ${color}10`,
+          }}>
+            <p className="text-[11px] font-black" style={{ color }}>{label}</p>
+            <p className="text-[9px] leading-snug mt-0.5" style={{ color: 'hsl(220 10% 55%)' }}>{desc}</p>
           </div>
         </div>
       )}
@@ -136,27 +154,44 @@ function TrainBtn({ line, label, money, onClick, color }: {
     <button
       onClick={() => { setPressed(true); setTimeout(() => setPressed(false), 150); onClick(); }}
       disabled={insufficient}
-      className={`flex flex-col items-center justify-center rounded-lg transition-all
-        ${insufficient ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}
-        ${pressed ? 'scale-90' : ''}`}
+      className="flex flex-col items-center justify-center transition-all"
       style={{
-        width: '48px', height: '48px',
+        width: 50, height: 50,
+        borderRadius: 10,
         border: `2px solid ${color}`,
         color,
-        background: `${color}15`,
-        boxShadow: insufficient ? 'none' : `0 0 10px ${color}25`,
+        background: `color-mix(in srgb, ${color} 8%, hsl(225 45% 7%))`,
+        boxShadow: insufficient ? 'none' : `0 2px 12px ${color}20`,
+        opacity: insufficient ? 0.3 : 1,
+        cursor: insufficient ? 'not-allowed' : 'pointer',
+        transform: pressed ? 'scale(0.9)' : 'scale(1)',
+        transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        if (!insufficient) (e.currentTarget as HTMLElement).style.transform = 'scale(1.1) translateY(-2px)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
       }}
     >
       <Train size={16} />
-      <span className="text-[9px] font-bold leading-none mt-0.5">{label}</span>
-      <span className="text-[8px] leading-none" style={{ color: insufficient ? '#ef4444' : 'rgba(180,190,210,0.6)' }}>
+      <span className="text-[9px] font-black leading-none mt-0.5">{label}</span>
+      <span className="text-[7px] leading-none mt-0.5 font-bold" style={{
+        color: insufficient ? 'hsl(0 72% 55%)' : 'hsl(220 10% 50%)',
+      }}>
         ${GAME_CONFIG.TRAIN_COST}
       </span>
     </button>
   );
 }
 
-const Divider = () => <div className="w-px h-8 self-center" style={{ background: 'rgba(255,255,255,0.08)' }} />;
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div className="section-label text-center w-full">{children}</div>;
+}
+
+function GroupDivider() {
+  return <div className="game-divider h-10 self-center mx-0.5" />;
+}
 
 export const ActionBar = React.memo(function ActionBar({
   money, radarActive, speedBoostCooldown,
@@ -172,91 +207,121 @@ export const ActionBar = React.memo(function ActionBar({
 }: ActionBarProps) {
 
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
-  const hasClosedRed = closedSegments.some(s => s.line === 'red');
-  const hasClosedBlue = closedSegments.some(s => s.line === 'blue');
-  const hasClosedGreen = closedSegments.some(s => s.line === 'green');
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">
-      <div className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl backdrop-blur-md"
+      <div className="flex items-end gap-2 px-4 py-3 rounded-2xl relative overflow-hidden"
         style={{
-          background: 'rgba(8, 12, 24, 0.97)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
+          background: 'hsl(225 45% 5% / 1)',
+          border: '1px solid hsl(220 20% 14% / 1)',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.6), 0 8px 40px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.03)',
         }}>
-        {/* Train buttons */}
-        <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
-        <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
-        <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+        {/* Top gradient highlight */}
+        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{
+          background: 'linear-gradient(90deg, transparent, hsl(var(--game-accent) / 0.3), transparent)',
+        }} />
 
-        <Divider />
+        {/* Shimmer overlay */}
+        <div className="absolute inset-0 animate-shimmer pointer-events-none rounded-2xl" />
 
-        {/* Defense */}
-        <ActionBtn icon={<Radar size={16} />} label="Радар" desc="Раннє попередження дронів"
-          cost={GAME_CONFIG.RADAR_COST} onClick={onBuyRadar}
-          disabled={money < GAME_CONFIG.RADAR_COST || radarActive} active={radarActive} color="#38bdf8" />
-        <ActionBtn icon={<Target size={16} />} label="Приманка" desc="Хибна ціль для дронів"
-          cost={GAME_CONFIG.DECOY_COST} hotkey="T" onClick={onPlaceDecoy}
-          disabled={money < GAME_CONFIG.DECOY_COST} color="#facc15" />
-        <ActionBtn icon={<Crosshair size={16} />} label="Глушилка" desc="Уповільнює всі дрони"
-          cost={GAME_CONFIG.DRONE_JAMMER_COST} onClick={onDroneJammer}
-          disabled={money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0}
-          cooldown={droneJammerTimer > 0 ? droneJammerTimer / 15000 : 0} color="#38bdf8" />
-        <ActionBtn icon={<Zap size={16} />} label="Сигнальна ракета" desc="Підсвічує дрони та цілі"
-          cost={GAME_CONFIG.SIGNAL_FLARE_COST} onClick={onSignalFlare}
-          disabled={money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0}
-          cooldown={signalFlareTimer > 0 ? signalFlareTimer / 10000 : 0} color="#facc15" />
+        {/* ПОТЯГИ group */}
+        <div className="flex flex-col items-center gap-1">
+          <SectionLabel>ПОТЯГИ</SectionLabel>
+          <div className="flex items-center gap-1.5">
+            <TrainBtn line="red" label="M1" money={money} onClick={() => onBuyTrain('red')} color={METRO_LINES.red.color} />
+            <TrainBtn line="blue" label="M2" money={money} onClick={() => onBuyTrain('blue')} color={METRO_LINES.blue.color} />
+            <TrainBtn line="green" label="M3" money={money} onClick={() => onBuyTrain('green')} color={METRO_LINES.green.color} />
+          </div>
+        </div>
 
-        <Divider />
+        <GroupDivider />
 
-        {/* Economy */}
-        <ActionBtn icon={<DollarSign size={16} />} label="x2 Тариф" desc="Подвійний дохід"
-          cost={GAME_CONFIG.DOUBLE_FARE_COST} onClick={onDoubleFare}
-          disabled={money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0}
-          active={doubleFareTimer > 0} cooldown={doubleFareTimer > 0 ? doubleFareTimer / 20000 : 0} color="#4ade80" />
-        <ActionBtn icon={<Users size={16} />} label="Десант" desc="Додає пасажирів"
-          cost={GAME_CONFIG.PASSENGER_AIRDROP_COST} onClick={onPassengerAirdrop}
-          disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST} color="#c084fc" />
-        <ActionBtn icon={<AlertTriangle size={16} />} label="Екстрений фонд" desc="HP → гроші"
-          onClick={onEmergencyFund} disabled={lives <= 1} color="#ef4444" />
+        {/* ОБОРОНА group */}
+        <div className="flex flex-col items-center gap-1">
+          <SectionLabel>ОБОРОНА</SectionLabel>
+          <div className="flex items-center gap-1.5">
+            <ActionBtn icon={<Radar size={16} />} label="Радар" desc="Раннє попередження дронів"
+              cost={GAME_CONFIG.RADAR_COST} onClick={onBuyRadar}
+              disabled={money < GAME_CONFIG.RADAR_COST || radarActive} active={radarActive} color="#38bdf8" />
+            <ActionBtn icon={<Target size={16} />} label="Приманка" desc="Хибна ціль для дронів"
+              cost={GAME_CONFIG.DECOY_COST} hotkey="T" onClick={onPlaceDecoy}
+              disabled={money < GAME_CONFIG.DECOY_COST} color="#facc15" />
+            <ActionBtn icon={<Crosshair size={16} />} label="Глушилка" desc="Уповільнює всі дрони"
+              cost={GAME_CONFIG.DRONE_JAMMER_COST} onClick={onDroneJammer}
+              disabled={money < GAME_CONFIG.DRONE_JAMMER_COST || droneJammerTimer > 0}
+              cooldown={droneJammerTimer > 0 ? droneJammerTimer / 15000 : 0} color="#38bdf8" />
+            <ActionBtn icon={<Zap size={16} />} label="Сигнальна ракета" desc="Підсвічує дрони та цілі"
+              cost={GAME_CONFIG.SIGNAL_FLARE_COST} onClick={onSignalFlare}
+              disabled={money < GAME_CONFIG.SIGNAL_FLARE_COST || signalFlareTimer > 0}
+              cooldown={signalFlareTimer > 0 ? signalFlareTimer / 10000 : 0} color="#facc15" />
+          </div>
+        </div>
 
-        <Divider />
+        <GroupDivider />
 
-        {/* Emergency */}
-        <ActionBtn icon={<RotateCcw size={16} />} label="Стоп" desc="Зупинити всі потяги"
-          cost={GAME_CONFIG.EMERGENCY_BRAKE_COST} onClick={onEmergencyBrake}
-          disabled={money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0}
-          cooldown={emergencyBrakeTimer > 0 ? emergencyBrakeTimer / 8000 : 0} color="#ef4444" />
-        <ActionBtn icon={<Moon size={16} />} label="Блекаут" desc="Дрони гірше бачать"
-          onClick={onBlackout} active={blackoutMode} color="#94a3b8" />
-        <ActionBtn icon={<Wrench size={16} />} label="Ремонт" desc="Ремонтники до станції"
-          cost={GAME_CONFIG.REINFORCEMENT_COST} hotkey="R" onClick={onReinforcements}
-          disabled={money < GAME_CONFIG.REINFORCEMENT_COST} color="#fb923c" />
-        <ActionBtn icon={<Gauge size={16} />} label="Генератор" desc="Автономне живлення"
-          cost={GAME_CONFIG.GENERATOR_COST} onClick={onBuyGenerator}
-          disabled={money < GAME_CONFIG.GENERATOR_COST} color="#4ade80" />
+        {/* ЕКОНОМІКА group */}
+        <div className="flex flex-col items-center gap-1">
+          <SectionLabel>ЕКОНОМІКА</SectionLabel>
+          <div className="flex items-center gap-1.5">
+            <ActionBtn icon={<DollarSign size={16} />} label="x2 Тариф" desc="Подвійний дохід"
+              cost={GAME_CONFIG.DOUBLE_FARE_COST} onClick={onDoubleFare}
+              disabled={money < GAME_CONFIG.DOUBLE_FARE_COST || doubleFareTimer > 0}
+              active={doubleFareTimer > 0} cooldown={doubleFareTimer > 0 ? doubleFareTimer / 20000 : 0} color="#4ade80" />
+            <ActionBtn icon={<Users size={16} />} label="Десант" desc="Додає пасажирів"
+              cost={GAME_CONFIG.PASSENGER_AIRDROP_COST} onClick={onPassengerAirdrop}
+              disabled={money < GAME_CONFIG.PASSENGER_AIRDROP_COST} color="#c084fc" />
+            <ActionBtn icon={<AlertTriangle size={16} />} label="Екстрений фонд" desc="HP → гроші"
+              onClick={onEmergencyFund} disabled={lives <= 1} color="#ef4444" />
+          </div>
+        </div>
 
-        <Divider />
+        <GroupDivider />
 
-        {/* Network — close/open segments */}
-        {lines.map(l => {
-          const c = METRO_LINES[l].color;
-          const isClosed = closedSegments.some(s => s.line === l);
-          const label = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
-          return (
-            <ActionBtn
-              key={l}
-              icon={isClosed ? <Unlock size={14} /> : <Lock size={14} />}
-              label={isClosed ? `Відкрити ${label}` : `Закрити ${label}`}
-              desc={isClosed ? 'Зняти блокування' : 'Блокувати сегмент (30с)'}
-              cost={isClosed ? undefined : 15}
-              onClick={() => isClosed ? onReopenLine(l) : onCloseSegment(l)}
-              disabled={!isClosed && money < 15}
-              active={isClosed}
-              color={c}
-            />
-          );
-        })}
+        {/* АВАРІЙНЕ group */}
+        <div className="flex flex-col items-center gap-1">
+          <SectionLabel>АВАРІЙНЕ</SectionLabel>
+          <div className="flex items-center gap-1.5">
+            <ActionBtn icon={<RotateCcw size={16} />} label="Стоп" desc="Зупинити всі потяги"
+              cost={GAME_CONFIG.EMERGENCY_BRAKE_COST} onClick={onEmergencyBrake}
+              disabled={money < GAME_CONFIG.EMERGENCY_BRAKE_COST || emergencyBrakeTimer > 0}
+              cooldown={emergencyBrakeTimer > 0 ? emergencyBrakeTimer / 8000 : 0} color="#ef4444" />
+            <ActionBtn icon={<Moon size={16} />} label="Блекаут" desc="Дрони гірше бачать"
+              onClick={onBlackout} active={blackoutMode} color="#94a3b8" />
+            <ActionBtn icon={<Wrench size={16} />} label="Ремонт" desc="Ремонтники до станції"
+              cost={GAME_CONFIG.REINFORCEMENT_COST} hotkey="R" onClick={onReinforcements}
+              disabled={money < GAME_CONFIG.REINFORCEMENT_COST} color="#fb923c" />
+            <ActionBtn icon={<Gauge size={16} />} label="Генератор" desc="Автономне живлення"
+              cost={GAME_CONFIG.GENERATOR_COST} onClick={onBuyGenerator}
+              disabled={money < GAME_CONFIG.GENERATOR_COST} color="#4ade80" />
+          </div>
+        </div>
+
+        <GroupDivider />
+
+        {/* МЕРЕЖА group */}
+        <div className="flex flex-col items-center gap-1">
+          <SectionLabel>МЕРЕЖА</SectionLabel>
+          <div className="flex items-center gap-1.5">
+            {lines.map(l => {
+              const c = METRO_LINES[l].color;
+              const isClosed = closedSegments.some(s => s.line === l);
+              const lineLabel = l === 'red' ? 'M1' : l === 'blue' ? 'M2' : 'M3';
+              return (
+                <ActionBtn
+                  key={l}
+                  icon={isClosed ? <Unlock size={14} /> : <Lock size={14} />}
+                  label={isClosed ? `Відкрити ${lineLabel}` : `Закрити ${lineLabel}`}
+                  desc={isClosed ? 'Зняти блокування' : 'Блокувати сегмент (30с)'}
+                  cost={isClosed ? undefined : 15}
+                  onClick={() => isClosed ? onReopenLine(l) : onCloseSegment(l)}
+                  disabled={!isClosed && money < 15}
+                  active={isClosed}
+                  color={c}
+                />
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
