@@ -319,6 +319,7 @@ export const ActionBar = React.memo(function ActionBar({
                   disabled={!isClosed && money < 15}
                   active={isClosed}
                   color={c}
+                  onHoverSound={onHover}
                 />
               );
             })}
