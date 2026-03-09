@@ -281,6 +281,20 @@ export class AudioEngine {
     ping.stop(this.ctx.currentTime + 0.15);
   }
 
+  playHover() {
+    if (!this.ctx || !this.masterGain) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 1200;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.04);
+  }
+
   playStationArrive() {
     if (!this.ctx || !this.masterGain) return;
     const osc = this.ctx.createOscillator();

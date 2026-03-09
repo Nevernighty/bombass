@@ -36,6 +36,7 @@ interface ActionBarProps {
   onEmergencyFund: () => void;
   onCloseSegment: (line: 'red' | 'blue' | 'green') => void;
   onReopenLine: (line: 'red' | 'blue' | 'green') => void;
+  onHover?: () => void;
 }
 
 interface ActionBtnProps {
@@ -49,9 +50,10 @@ interface ActionBtnProps {
   active?: boolean;
   cooldown?: number;
   color: string;
+  onHoverSound?: () => void;
 }
 
-function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active, cooldown, color }: ActionBtnProps) {
+function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active, cooldown, color, onHoverSound }: ActionBtnProps) {
   const [showTip, setShowTip] = useState(false);
   const [pressed, setPressed] = useState(false);
   const insufficient = cost !== undefined && disabled;
@@ -67,7 +69,7 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
   const cooldownPct = hasCooldown ? Math.round((1 - cooldown) * 100) : 100;
 
   return (
-    <div className="relative" onMouseEnter={() => setShowTip(true)} onMouseLeave={() => setShowTip(false)}>
+    <div className="relative" onMouseEnter={() => { setShowTip(true); onHoverSound?.(); }} onMouseLeave={() => setShowTip(false)}>
       <button
         onClick={handleClick}
         disabled={disabled}
