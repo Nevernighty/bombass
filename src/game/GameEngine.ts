@@ -752,11 +752,20 @@ function updateRepair(s: GameState, realDt: number, events: EventBus): void {
 
 // ==================== SYSTEM: Progression ====================
 function updateProgression(s: GameState, realDt: number, events: EventBus): void {
-  if (s.elapsedTime >= s.nextStationUnlockTime) {
+  // Gating: require passengers before unlocking more stations
+  const stationsUnlocked = s.activeStationIds.length + s.pendingStations.length;
+  const requiredPassengers = Math.max(0, (stationsUnlocked - 6) * 10);
+  const canUnlock = s.passengersDelivered >= requiredPassengers;
+  
+  if (s.elapsedTime >= s.nextStationUnlockTime && canUnlock) {
     s.nextStationUnlockTime += STATION_UNLOCK_INTERVAL;
-    const scenario = SCENARIOS[s.gameMode];
-    scenario.activeLines.forEach(line => {
-      const order = UNLOCK_ORDER[line];
+    const city = getCityConfig(s.currentCity);
+    const unlockOrder = city.unlockOrder;
+    const cityLineKeys = Object.keys(city.lines);
+    
+    cityLineKeys.forEach(line => {
+      const order = unlockOrder[line];
+      if (!order) return;
       const nextStation = order.find(id => !s.activeStationIds.includes(id) && !s.pendingStations.includes(id));
       if (nextStation) {
         s.pendingStations.push(nextStation);
@@ -1047,9 +1056,10 @@ function updateAchievements(s: GameState): void {
 
   // Full line check
   const activeSet = new Set(s.activeStationIds);
-  (['red', 'blue', 'green'] as const).forEach(line => {
-    const total = LINE_STATIONS[line].length;
-    const active = LINE_STATIONS[line].filter(id => activeSet.has(id)).length;
+  const cityLineStations = getLineStationsForCity(s.currentCity);
+  Object.keys(cityLineStations).forEach(line => {
+    const total = cityLineStations[line].length;
+    const active = cityLineStations[line].filter(id => activeSet.has(id)).length;
     if (active >= total) unlock('full_line');
   });
 }
@@ -1766,19 +1776,22 @@ export function connectStation(state: GameState, pendingStationId: string, fromS
   state.pendingStations = state.pendingStations.filter(id => id !== pendingStationId);
   state.activeStationIds.push(pendingStationId);
   const st = getStation(state, pendingStationId);
-  const pendingSt = STATION_MAP.get(pendingStationId);
-  const lineName = pendingSt ? (pendingSt.line === 'red' ? 'M1' : pendingSt.line === 'blue' ? 'M2' : 'M3') : '';
+  const cityStationMap = getStationMapForCity(state.currentCity);
+  const pendingSt = cityStationMap.get(pendingStationId);
+  const cityLines = getCityLines(state.currentCity);
+  const lineName = pendingSt && cityLines[pendingSt.line] ? cityLines[pendingSt.line].name : '';
   if (st) {
     st.jellyVel.y = -8; st.jellyVel.x = 5;
     addNotification(state, `✅ Підключено до ${lineName}!`, st.x, st.y, '#4ade80');
   }
   // Recache
   const activeSet = new Set(state.activeStationIds);
-  state._cachedLineStations = {
-    red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
-    blue: LINE_STATIONS.blue.filter(id => activeSet.has(id)),
-    green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
-  };
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  const cached: Record<string, string[]> = {};
+  for (const lineId of Object.keys(cityLineStations)) {
+    cached[lineId] = cityLineStations[lineId].filter(id => activeSet.has(id));
+  }
+  state._cachedLineStations = cached;
   state.isDrawingLine = false;
   state.drawLineFrom = null;
   state.drawLineTo = null;
