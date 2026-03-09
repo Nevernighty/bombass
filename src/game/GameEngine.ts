@@ -1213,11 +1213,12 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   s.isNight = s.dayTime < 0.2 || s.dayTime > 0.8;
 
   const activeSet = new Set(s.activeStationIds);
-  s._cachedLineStations = {
-    red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
-    blue: LINE_STATIONS.blue.filter(id => activeSet.has(id)),
-    green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
-  };
+  const cityLineStations = getLineStationsForCity(s.currentCity);
+  const cached: Record<string, string[]> = {};
+  for (const lineId of Object.keys(cityLineStations)) {
+    cached[lineId] = cityLineStations[lineId].filter(id => activeSet.has(id));
+  }
+  s._cachedLineStations = cached;
 
   updateProgression(s, realDt, globalEventBus);
   updatePassengers(s, realDt, globalEventBus);
