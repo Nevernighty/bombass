@@ -40,9 +40,9 @@ function StatusChip({ icon, value, color, label }: { icon: React.ReactNode; valu
   );
 }
 
-function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay }: {
+function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay, onHoverSound }: {
   icon: React.ReactNode; label: string; cost?: number; onClick: () => void;
-  disabled?: boolean; active?: boolean; timer?: string; delay?: number;
+  disabled?: boolean; active?: boolean; timer?: string; delay?: number; onHoverSound?: () => void;
 }) {
   const insufficient = cost !== undefined && disabled;
   return (

@@ -16,6 +16,7 @@ interface TrainPanelProps {
   onUpgrade: () => void;
   onShield: () => void;
   onReverse: () => void;
+  onHover?: () => void;
 }
 
 export const TrainPanel = React.memo(function TrainPanel({
