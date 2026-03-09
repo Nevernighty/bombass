@@ -315,6 +315,10 @@ export interface GameState {
   cityStates: Record<string, CityState>;
   intercityTrains: IntercityTrain[];
   globalStability: number;
+  allCityStates: Record<string, CitySubState>;
+  crossCityNotifications: CrossCityNotification[];
+  crossCityCheckTimer: number;
+  showWorldMap: boolean;
   // Tutorial
   tutorialStep: number;
   tutorialComplete: boolean;
