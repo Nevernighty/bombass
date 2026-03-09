@@ -21,7 +21,7 @@ interface TrainPanelProps {
 
 export const TrainPanel = React.memo(function TrainPanel({
   train, stations, money, trains,
-  onClose, onReroute, onMerge, onSell, onUpgrade, onShield, onReverse,
+  onClose, onReroute, onMerge, onSell, onUpgrade, onShield, onReverse, onHover,
 }: TrainPanelProps) {
   const lineColor = METRO_LINES[train.line].color;
   const lineName = METRO_LINES[train.line].name;
@@ -101,6 +101,7 @@ export const TrainPanel = React.memo(function TrainPanel({
               return (
                 <button key={l} onClick={() => !isCurrent && onReroute(l)}
                   disabled={isCurrent}
+                  onMouseEnter={onHover}
                   className={`flex-1 h-8 rounded-md flex items-center justify-center gap-1 transition-all
                     ${isCurrent ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}`}
                   style={{
@@ -151,12 +152,13 @@ export const TrainPanel = React.memo(function TrainPanel({
   );
 });
 
-function PanelBtn({ icon, label, onClick, disabled, active, color }: {
+function PanelBtn({ icon, label, onClick, disabled, active, color, onHoverSound }: {
   icon: React.ReactNode; label: string; onClick: () => void;
-  disabled?: boolean; active?: boolean; color: string;
+  disabled?: boolean; active?: boolean; color: string; onHoverSound?: () => void;
 }) {
   return (
     <button onClick={onClick} disabled={disabled}
+      onMouseEnter={onHoverSound}
       className={`flex items-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] font-bold transition-all
         ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}
         ${active ? 'ring-1' : ''}`}
