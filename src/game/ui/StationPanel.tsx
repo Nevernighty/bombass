@@ -32,7 +32,7 @@ type Tab = 'defense' | 'manage' | 'info';
 
 function StatusChip({ icon, value, color, label }: { icon: React.ReactNode; value: string; color: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'rgba(15, 22, 38, 0.95)' }} title={label}>
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'rgba(15, 22, 38, 1)' }} title={label}>
       <span style={{ color }}>{icon}</span>
       <span className="text-[11px] font-bold font-mono" style={{ color }}>{value}</span>
     </div>
@@ -50,7 +50,7 @@ function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay }:
       style={{
         width: '100%',
         aspectRatio: '1',
-        background: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(20, 28, 45, 0.95)',
+        background: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(20, 28, 45, 1)',
         border: active ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
         opacity: disabled ? 0.35 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -117,7 +117,7 @@ export const StationPanel = React.memo(function StationPanel({
       style={{ width: '280px' }}>
       <div className="rounded-xl overflow-hidden"
         style={{
-          background: 'rgba(8, 12, 24, 0.98)',
+          background: 'rgba(8, 12, 24, 1)',
           border: `1px solid ${lineColor}40`,
           boxShadow: `0 12px 40px rgba(0,0,0,0.8), 0 0 24px ${lineColor}10`,
           backdropFilter: 'blur(12px)',

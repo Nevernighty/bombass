@@ -412,7 +412,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
       {/* START SCREEN */}
       {!state.gameStarted && (
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden" style={{
+        <div className="absolute inset-0 flex items-start justify-center overflow-y-auto" style={{
           background: '#060a14',
         }}>
           {/* Animated background radials */}
@@ -440,7 +440,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             <line x1="30%" y1="70%" x2="70%" y2="70%" stroke="#43a047" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" style={{ animationDelay: '2s' }} />
           </svg>
 
-          <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6">
+          <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6 pt-8 pb-12">
             {/* Title */}
             <div className="text-center mb-8">
               <h1 className="text-6xl font-black mb-1 tracking-tighter">
@@ -462,7 +462,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
               }}>RESILIENCE</p>
               <p className="text-[13px] max-w-md mx-auto" style={{
                 color: 'hsl(var(--game-muted))',
-                animation: 'title-letter 0.5s ease-out 0.7s both',
+                animation: 'title-letter 0.5s ease-out 0.3s both',
               }}>
                 Керуй метро Києва під ворожими атаками. Будуй оборону, перевози пасажирів, захисти місто.
               </p>
@@ -480,7 +480,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                     className="game-card relative p-5 rounded-xl text-left group"
                     style={{
                       borderLeft: `3px solid ${diffColor}`,
-                      animation: `mode-card-in 0.4s ease-out ${0.8 + idx * 0.1}s both`,
+                      animation: `mode-card-in 0.4s ease-out ${0.2 + idx * 0.08}s both`,
                     }}>
                     {isClassic && (
                       <span className="absolute -top-2 right-3 text-[9px] font-black px-2.5 py-0.5 rounded-full tracking-wider"
@@ -543,7 +543,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             <div className="w-full p-4 rounded-xl" style={{
               background: 'hsl(225 45% 6% / 1)',
               border: '1px solid hsl(220 20% 14% / 1)',
-              animation: 'title-letter 0.4s ease-out 1.4s both',
+              animation: 'title-letter 0.4s ease-out 0.6s both',
             }}>
               <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]" style={{ color: 'hsl(var(--game-muted))' }}>
                 {[
