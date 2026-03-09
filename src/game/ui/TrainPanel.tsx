@@ -1,5 +1,5 @@
 import React from 'react';
-import { METRO_LINES, GAME_CONFIG, STATION_MAP } from '../constants';
+import { METRO_LINES, GAME_CONFIG } from '../constants';
 import { Train, GameStation } from '../types';
 import { X, ArrowLeftRight, Merge, DollarSign, ArrowUp, Shield, RotateCcw, Train as TrainIcon } from 'lucide-react';
 import { ProgressRing } from './ProgressRing';
@@ -33,25 +33,24 @@ export const TrainPanel = React.memo(function TrainPanel({
   );
 
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
-
-  // Mini train visualization — wagons
   const wagonCount = train.level;
 
   return (
     <div className="absolute top-20 right-3 z-50 pointer-events-auto animate-in slide-in-from-right-4 duration-200"
       style={{ width: '270px' }}>
-      <div className="rounded-xl p-4 backdrop-blur-md"
+      <div className="rounded-xl p-4"
         style={{
-          background: 'rgba(8, 12, 24, 0.97)',
+          background: 'rgba(8, 12, 24, 0.98)',
           border: `1px solid ${lineColor}40`,
-          boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 20px ${lineColor}15`,
+          boxShadow: `0 8px 32px rgba(0,0,0,0.8), 0 0 20px ${lineColor}10`,
+          backdropFilter: 'blur(12px)',
         }}>
         {/* Header with HP ring */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="relative w-10 h-10 flex items-center justify-center">
               <ProgressRing progress={fillRatio} size={40} strokeWidth={2.5}
-                color={fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#f59e0b' : '#4ade80'} />
+                color={fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#eab308' : '#4ade80'} />
               <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-black"
                 style={{ background: `${lineColor}25`, border: `2px solid ${lineColor}`, color: lineColor }}>
                 {train.line === 'red' ? 'M1' : train.line === 'blue' ? 'M2' : 'M3'}
@@ -61,13 +60,13 @@ export const TrainPanel = React.memo(function TrainPanel({
               <p className="text-[13px] font-bold" style={{ color: lineColor }}>
                 {lineName.split(' ').slice(0, 2).join(' ')}
               </p>
-              <p className="text-[10px]" style={{ color: 'rgba(180,190,210,0.6)' }}>
+              <p className="text-[10px]" style={{ color: '#7a8599' }}>
                 Рів.{train.level} · {train.passengers.length}/{train.capacity} пас.
               </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer">
-            <X size={14} style={{ color: 'rgba(180,190,210,0.6)' }} />
+            <X size={14} style={{ color: '#7a8599' }} />
           </button>
         </div>
 
@@ -84,14 +83,14 @@ export const TrainPanel = React.memo(function TrainPanel({
               {i === 0 && <TrainIcon size={8} style={{ color: lineColor }} />}
             </div>
           ))}
-          <span className="text-[9px] ml-1" style={{ color: 'rgba(180,190,210,0.4)' }}>
+          <span className="text-[9px] ml-1" style={{ color: '#5a6577' }}>
             {wagonCount} ваг.
           </span>
         </div>
 
         {/* Visual line picker for rerouting */}
         <div className="mb-3">
-          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'rgba(180,190,210,0.4)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#5a6577' }}>
             <ArrowLeftRight size={9} className="inline mr-1" />Перемаршрутити
           </p>
           <div className="flex gap-1">
@@ -104,7 +103,7 @@ export const TrainPanel = React.memo(function TrainPanel({
                   className={`flex-1 h-8 rounded-md flex items-center justify-center gap-1 transition-all
                     ${isCurrent ? 'opacity-40 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}`}
                   style={{
-                    background: isCurrent ? `${c}08` : `${c}18`,
+                    background: isCurrent ? 'rgba(20, 28, 45, 0.5)' : 'rgba(20, 28, 45, 0.95)',
                     border: `2px solid ${isCurrent ? c + '30' : c}`,
                   }}>
                   <div className="w-4 h-1 rounded-full" style={{ background: c }} />
@@ -136,8 +135,8 @@ export const TrainPanel = React.memo(function TrainPanel({
               <button key={nt.id} onClick={() => onMerge(nt.id)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-[11px] font-bold transition-all hover:brightness-125 cursor-pointer"
                 style={{
-                  background: 'rgba(168,85,247,0.1)',
-                  border: '1px solid rgba(168,85,247,0.3)',
+                  background: 'rgba(168, 85, 247, 0.15)',
+                  border: '1px solid rgba(168, 85, 247, 0.4)',
                   color: '#a855f7',
                 }}>
                 <Merge size={12} />
@@ -161,7 +160,7 @@ function PanelBtn({ icon, label, onClick, disabled, active, color }: {
         ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-125 cursor-pointer'}
         ${active ? 'ring-1' : ''}`}
       style={{
-        background: active ? `${color}20` : `${color}10`,
+        background: active ? `${color}20` : 'rgba(20, 28, 45, 0.95)',
         borderLeft: `2px solid ${disabled ? 'transparent' : color}`,
         color,
       }}>

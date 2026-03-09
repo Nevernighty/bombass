@@ -684,7 +684,7 @@ function SceneContent({
       <fog attach="fog" args={[fogColor, 90, 250]} />
 
       <ambientLight intensity={ambientIntensity} color={ambientColor} />
-      <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+      <directionalLight position={[20, 40, 10]} intensity={dirIntensity} color={dirColor} castShadow shadow-mapSize-width={512} shadow-mapSize-height={512} />
       <hemisphereLight args={[
         state.isNight ? '#223366' : '#87ceeb',
         state.isNight ? '#111122' : '#362907',
@@ -696,17 +696,13 @@ function SceneContent({
       {state.isNight && (
         <>
           <pointLight position={[0, 8, 0]} color="#ff9933" intensity={0.5} distance={80} />
-          <pointLight position={[-25, 6, -15]} color="#ffaa44" intensity={0.3} distance={60} />
-          <pointLight position={[20, 6, 20]} color="#ffaa44" intensity={0.3} distance={60} />
-          <pointLight position={[-15, 5, 15]} color="#ff8833" intensity={0.25} distance={50} />
-          <pointLight position={[10, 5, -20]} color="#ffaa44" intensity={0.25} distance={50} />
-          <pointLight position={[30, 6, 0]} color="#ff9944" intensity={0.25} distance={50} />
+          <pointLight position={[-15, 6, 10]} color="#ffaa44" intensity={0.3} distance={70} />
         </>
       )}
 
-      {/* Full skybox sphere */}
+      {/* Skybox sphere — reduced segments */}
       <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[200, 32, 16]} />
+        <sphereGeometry args={[200, 16, 8]} />
         <meshBasicMaterial color={skyHue} side={THREE.BackSide} transparent opacity={0.8} />
       </mesh>
 

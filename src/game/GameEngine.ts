@@ -1701,50 +1701,39 @@ export function isEndStation(state: GameState, stationId: string): { isEnd: bool
 }
 
 // Get which pending station can be connected from a given end station
+// Cross-line: any end station can connect to ANY pending station regardless of line
 export function getValidPendingTargets(state: GameState, fromStationId: string): string[] {
-  const { isEnd, line } = isEndStation(state, fromStationId);
-  if (!isEnd || !line) return [];
+  const { isEnd } = isEndStation(state, fromStationId);
+  if (!isEnd) return [];
   
-  const lineIds = LINE_STATIONS[line];
-  const activeSet = new Set(state.activeStationIds);
-  const activeOnLine = lineIds.filter(id => activeSet.has(id));
-  if (activeOnLine.length === 0) return [];
+  // Return ALL pending stations — no line restriction
+  // Sort by distance to the source station for UX (closest first)
+  const fromSt = STATION_MAP.get(fromStationId);
+  if (!fromSt) return [...state.pendingStations];
   
-  const firstActive = activeOnLine[0];
-  const lastActive = activeOnLine[activeOnLine.length - 1];
-  const firstIdx = lineIds.indexOf(firstActive);
-  const lastIdx = lineIds.indexOf(lastActive);
-  
-  const targets: string[] = [];
-  const pendingSet = new Set(state.pendingStations);
-  
-  // If fromStation is the first active, check the station before it
-  if (fromStationId === firstActive && firstIdx > 0) {
-    const prevId = lineIds[firstIdx - 1];
-    if (pendingSet.has(prevId)) targets.push(prevId);
-  }
-  // If fromStation is the last active, check the station after it
-  if (fromStationId === lastActive && lastIdx < lineIds.length - 1) {
-    const nextId = lineIds[lastIdx + 1];
-    if (pendingSet.has(nextId)) targets.push(nextId);
-  }
-  
-  return targets;
+  return [...state.pendingStations].sort((a, b) => {
+    const sa = STATION_MAP.get(a);
+    const sb = STATION_MAP.get(b);
+    if (!sa || !sb) return 0;
+    const da = Math.hypot(sa.x - fromSt.x, sa.y - fromSt.y);
+    const db = Math.hypot(sb.x - fromSt.x, sb.y - fromSt.y);
+    return da - db;
+  });
 }
 
 export function connectStation(state: GameState, pendingStationId: string, fromStationId: string): GameState {
   if (!state.pendingStations.includes(pendingStationId)) return state;
   if (!state.activeStationIds.includes(fromStationId)) return state;
   
-  // Validate: fromStation must be end station and pendingStation must be adjacent
-  const validTargets = getValidPendingTargets(state, fromStationId);
-  if (!validTargets.includes(pendingStationId)) return state;
+  // Validate: fromStation must be an end station, target must be pending
+  const { isEnd } = isEndStation(state, fromStationId);
+  if (!isEnd) return state;
   
   state.pendingStations = state.pendingStations.filter(id => id !== pendingStationId);
   state.activeStationIds.push(pendingStationId);
   const st = getStation(state, pendingStationId);
-  const { line } = isEndStation(state, fromStationId);
-  const lineName = line === 'red' ? 'M1' : line === 'blue' ? 'M2' : 'M3';
+  const pendingSt = STATION_MAP.get(pendingStationId);
+  const lineName = pendingSt ? (pendingSt.line === 'red' ? 'M1' : pendingSt.line === 'blue' ? 'M2' : 'M3') : '';
   if (st) {
     st.jellyVel.y = -8; st.jellyVel.x = 5;
     addNotification(state, `✅ Підключено до ${lineName}!`, st.x, st.y, '#4ade80');

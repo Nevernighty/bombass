@@ -32,7 +32,7 @@ type Tab = 'defense' | 'manage' | 'info';
 
 function StatusChip({ icon, value, color, label }: { icon: React.ReactNode; value: string; color: string; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'hsla(var(--game-glass), 0.6)' }} title={label}>
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: 'rgba(15, 22, 38, 0.95)' }} title={label}>
       <span style={{ color }}>{icon}</span>
       <span className="text-[11px] font-bold font-mono" style={{ color }}>{value}</span>
     </div>
@@ -50,27 +50,27 @@ function GridBtn({ icon, label, cost, onClick, disabled, active, timer, delay }:
       style={{
         width: '100%',
         aspectRatio: '1',
-        background: active ? 'hsla(var(--game-accent), 0.12)' : 'hsla(var(--game-glass), 0.4)',
-        border: active ? '1px solid hsla(var(--game-accent), 0.3)' : '1px solid hsla(var(--game-glass-border), 0.3)',
+        background: active ? 'rgba(56, 189, 248, 0.15)' : 'rgba(20, 28, 45, 0.95)',
+        border: active ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
         opacity: disabled ? 0.35 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
         animation: delay !== undefined ? `mode-card-in 0.25s ease-out ${delay}s both` : undefined,
       }}>
-      <span style={{ color: active ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))' }}>{icon}</span>
-      <span className="text-[9px] font-bold leading-tight text-center" style={{ color: 'hsl(var(--game-text))' }}>{label}</span>
+      <span style={{ color: active ? '#38bdf8' : '#94a3b8' }}>{icon}</span>
+      <span className="text-[10px] font-bold leading-tight text-center" style={{ color: '#d0d8e8' }}>{label}</span>
       {cost !== undefined && (
-        <span className="absolute top-1 right-1.5 text-[9px] font-mono font-bold"
-          style={{ color: insufficient ? 'hsl(var(--destructive))' : 'hsl(var(--game-green))' }}>
+        <span className="absolute top-1 right-1.5 text-[10px] font-mono font-bold"
+          style={{ color: insufficient ? '#ef4444' : '#4ade80' }}>
           ${cost}
         </span>
       )}
       {timer && (
-        <span className="absolute bottom-1 right-1.5 text-[8px] font-mono font-bold" style={{ color: 'hsl(var(--game-accent))' }}>
+        <span className="absolute bottom-1 right-1.5 text-[9px] font-mono font-bold" style={{ color: '#38bdf8' }}>
           {timer}
         </span>
       )}
       {active && (
-        <span className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'hsl(var(--game-accent))' }} />
+        <span className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full" style={{ background: '#38bdf8' }} />
       )}
     </button>
   );
@@ -84,7 +84,7 @@ export const StationPanel = React.memo(function StationPanel({
 }: StationPanelProps) {
   const [tab, setTab] = useState<Tab>('defense');
   const hpPct = (station.hp / station.maxHp) * 100;
-  const hpColor = hpPct > 60 ? 'hsl(var(--game-green))' : hpPct > 30 ? 'hsl(45, 90%, 55%)' : 'hsl(var(--destructive))';
+  const hpColor = hpPct > 60 ? '#4ade80' : hpPct > 30 ? '#eab308' : '#ef4444';
   const lineColor = METRO_LINES[station.line].color;
   const lineName = station.line === 'red' ? 'M1' : station.line === 'blue' ? 'M2' : 'M3';
   const fillRatio = station.passengers.length / station.maxPassengers;
@@ -117,14 +117,15 @@ export const StationPanel = React.memo(function StationPanel({
       style={{ width: '280px' }}>
       <div className="rounded-xl overflow-hidden"
         style={{
-          background: 'hsla(var(--game-bg), 0.97)',
-          border: `1px solid ${lineColor}25`,
-          boxShadow: `0 12px 40px rgba(0,0,0,0.7), 0 0 24px ${lineColor}08`,
+          background: 'rgba(8, 12, 24, 0.98)',
+          border: `1px solid ${lineColor}40`,
+          boxShadow: `0 12px 40px rgba(0,0,0,0.8), 0 0 24px ${lineColor}10`,
+          backdropFilter: 'blur(12px)',
         }}>
 
         {/* Status bar top accent */}
         <div className="h-1" style={{
-          background: `linear-gradient(90deg, ${lineColor}, ${lineColor}40)`,
+          background: `linear-gradient(90deg, ${lineColor}, ${lineColor}60)`,
         }} />
 
         {/* Header */}
@@ -132,28 +133,28 @@ export const StationPanel = React.memo(function StationPanel({
           <div className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
             <ProgressRing progress={hpPct / 100} size={40} strokeWidth={2.5} color={hpColor} />
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black"
-              style={{ background: `${lineColor}18`, border: `2px solid ${lineColor}`, color: lineColor }}>
+              style={{ background: `${lineColor}25`, border: `2px solid ${lineColor}`, color: lineColor }}>
               {lineName}
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-bold truncate" style={{ color: 'hsl(var(--game-text))' }}>{station.nameUa}</p>
-            <p className="text-[9px] font-medium" style={{ color: 'hsl(var(--game-muted))' }}>
+            <p className="text-[13px] font-bold truncate" style={{ color: '#e8edf5' }}>{station.nameUa}</p>
+            <p className="text-[10px] font-medium" style={{ color: '#7a8599' }}>
               {station.depth === 'deep' ? 'Глибока' : 'Мілка'} · Рів.{station.level}
               {station.isFortified && ' · 🛡️'}
             </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md transition-colors cursor-pointer"
-            style={{ background: 'hsla(var(--game-glass), 0.4)' }}>
-            <X size={12} style={{ color: 'hsl(var(--game-muted))' }} />
+            style={{ background: 'rgba(20, 28, 45, 0.9)' }}>
+            <X size={12} style={{ color: '#7a8599' }} />
           </button>
         </div>
 
         {/* Passenger fill bar */}
-        <div className="mx-4 h-1 rounded-full overflow-hidden" style={{ background: 'hsla(var(--game-glass), 0.5)' }}>
+        <div className="mx-4 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(20, 28, 45, 0.9)' }}>
           <div className="h-full rounded-full transition-all duration-300" style={{
             width: `${fillRatio * 100}%`,
-            background: fillRatio > 0.8 ? 'hsl(var(--destructive))' : fillRatio > 0.5 ? 'hsl(45, 90%, 55%)' : 'hsl(var(--game-green))',
+            background: fillRatio > 0.8 ? '#ef4444' : fillRatio > 0.5 ? '#eab308' : '#4ade80',
           }} />
         </div>
 
@@ -161,20 +162,20 @@ export const StationPanel = React.memo(function StationPanel({
         <div className="flex items-center gap-1.5 px-4 py-2 overflow-x-auto">
           <StatusChip icon={<Heart size={10} />} value={`${station.hp}`} color={hpColor} label="HP" />
           <StatusChip icon={<Users size={10} />} value={`${station.passengers.length}/${station.maxPassengers}`}
-            color={fillRatio > 0.8 ? 'hsl(var(--destructive))' : 'hsl(var(--game-text))'} label="Пасажири" />
-          <StatusChip icon={<Coins size={10} />} value={`$${station.stationIncome}`} color="hsl(var(--game-accent))" label="Дохід" />
-          {hasDefense && <StatusChip icon={<Radio size={10} />} value="ППО" color="hsl(var(--game-blue))" label="Оборона" />}
+            color={fillRatio > 0.8 ? '#ef4444' : '#d0d8e8'} label="Пасажири" />
+          <StatusChip icon={<Coins size={10} />} value={`$${station.stationIncome}`} color="#f59e0b" label="Дохід" />
+          {hasDefense && <StatusChip icon={<Radio size={10} />} value="ППО" color="#38bdf8" label="Оборона" />}
         </div>
 
         {/* Tabs */}
-        <div className="flex mx-4 mb-2 rounded-lg overflow-hidden" style={{ background: 'hsla(var(--game-glass), 0.4)' }}>
+        <div className="flex mx-4 mb-2 rounded-lg overflow-hidden" style={{ background: 'rgba(12, 18, 32, 1)' }}>
           {(['defense', 'manage', 'info'] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className="flex-1 py-1.5 text-[10px] font-bold tracking-wide transition-all cursor-pointer"
               style={{
-                background: tab === t ? 'hsla(var(--game-accent), 0.12)' : 'transparent',
-                color: tab === t ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))',
-                borderBottom: tab === t ? '2px solid hsl(var(--game-accent))' : '2px solid transparent',
+                background: tab === t ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: tab === t ? '#38bdf8' : '#6b7a8d',
+                borderBottom: tab === t ? '2px solid #38bdf8' : '2px solid transparent',
               }}>
               {t === 'defense' ? 'ОБОРОНА' : t === 'manage' ? 'КЕРУВ.' : 'ІНФО'}
             </button>
@@ -208,16 +209,16 @@ export const StationPanel = React.memo(function StationPanel({
                 { k: 'HP', v: `${station.hp}/${station.maxHp}`, c: hpColor },
                 { k: 'Укриття', v: `${station.shelterCount}` },
               ].map((row, i) => (
-                <div key={i} className="flex justify-between text-[10px] py-0.5"
-                  style={{ borderBottom: '1px solid hsla(var(--game-glass-border), 0.2)' }}>
-                  <span style={{ color: 'hsl(var(--game-muted))' }}>{row.k}</span>
-                  <span className="font-bold" style={{ color: row.c || 'hsl(var(--game-text))' }}>{row.v}</span>
+                <div key={i} className="flex justify-between text-[11px] py-1"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: '#7a8599' }}>{row.k}</span>
+                  <span className="font-bold" style={{ color: row.c || '#d0d8e8' }}>{row.v}</span>
                 </div>
               ))}
               {station.isTransfer && (
-                <div className="text-[10px] font-bold text-center py-1 rounded" style={{
-                  background: 'hsla(var(--game-accent), 0.1)',
-                  color: 'hsl(var(--game-accent))',
+                <div className="text-[11px] font-bold text-center py-1.5 rounded" style={{
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  color: '#38bdf8',
                 }}>⇄ Пересадочна станція</div>
               )}
             </div>
