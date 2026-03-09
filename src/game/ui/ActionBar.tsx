@@ -146,8 +146,8 @@ function ActionBtn({ icon, label, desc, cost, hotkey, onClick, disabled, active,
   );
 }
 
-function TrainBtn({ line, label, money, onClick, color }: {
-  line: string; label: string; money: number; onClick: () => void; color: string;
+function TrainBtn({ line, label, money, onClick, color, onHoverSound }: {
+  line: string; label: string; money: number; onClick: () => void; color: string; onHoverSound?: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
   const insufficient = money < GAME_CONFIG.TRAIN_COST;
@@ -170,7 +170,7 @@ function TrainBtn({ line, label, money, onClick, color }: {
         transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease',
       }}
       onMouseEnter={(e) => {
-        if (!insufficient) (e.currentTarget as HTMLElement).style.transform = 'scale(1.1) translateY(-2px)';
+        if (!insufficient) { (e.currentTarget as HTMLElement).style.transform = 'scale(1.1) translateY(-2px)'; onHoverSound?.(); }
       }}
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
