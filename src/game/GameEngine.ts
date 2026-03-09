@@ -1712,7 +1712,8 @@ export function repairBuilding(state: GameState, buildingIdx: number): GameState
 
 // Get end stations (first and last active) for a given line
 export function getLineEndStations(state: GameState, line: string): string[] {
-  const lineIds = LINE_STATIONS[line];
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  const lineIds = cityLineStations[line];
   if (!lineIds) return [];
   const activeSet = new Set(state.activeStationIds);
   const activeOnLine = lineIds.filter(id => activeSet.has(id));
