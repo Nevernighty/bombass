@@ -10,7 +10,7 @@ interface TrainPanelProps {
   money: number;
   trains: Train[];
   onClose: () => void;
-  onReroute: (line: 'red' | 'blue' | 'green') => void;
+  onReroute: (line: string) => void;
   onMerge: (otherTrainId: string) => void;
   onSell: () => void;
   onUpgrade: () => void;
@@ -33,7 +33,7 @@ export const TrainPanel = React.memo(function TrainPanel({
     Math.abs(t.x - train.x) < 0.05 && Math.abs(t.y - train.y) < 0.05
   );
 
-  const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+  const lines: string[] = ['red', 'blue', 'green'];
   const wagonCount = train.level;
 
   return (

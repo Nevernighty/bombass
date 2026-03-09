@@ -20,22 +20,22 @@ interface ActionBarProps {
   stationMagnetTimer: number;
   lives: number;
   closedSegments: { line: string; from: string; to: string; timer: number }[];
-  onBuyTrain: (line: 'red' | 'blue' | 'green') => void;
+  onBuyTrain: (line: string) => void;
   onReinforcements: () => void;
   onBuyGenerator: () => void;
   onBuyRadar: () => void;
   onPlaceDecoy: () => void;
-  onSpeedBoost: (line: 'red' | 'blue' | 'green') => void;
+  onSpeedBoost: (line: string) => void;
   onEmergencyBrake: () => void;
   onDoubleFare: () => void;
-  onExpressLine: (line: 'red' | 'blue' | 'green') => void;
+  onExpressLine: (line: string) => void;
   onBlackout: () => void;
   onSignalFlare: () => void;
   onPassengerAirdrop: () => void;
   onDroneJammer: () => void;
   onEmergencyFund: () => void;
-  onCloseSegment: (line: 'red' | 'blue' | 'green') => void;
-  onReopenLine: (line: 'red' | 'blue' | 'green') => void;
+  onCloseSegment: (line: string) => void;
+  onReopenLine: (line: string) => void;
   onHover?: () => void;
 }
 
@@ -208,7 +208,7 @@ export const ActionBar = React.memo(function ActionBar({
   onCloseSegment, onReopenLine, onHover,
 }: ActionBarProps) {
 
-  const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+  const lines: string[] = ['red', 'blue', 'green'];
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto">

@@ -7,7 +7,7 @@ import { METRO_LINES, STATION_MAP, toWorld, BRIDGE_STATION_IDS } from '../consta
 import { getActiveLineStations } from '../GameEngine';
 
 interface MetroLine3DProps {
-  line: 'red' | 'blue' | 'green';
+  line: string;
   stateRef: React.MutableRefObject<GameState>;
 }
 

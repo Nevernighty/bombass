@@ -1,10 +1,11 @@
-import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine } from './types';
+import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS, getStationsForCity, getStationMapForCity, getLineStationsForCity, getBridgeStationsForCity, getSurfaceRoutesForCity, getCityLines } from './constants';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
 import { generateBuildingData } from './components/CityBuildings';
 import { SCENARIOS, ACHIEVEMENT_DEFS } from './config/scenarios';
+import { CITIES, getCityConfig } from './config/cities';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
@@ -16,7 +17,7 @@ export function getStation(state: GameState, id: string) {
 }
 
 const SHAPES: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
-const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5'];
+const STARTING_STATIONS = ['r10', 'r11', 'b7', 'b8', 'g4', 'g5']; // Legacy default
 
 const UNLOCK_ORDER: Record<string, string[]> = {
   red: ['r9', 'r12', 'r8', 'r13', 'r7', 'r14', 'r6', 'r15', 'r5', 'r16', 'r4', 'r17', 'r3', 'r18', 'r2', 'r1'],
@@ -24,7 +25,7 @@ const UNLOCK_ORDER: Record<string, string[]> = {
   green: ['g3', 'g6', 'g2', 'g7', 'g1', 'g8', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15'],
 };
 
-const STATION_UNLOCK_INTERVAL = 20000;
+const STATION_UNLOCK_INTERVAL = 45000; // Slower pacing
 const RUSH_HOUR_INTERVAL = 90000;
 const RUSH_HOUR_DURATION = 15000;
 const RUSH_HOUR_WARNING = 5000;
@@ -54,10 +55,21 @@ function initAchievements(): Achievement[] {
   }));
 }
 
-export function createInitialState(mode: GameMode = 'classic'): GameState {
+export function createInitialState(mode: GameMode = 'classic', cityId: string = 'kyiv'): GameState {
   const scenario = SCENARIOS[mode];
+  const city = getCityConfig(cityId);
+  const cityStations = city.stations;
+  const cityStationMap = getStationMapForCity(cityId);
+  const cityLineStations = getLineStationsForCity(cityId);
+  const cityStarting = city.startingStations;
+  
+  // Determine which lines to use — use scenario's activeLines if they exist in this city, otherwise use all city lines
+  const cityLineKeys = Object.keys(city.lines);
+  const linesToUse = scenario.activeLines.filter(l => cityLineKeys.includes(l));
+  const effectiveLines = linesToUse.length > 0 ? linesToUse : cityLineKeys;
+
   let stationIndex = 0;
-  const stations: GameStation[] = STATIONS.map(s => ({
+  const stations: GameStation[] = cityStations.map(s => ({
     ...s,
     isTransfer: s.isTransfer || false,
     shape: assignStationShape(s, stationIndex++),
@@ -74,12 +86,14 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
   }));
 
   const trains: Train[] = [];
-  const linesToUse = scenario.activeLines;
   let trainsCreated = 0;
-  linesToUse.forEach(line => {
-    const lineStartStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
-    if (lineStartStations.length < 2) return;
-    const st = STATION_MAP.get(lineStartStations[0])!;
+  effectiveLines.forEach(line => {
+    const lineStartStations = cityStarting.filter(id => {
+      const st = cityStationMap.get(id);
+      return st && st.line === line;
+    });
+    if (lineStartStations.length < 1) return;
+    const st = cityStationMap.get(lineStartStations[0])!;
     if (trainsCreated < scenario.startTrains) {
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: 1,
@@ -89,12 +103,14 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
       trainsCreated++;
     }
   });
-  // If mode wants more trains, add extras
   while (trainsCreated < scenario.startTrains) {
-    const line = linesToUse[trainsCreated % linesToUse.length];
-    const lineStations = STARTING_STATIONS.filter(id => id.startsWith(line[0]));
+    const line = effectiveLines[trainsCreated % effectiveLines.length];
+    const lineStations = cityStarting.filter(id => {
+      const st = cityStationMap.get(id);
+      return st && st.line === line;
+    });
     if (lineStations.length > 0) {
-      const st = STATION_MAP.get(lineStations[Math.min(1, lineStations.length - 1)])!;
+      const st = cityStationMap.get(lineStations[Math.min(1, lineStations.length - 1)])!;
       trains.push({
         id: uid(), line, routeIndex: 0, progress: 0, direction: -1,
         speed: GAME_CONFIG.TRAIN_SPEED, passengers: [], capacity: GAME_CONFIG.TRAIN_CAPACITY,
@@ -119,7 +135,7 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     screenShake: 0, gameOver: false, gameStarted: false, isPaused: false,
     elapsedTime: 0, speedMultiplier: 1, unlockedRoutes: [],
     selectedTrain: null, hoveredStation: null,
-    activeStationIds: [...STARTING_STATIONS],
+    activeStationIds: [...cityStarting],
     nextStationUnlockTime: STATION_UNLOCK_INTERVAL,
     notifications: [], waveIndex: 0,
     // Phase 4
@@ -173,6 +189,21 @@ export function createInitialState(mode: GameMode = 'classic'): GameState {
     drawMouseWorldPos: null,
     trainSpawnEffects: [],
     _cachedLineStations: {},
+    // Multi-city
+    currentCity: cityId,
+    cityStates: Object.fromEntries(Object.keys(CITIES).map(cid => [cid, {
+      cityId: cid,
+      stability: 50,
+      avgSatisfaction: 100,
+      buildingsManaged: 0,
+    } as CityState])),
+    intercityTrains: [],
+    globalStability: 50,
+    // Tutorial
+    tutorialStep: 0,
+    tutorialComplete: false,
+    // Building upgrades
+    buildingUpgrades: {},
   };
 }
 
@@ -721,11 +752,20 @@ function updateRepair(s: GameState, realDt: number, events: EventBus): void {
 
 // ==================== SYSTEM: Progression ====================
 function updateProgression(s: GameState, realDt: number, events: EventBus): void {
-  if (s.elapsedTime >= s.nextStationUnlockTime) {
+  // Gating: require passengers before unlocking more stations
+  const stationsUnlocked = s.activeStationIds.length + s.pendingStations.length;
+  const requiredPassengers = Math.max(0, (stationsUnlocked - 6) * 10);
+  const canUnlock = s.passengersDelivered >= requiredPassengers;
+  
+  if (s.elapsedTime >= s.nextStationUnlockTime && canUnlock) {
     s.nextStationUnlockTime += STATION_UNLOCK_INTERVAL;
-    const scenario = SCENARIOS[s.gameMode];
-    scenario.activeLines.forEach(line => {
-      const order = UNLOCK_ORDER[line];
+    const city = getCityConfig(s.currentCity);
+    const unlockOrder = city.unlockOrder;
+    const cityLineKeys = Object.keys(city.lines);
+    
+    cityLineKeys.forEach(line => {
+      const order = unlockOrder[line];
+      if (!order) return;
       const nextStation = order.find(id => !s.activeStationIds.includes(id) && !s.pendingStations.includes(id));
       if (nextStation) {
         s.pendingStations.push(nextStation);
@@ -1016,9 +1056,10 @@ function updateAchievements(s: GameState): void {
 
   // Full line check
   const activeSet = new Set(s.activeStationIds);
-  (['red', 'blue', 'green'] as const).forEach(line => {
-    const total = LINE_STATIONS[line].length;
-    const active = LINE_STATIONS[line].filter(id => activeSet.has(id)).length;
+  const cityLineStations = getLineStationsForCity(s.currentCity);
+  Object.keys(cityLineStations).forEach(line => {
+    const total = cityLineStations[line].length;
+    const active = cityLineStations[line].filter(id => activeSet.has(id)).length;
     if (active >= total) unlock('full_line');
   });
 }
@@ -1182,11 +1223,12 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   s.isNight = s.dayTime < 0.2 || s.dayTime > 0.8;
 
   const activeSet = new Set(s.activeStationIds);
-  s._cachedLineStations = {
-    red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
-    blue: LINE_STATIONS.blue.filter(id => activeSet.has(id)),
-    green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
-  };
+  const cityLineStations = getLineStationsForCity(s.currentCity);
+  const cached: Record<string, string[]> = {};
+  for (const lineId of Object.keys(cityLineStations)) {
+    cached[lineId] = cityLineStations[lineId].filter(id => activeSet.has(id));
+  }
+  s._cachedLineStations = cached;
 
   updateProgression(s, realDt, globalEventBus);
   updatePassengers(s, realDt, globalEventBus);
@@ -1203,6 +1245,9 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateGameEvents(s, realDt, globalEventBus);
   updateAchievements(s);
   updateWinConditions(s);
+  updateStability(s);
+  updateIntercity(s, realDt);
+  updateTutorial(s);
   updatePhysics(s, realDt);
 
   globalEventBus.flush();
@@ -1257,7 +1302,7 @@ export function reverseTrain(state: GameState, trainId: string): GameState {
   return state;
 }
 
-export function purchaseTrain(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function purchaseTrain(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.TRAIN_COST) return state;
   const route = getActiveLineStations(state, line);
   if (route.length < 2) return state;
@@ -1314,7 +1359,7 @@ export function setSpeedMultiplier(state: GameState, multiplier: number): GameSt
   return state;
 }
 
-export function rerouteTrain(state: GameState, trainId: string, newLine: 'red' | 'blue' | 'green'): GameState {
+export function rerouteTrain(state: GameState, trainId: string, newLine: string): GameState {
   const train = state.trains.find(t => t.id === trainId);
   if (!train || train.line === newLine) return state;
   const route = getActiveLineStations(state, newLine);
@@ -1407,7 +1452,7 @@ export function placeDecoy(state: GameState): GameState {
   return state;
 }
 
-export function emergencySpeedBoost(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function emergencySpeedBoost(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.SPEED_BOOST_COST || state.speedBoostCooldown > 0) return state;
   state.money -= GAME_CONFIG.SPEED_BOOST_COST;
   state.speedBoostLine = line;
@@ -1450,7 +1495,7 @@ export function activateDoubleFare(state: GameState): GameState {
   return state;
 }
 
-export function activateExpressLine(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function activateExpressLine(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.EXPRESS_LINE_COST || state.expressTimer > 0) return state;
   state.money -= GAME_CONFIG.EXPRESS_LINE_COST;
   state.expressLineId = line;
@@ -1680,7 +1725,8 @@ export function repairBuilding(state: GameState, buildingIdx: number): GameState
 
 // Get end stations (first and last active) for a given line
 export function getLineEndStations(state: GameState, line: string): string[] {
-  const lineIds = LINE_STATIONS[line];
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  const lineIds = cityLineStations[line];
   if (!lineIds) return [];
   const activeSet = new Set(state.activeStationIds);
   const activeOnLine = lineIds.filter(id => activeSet.has(id));
@@ -1693,7 +1739,8 @@ export function getLineEndStations(state: GameState, line: string): string[] {
 
 // Check if a station is an end station on any line
 export function isEndStation(state: GameState, stationId: string): { isEnd: boolean; line: string | null } {
-  for (const line of ['red', 'blue', 'green']) {
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  for (const line of Object.keys(cityLineStations)) {
     const ends = getLineEndStations(state, line);
     if (ends.includes(stationId)) return { isEnd: true, line };
   }
@@ -1732,19 +1779,22 @@ export function connectStation(state: GameState, pendingStationId: string, fromS
   state.pendingStations = state.pendingStations.filter(id => id !== pendingStationId);
   state.activeStationIds.push(pendingStationId);
   const st = getStation(state, pendingStationId);
-  const pendingSt = STATION_MAP.get(pendingStationId);
-  const lineName = pendingSt ? (pendingSt.line === 'red' ? 'M1' : pendingSt.line === 'blue' ? 'M2' : 'M3') : '';
+  const cityStationMap = getStationMapForCity(state.currentCity);
+  const pendingSt = cityStationMap.get(pendingStationId);
+  const cityLines = getCityLines(state.currentCity);
+  const lineName = pendingSt && cityLines[pendingSt.line] ? cityLines[pendingSt.line].name : '';
   if (st) {
     st.jellyVel.y = -8; st.jellyVel.x = 5;
     addNotification(state, `✅ Підключено до ${lineName}!`, st.x, st.y, '#4ade80');
   }
   // Recache
   const activeSet = new Set(state.activeStationIds);
-  state._cachedLineStations = {
-    red: LINE_STATIONS.red.filter(id => activeSet.has(id)),
-    blue: LINE_STATIONS.blue.filter(id => activeSet.has(id)),
-    green: LINE_STATIONS.green.filter(id => activeSet.has(id)),
-  };
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  const cached: Record<string, string[]> = {};
+  for (const lineId of Object.keys(cityLineStations)) {
+    cached[lineId] = cityLineStations[lineId].filter(id => activeSet.has(id));
+  }
+  state._cachedLineStations = cached;
   state.isDrawingLine = false;
   state.drawLineFrom = null;
   state.drawLineTo = null;
@@ -1809,8 +1859,8 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
       s.eventLog.push('Енергосплеск: +10HP');
     } else if (roll < 0.9) {
       // Tunnel Flood — close random segment for 20s
-      const lines = ['red', 'blue', 'green'];
-      const line = lines[Math.floor(Math.random() * lines.length)];
+      const cityLineKeys = Object.keys(s._cachedLineStations);
+      const line = cityLineKeys[Math.floor(Math.random() * cityLineKeys.length)];
       const lineStations = s._cachedLineStations[line];
       if (lineStations && lineStations.length >= 2) {
         const idx = Math.floor(Math.random() * (lineStations.length - 1));
@@ -1843,4 +1893,80 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
 
   // Keep event log trimmed
   while (s.eventLog.length > 20) s.eventLog.shift();
+}
+
+// ==================== SYSTEM: Stability ====================
+function updateStability(s: GameState): void {
+  const activeSet = new Set(s.activeStationIds);
+  const activeStations = s.stations.filter(st => activeSet.has(st.id));
+  if (activeStations.length === 0) return;
+  const healthPct = activeStations.reduce((sum, st) => sum + (st.hp / st.maxHp), 0) / activeStations.length;
+  const satisfactionPct = s.satisfactionRate / 100;
+  const buildingsPct = s.buildings.length > 0 ? s.buildings.filter(b => !b.isDestroyed).length / s.buildings.length : 1;
+  const powerPct = s.powerGrid / s.maxPower;
+  const stability = Math.round((healthPct * 30 + satisfactionPct * 30 + buildingsPct * 20 + powerPct * 20));
+  if (s.cityStates[s.currentCity]) {
+    s.cityStates[s.currentCity].stability = stability;
+    s.cityStates[s.currentCity].avgSatisfaction = s.satisfactionRate;
+  }
+  const cityStabilities = Object.values(s.cityStates).map(c => c.stability);
+  s.globalStability = Math.round(cityStabilities.reduce((a, b) => a + b, 0) / cityStabilities.length);
+}
+
+// ==================== SYSTEM: Intercity ====================
+function updateIntercity(s: GameState, realDt: number): void {
+  s.intercityTrains = s.intercityTrains.filter(it => {
+    it.progress += realDt / it.travelTime;
+    if (it.progress >= 1) {
+      const bonus = it.passengers * 5;
+      s.score += bonus;
+      s.money += Math.round(bonus * 0.3);
+      if (s.cityStates[it.toCity]) {
+        s.cityStates[it.toCity].stability = Math.min(100, s.cityStates[it.toCity].stability + 5);
+      }
+      addNotification(s, `🚄 +${bonus} міжміський!`, 0.5, 0.3, '#a855f7');
+      return false;
+    }
+    return true;
+  });
+}
+
+// ==================== SYSTEM: Tutorial ====================
+function updateTutorial(s: GameState): void {
+  if (s.tutorialComplete) return;
+  if (s.tutorialStep === 0 && s.gameStarted) s.tutorialStep = 1;
+  if (s.tutorialStep === 1 && s.hoveredStation) s.tutorialStep = 2;
+  if (s.tutorialStep === 2 && s.trains.length > 3) s.tutorialStep = 3;
+  if (s.tutorialStep === 3 && s.activeStationIds.length > 6) s.tutorialStep = 4;
+  if (s.tutorialStep === 4 && s.stations.some(st => st.hasAntiAir)) s.tutorialStep = 5;
+  if (s.tutorialStep === 5 && s.dronesIntercepted > 0) { s.tutorialStep = 6; s.tutorialComplete = true; }
+}
+
+// ==================== Intercity + Building Actions ====================
+export function sendIntercityTrain(state: GameState, targetCity: string): GameState {
+  if (state.money < GAME_CONFIG.INTERCITY_COST) return state;
+  const city = getCityConfig(state.currentCity);
+  const connection = city.intercityConnections.find(c => c.targetCity === targetCity);
+  if (!connection) return state;
+  state.money -= connection.cost;
+  state.intercityTrains.push({
+    id: uid(), fromCity: state.currentCity, toCity: targetCity,
+    progress: 0, passengers: Math.floor(Math.random() * 10) + 5, travelTime: connection.travelTime,
+  });
+  addNotification(state, `🚄 Потяг до ${getCityConfig(targetCity).nameUa}!`, 0.5, 0.5, '#a855f7');
+  return state;
+}
+
+export function upgradeBuildingAction(state: GameState, buildingIdx: number): GameState {
+  if (state.money < GAME_CONFIG.BUILDING_UPGRADE_COST) return state;
+  const b = state.buildings[buildingIdx];
+  if (!b || b.isDestroyed) return state;
+  const current = state.buildingUpgrades[buildingIdx] || { level: 0, income: 0, repairRate: 0 };
+  if (current.level >= 3) return state;
+  state.money -= GAME_CONFIG.BUILDING_UPGRADE_COST * (current.level + 1);
+  state.buildingUpgrades[buildingIdx] = { level: current.level + 1, income: (current.level + 1) * 2, repairRate: (current.level + 1) * 5 };
+  b.maxHp += 25;
+  b.hp = Math.min(b.hp + 25, b.maxHp);
+  addNotification(state, `🏗️ Будівля Рів.${current.level + 1}!`, b.x, b.y, '#4ade80');
+  return state;
 }

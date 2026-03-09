@@ -1,11 +1,12 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus } from './GameEngine';
-import { METRO_LINES } from './constants';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction } from './GameEngine';
+import { METRO_LINES, getCityLines } from './constants';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
 import { GAME_CONFIG } from './constants';
 import { SCENARIOS } from './config/scenarios';
+import { CITIES, getCityConfig, CITY_IDS } from './config/cities';
 import SceneContent from './Scene3D';
 import { TopBar } from './ui/TopBar';
 import { StationPanel } from './ui/StationPanel';
@@ -38,7 +39,8 @@ interface GameCanvasProps {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
-  const stateRef = useRef<GameState>(createInitialState());
+  const [selectedCity, setSelectedCity] = useState('kyiv');
+  const stateRef = useRef<GameState>(createInitialState('classic', 'kyiv'));
   const audioRef = useRef<AudioEngine>(new AudioEngine());
   const isPanningRef = useRef(false);
   const isRotatingRef = useRef(false);
@@ -52,7 +54,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
-    stateRef.current = createInitialState(mode);
+    stateRef.current = createInitialState(mode, selectedCity);
     stateRef.current.gameStarted = true;
     audioRef.current.init();
     audioRef.current.resume();
@@ -67,7 +69,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const restartGame = useCallback(() => {
     audioRef.current.stopMusic();
     audioRef.current.stopSiren();
-    stateRef.current = createInitialState(stateRef.current.gameMode);
+    stateRef.current = createInitialState(stateRef.current.gameMode, stateRef.current.currentCity);
     stateRef.current.gameStarted = true;
     audioRef.current.startAmbientMusic();
     prevAchCountRef.current = 0;
@@ -179,7 +181,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       if (e.key === 'c' || e.key === 'C') setCameraMode('cinematic');
       if (e.key === 'Escape') { setCameraMode('free'); stateRef.current.selectedTrain = null; setHudState({ ...stateRef.current }); }
       if (e.key === 'q' || e.key === 'Q') {
-        const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];
+        const lines: string[] = ['red', 'blue', 'green'];
         const counts = lines.map(l => stateRef.current.trains.filter(t => t.line === l).length);
         const minLine = lines[counts.indexOf(Math.min(...counts))];
         act(s => purchaseTrain(s, minLine));
@@ -442,9 +444,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
           <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6 pt-8 pb-12">
             {/* Title */}
-            <div className="text-center mb-8">
-              <h1 className="text-6xl font-black mb-1 tracking-tighter">
-                {'KYIV TRANSIT'.split('').map((ch, i) => (
+            <div className="text-center mb-6">
+              <h1 className="text-5xl font-black mb-1 tracking-tighter">
+                {'KYIV BOMBASS'.split('').map((ch, i) => (
                   <span key={i} className="inline-block" style={{
                     animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
                     background: 'linear-gradient(180deg, #ffffff 30%, hsl(var(--game-accent)))',
@@ -459,13 +461,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                 color: 'hsl(var(--game-accent))',
                 animation: 'title-letter 0.5s ease-out 0.5s both',
                 textShadow: '0 0 20px rgba(234,179,8,0.3)',
-              }}>RESILIENCE</p>
+              }}>TRANSIT</p>
               <p className="text-[13px] max-w-md mx-auto" style={{
                 color: 'hsl(var(--game-muted))',
                 animation: 'title-letter 0.5s ease-out 0.3s both',
               }}>
-                Керуй метро Києва під ворожими атаками. Будуй оборону, перевози пасажирів, захисти місто.
+                Керуй транспортом українських міст під ворожими атаками. Будуй оборону, перевози пасажирів, захисти країну.
               </p>
+            </div>
+
+            {/* City selector */}
+            <div className="w-full mb-4" style={{ animation: 'title-letter 0.4s ease-out 0.25s both' }}>
+              <p className="text-[10px] font-black uppercase tracking-wider mb-2 text-center" style={{ color: 'hsl(var(--game-muted))' }}>ОБЕРІТЬ МІСТО</p>
+              <div className="flex justify-center gap-2 flex-wrap">
+                {CITY_IDS.map(cid => {
+                  const city = getCityConfig(cid);
+                  const isSelected = selectedCity === cid;
+                  return (
+                    <button key={cid} onClick={() => setSelectedCity(cid)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all"
+                      style={{
+                        background: isSelected ? 'hsl(var(--game-accent) / 0.15)' : 'hsl(225 40% 8%)',
+                        border: isSelected ? '2px solid hsl(var(--game-accent))' : '2px solid hsl(220 20% 16%)',
+                        color: isSelected ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))',
+                        boxShadow: isSelected ? '0 0 16px rgba(234,179,8,0.2)' : 'none',
+                      }}>
+                      <span className="text-lg">{city.icon}</span>
+                      <span>{city.nameUa}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{
+                        background: 'hsl(220 25% 12%)',
+                        color: city.type === 'metro' ? '#3498db' : '#9b59b6',
+                      }}>{city.type === 'metro' ? 'Метро' : 'Трамвай'}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Scenario cards */}

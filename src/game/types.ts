@@ -6,7 +6,7 @@ export interface GameStation {
   nameUa: string;
   x: number;
   y: number;
-  line: 'red' | 'blue' | 'green';
+  line: string;
   isTransfer: boolean;
   depth: 'shallow' | 'deep';
   shape: PassengerShape;
@@ -55,7 +55,7 @@ export type DroneType = 'shahed' | 'molniya' | 'gerbera';
 
 export interface Train {
   id: string;
-  line: 'red' | 'blue' | 'green';
+  line: string;
   routeIndex: number;
   progress: number;
   direction: 1 | -1;
@@ -310,6 +310,38 @@ export interface GameState {
   trainSpawnEffects: { id: string; x: number; y: number; timer: number; line: string }[];
   // cached per-tick
   _cachedLineStations: Record<string, string[]>;
+  // Multi-city
+  currentCity: string;
+  cityStates: Record<string, CityState>;
+  intercityTrains: IntercityTrain[];
+  globalStability: number;
+  // Tutorial
+  tutorialStep: number;
+  tutorialComplete: boolean;
+  // Building upgrades
+  buildingUpgrades: Record<number, BuildingUpgrade>;
+}
+
+export interface CityState {
+  cityId: string;
+  stability: number;
+  avgSatisfaction: number;
+  buildingsManaged: number;
+}
+
+export interface IntercityTrain {
+  id: string;
+  fromCity: string;
+  toCity: string;
+  progress: number;
+  passengers: number;
+  travelTime: number;
+}
+
+export interface BuildingUpgrade {
+  level: number;
+  income: number;
+  repairRate: number;
 }
 
 export interface GameNotification {
