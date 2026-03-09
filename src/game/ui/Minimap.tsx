@@ -1,8 +1,6 @@
 import React from 'react';
 import { GameState } from '../types';
 import { STATIONS, METRO_LINES } from '../constants';
-import { useLanguage } from '../i18n';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface MinimapProps {
   stateRef: React.MutableRefObject<GameState>;
@@ -10,12 +8,6 @@ interface MinimapProps {
 }
 
 export const Minimap = React.memo(function Minimap({ stateRef, state }: MinimapProps) {
-  const { t } = useLanguage();
-  const isMobile = useIsMobile();
-
-  // Hide on mobile — WorldMap serves the purpose
-  if (isMobile) return null;
-
   const W = 200;
   const H = 160;
 
@@ -27,28 +19,37 @@ export const Minimap = React.memo(function Minimap({ stateRef, state }: MinimapP
         border: '1px solid hsl(220 20% 14% / 1)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
       }}>
+        {/* Top accent bar with metro colors */}
         <div className="h-[2px]" style={{
           background: 'linear-gradient(90deg, #e53935, #1e88e5, #43a047)',
         }} />
 
+        {/* КАРТА label */}
         <div className="px-2 py-1 flex items-center justify-between">
           <span className="text-[8px] font-black tracking-widest uppercase" style={{
             color: 'hsl(var(--game-accent))',
             opacity: 0.7,
-          }}>{t('minimap.title')}</span>
+          }}>КАРТА</span>
           <span className="text-[8px] font-mono" style={{ color: 'hsl(220 10% 40%)' }}>
             {state.trains.length}T · {state.drones.filter(d => !d.isDestroyed).length}D
           </span>
         </div>
 
         <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          {/* Background */}
           <rect width={W} height={H} fill="hsl(225 45% 4%)" />
+
+          {/* Metro lines */}
           {(['red', 'blue', 'green'] as const).map(line => {
             const lineStations = STATIONS.filter(s => s.line === line && state.activeStationIds.includes(s.id));
             if (lineStations.length < 2) return null;
             const points = lineStations.map(s => `${s.x * W},${s.y * H}`).join(' ');
-            return <polyline key={line} points={points} fill="none" stroke={METRO_LINES[line].color} strokeWidth="2" opacity="0.5" />;
+            return (
+              <polyline key={line} points={points} fill="none" stroke={METRO_LINES[line].color} strokeWidth="2" opacity="0.5" />
+            );
           })}
+
+          {/* Station dots */}
           {state.activeStationIds.map(id => {
             const st = STATIONS.find(s => s.id === id);
             if (!st) return null;
@@ -66,12 +67,16 @@ export const Minimap = React.memo(function Minimap({ stateRef, state }: MinimapP
               </g>
             );
           })}
-          {state.trains.map(tr => (
-            <g key={tr.id}>
-              <circle cx={tr.x * W} cy={tr.y * H} r={3}
-                fill="#fff" stroke={METRO_LINES[tr.line].color} strokeWidth="1.5" opacity="0.95" />
+
+          {/* Train dots */}
+          {state.trains.map(t => (
+            <g key={t.id}>
+              <circle cx={t.x * W} cy={t.y * H} r={3}
+                fill="#fff" stroke={METRO_LINES[t.line].color} strokeWidth="1.5" opacity="0.95" />
             </g>
           ))}
+
+          {/* Drone dots */}
           {state.drones.filter(d => !d.isDestroyed).map(d => (
             <g key={d.id}>
               <circle cx={d.x * W} cy={d.y * H} r={5} fill="rgba(255,50,50,0.15)" />

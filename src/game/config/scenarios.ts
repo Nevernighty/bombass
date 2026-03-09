@@ -3,9 +3,7 @@ import { GameMode } from '../types';
 export interface ScenarioConfig {
   id: GameMode;
   nameUa: string;
-  nameEn: string;
   descriptionUa: string;
-  descriptionEn: string;
   icon: string;
   difficulty: number; // 1-5
   startMoney: number;
@@ -25,9 +23,8 @@ export interface ScenarioConfig {
 export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
   classic: {
     id: 'classic',
-    nameUa: 'Класична гра', nameEn: 'Classic Game',
+    nameUa: 'Класична гра',
     descriptionUa: 'Нескінченне виживання з хвилями ворогів.',
-    descriptionEn: 'Endless survival with waves of enemies.',
     icon: '🏙️',
     difficulty: 3,
     startMoney: 50,
@@ -44,9 +41,8 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
   },
   rush_hour: {
     id: 'rush_hour',
-    nameUa: 'Година Пік', nameEn: 'Rush Hour',
+    nameUa: 'Година Пік',
     descriptionUa: '5 хвилин, x3 пасажирів, без тривог. Доставте 300!',
-    descriptionEn: '5 minutes, x3 passengers, no raids. Deliver 300!',
     icon: '🚇',
     difficulty: 2,
     startMoney: 100,
@@ -63,9 +59,8 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
   },
   siege: {
     id: 'siege',
-    nameUa: 'Облога', nameEn: 'Siege',
+    nameUa: 'Облога',
     descriptionUa: 'Безперервні атаки з першої секунди. Вижийте 10 хвилин!',
-    descriptionEn: 'Non-stop attacks from second one. Survive 10 minutes!',
     icon: '💣',
     difficulty: 5,
     startMoney: 200,
@@ -82,9 +77,8 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
   },
   blackout: {
     id: 'blackout',
-    nameUa: 'Блекаут', nameEn: 'Blackout',
+    nameUa: 'Блекаут',
     descriptionUa: 'Вічна ніч, x3 витрати енергії. 150 пасажирів без втрат!',
-    descriptionEn: 'Eternal night, x3 power drain. 150 passengers no losses!',
     icon: '🌑',
     difficulty: 4,
     startMoney: 80,
@@ -101,9 +95,8 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
   },
   bridge_defense: {
     id: 'bridge_defense',
-    nameUa: 'Оборона мосту', nameEn: 'Bridge Defense',
+    nameUa: 'Оборона мосту',
     descriptionUa: 'Тільки червона лінія. Захистіть міст 8 хвилин!',
-    descriptionEn: 'Red line only. Defend the bridge for 8 minutes!',
     icon: '🌉',
     difficulty: 4,
     startMoney: 150,
@@ -122,16 +115,16 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
 };
 
 export const ACHIEVEMENT_DEFS = [
-  { id: 'first_ride', nameUa: 'Перший рейс', nameEn: 'First Ride', icon: '🚇', condition: 'Доставте першого пасажира' },
-  { id: 'hundred', nameUa: 'Сотня', nameEn: 'Century', icon: '💯', condition: '100 пасажирів доставлено' },
-  { id: 'thousand', nameUa: 'Тисяча', nameEn: 'Thousand', icon: '🏆', condition: '1000 пасажирів доставлено' },
-  { id: 'sniper', nameUa: 'Снайпер', nameEn: 'Sniper', icon: '🎯', condition: '10 дронів збито вручну' },
-  { id: 'indestructible', nameUa: 'Неруйнівний', nameEn: 'Indestructible', icon: '🛡️', condition: '5 хвилин без втрати станції' },
-  { id: 'combo_master', nameUa: 'Комбо Майстер', nameEn: 'Combo Master', icon: '⚡', condition: 'Досягніть комбо x5' },
-  { id: 'full_line', nameUa: 'Повна лінія', nameEn: 'Full Line', icon: '🗺️', condition: 'Відкрийте всі станції лінії' },
-  { id: 'three_lines', nameUa: 'Три лінії', nameEn: 'Three Lines', icon: '🚉', condition: 'Потяги на всіх лініях' },
-  { id: 'economist', nameUa: 'Економіст', nameEn: 'Economist', icon: '💰', condition: 'Накопичте 500💰' },
-  { id: 'rescuer', nameUa: 'Рятівник', nameEn: 'Rescuer', icon: '🔧', condition: 'Відремонтуйте 5 станцій' },
-  { id: 'multi_city', nameUa: 'Подорожник', nameEn: 'Traveler', icon: '🗺️', condition: 'Відправте міжміський потяг' },
-  { id: 'stability_master', nameUa: 'Стабільність', nameEn: 'Stability', icon: '📊', condition: 'Стабільність 80%+ протягом 2 хв' },
+  { id: 'first_ride', nameUa: 'Перший рейс', icon: '🚇', condition: 'Доставте першого пасажира' },
+  { id: 'hundred', nameUa: 'Сотня', icon: '💯', condition: '100 пасажирів доставлено' },
+  { id: 'thousand', nameUa: 'Тисяча', icon: '🏆', condition: '1000 пасажирів доставлено' },
+  { id: 'sniper', nameUa: 'Снайпер', icon: '🎯', condition: '10 дронів збито вручну' },
+  { id: 'indestructible', nameUa: 'Неруйнівний', icon: '🛡️', condition: '5 хвилин без втрати станції' },
+  { id: 'combo_master', nameUa: 'Комбо Майстер', icon: '⚡', condition: 'Досягніть комбо x5' },
+  { id: 'full_line', nameUa: 'Повна лінія', icon: '🗺️', condition: 'Відкрийте всі станції лінії' },
+  { id: 'three_lines', nameUa: 'Три лінії', icon: '🚉', condition: 'Потяги на всіх лініях' },
+  { id: 'economist', nameUa: 'Економіст', icon: '💰', condition: 'Накопичте 500💰' },
+  { id: 'rescuer', nameUa: 'Рятівник', icon: '🔧', condition: 'Відремонтуйте 5 станцій' },
+  { id: 'multi_city', nameUa: 'Подорожник', icon: '🗺️', condition: 'Відправте міжміський потяг' },
+  { id: 'stability_master', nameUa: 'Стабільність', icon: '📊', condition: 'Стабільність 80%+ протягом 2 хв' },
 ];

@@ -1,6 +1,5 @@
 import React from 'react';
 import { CameraMode } from '../types';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface CameraControlsProps {
   currentMode: CameraMode;
@@ -15,15 +14,12 @@ const MODES: { mode: CameraMode; label: string; key: string }[] = [
 ];
 
 export const CameraControls = React.memo(function CameraControls({ currentMode, onSetMode }: CameraControlsProps) {
-  const isMobile = useIsMobile();
-  const btnSize = isMobile ? 'w-10 h-10' : 'w-9 h-9';
-
   return (
-    <div className={`absolute right-2 ${isMobile ? 'bottom-24' : 'bottom-16'} flex flex-col gap-1 pointer-events-auto`}>
+    <div className="absolute right-2 bottom-16 flex flex-col gap-1 pointer-events-auto">
       {MODES.map(cm => (
         <button key={cm.mode} onClick={() => onSetMode(cm.mode)}
           title={cm.key}
-          className={`${btnSize} rounded-lg flex items-center justify-center text-[11px] font-black transition-all`}
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black transition-all"
           style={{
             background: currentMode === cm.mode ? 'hsl(var(--game-accent))' : 'hsl(225 45% 7% / 1)',
             border: `1px solid ${currentMode === cm.mode ? 'hsl(var(--game-accent))' : 'hsl(220 20% 16% / 1)'}`,

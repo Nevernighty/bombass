@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useState, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction, switchToCity } from './GameEngine';
+import { createInitialState, attackDrone, dispatchRepair, reverseTrain, setSpeedMultiplier, purchaseTrain, deployAntiAir, activateShield, callReinforcements, upgradeStation, evacuateStation, toggleStationOpen, upgradeTrainCapacity, buyGenerator, buyRadar, placeDecoy, emergencySpeedBoost, toggleShelter, sealTunnel, emergencyBrake, activateDoubleFare, activateExpressLine, toggleBlackout, activateSignalFlare, passengerAirdrop, activateDroneJammer, emergencyFund, activateStationMagnet, buySAMBattery, launchInterceptor, buyAATurret, fortifyStation, activateDroneEMP, activateTrainShield, rerouteTrain, mergeTrains, sellTrain, closeLineSegment, reopenLineSegment, repairBuilding, connectStation, isEndStation, getValidPendingTargets, globalEventBus, sendIntercityTrain, upgradeBuildingAction } from './GameEngine';
 import { METRO_LINES, getCityLines } from './constants';
 import { GameState, GameMode, CameraMode } from './types';
 import { AudioEngine } from './AudioEngine';
@@ -16,11 +16,7 @@ import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
 import { TrainPanel } from './ui/TrainPanel';
-import { WorldMap } from './ui/WorldMap';
-import { CrossCityAlert } from './ui/CrossCityAlert';
 import { Achievement } from './types';
-import { LanguageProvider, LanguageToggle, useLanguage } from './i18n';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,9 +38,7 @@ interface GameCanvasProps {
   onStateChange?: (state: GameState) => void;
 }
 
-function GameCanvasInner({ onStateChange }: GameCanvasProps) {
-  const { t, lang } = useLanguage();
-  const isMobile = useIsMobile();
+const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const [selectedCity, setSelectedCity] = useState('kyiv');
   const stateRef = useRef<GameState>(createInitialState('classic', 'kyiv'));
   const audioRef = useRef<AudioEngine>(new AudioEngine());
@@ -60,7 +54,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
-    stateRef.current = createInitialState(mode, 'kyiv');
+    stateRef.current = createInitialState(mode, selectedCity);
     stateRef.current.gameStarted = true;
     audioRef.current.init();
     audioRef.current.resume();
@@ -69,11 +63,6 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
     prevAchCountRef.current = 0;
-    setHudState({ ...stateRef.current });
-  }, []);
-
-  const handleSwitchCity = useCallback((cityId: string) => {
-    stateRef.current = switchToCity({ ...stateRef.current }, cityId);
     setHudState({ ...stateRef.current });
   }, []);
 
@@ -102,6 +91,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
     audioRef.current.playClick();
     const state = stateRef.current;
 
+    // If we're drawing and clicked a pending station that's a valid target, connect it
     if (state.isDrawingLine && state.drawLineFrom && state.pendingStations.includes(stationId)) {
       const validTargets = getValidPendingTargets(state, state.drawLineFrom);
       if (validTargets.includes(stationId)) {
@@ -111,12 +101,14 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
       }
     }
 
+    // If drawing and clicked something else, cancel
     if (state.isDrawingLine) {
       stateRef.current = { ...state, isDrawingLine: false, drawLineFrom: null, drawLineTo: null, drawLineColor: null, drawMouseWorldPos: null };
       setHudState({ ...stateRef.current });
       return;
     }
 
+    // Check if this station is an end station and there are pending stations to connect
     if (state.pendingStations.length > 0) {
       const { isEnd, line } = isEndStation(state, stationId);
       if (isEnd && line) {
@@ -244,9 +236,13 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
   }, []);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     setMousePos({ x: e.clientX, y: e.clientY });
+    
+    // Update draw line world position when drawing
     if (stateRef.current.isDrawingLine) {
+      // Store screen coordinates — Scene3D will do the raycasting
       stateRef.current.drawMouseWorldPos = { x: e.clientX, z: e.clientY };
     }
+    
     if (isRotatingRef.current) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
@@ -307,18 +303,6 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
   const selStation = selectedStation ? state.stations.find(s => s.id === selectedStation) : null;
   const selTrain = state.selectedTrain ? state.trains.find(t => t.id === state.selectedTrain) : null;
   const selectedTrainLevel = selTrain?.level || 1;
-
-  const diffLabelsUa = ['', 'Легко', 'Легко', 'Середньо', 'Складно', 'Хардкор'];
-  const diffLabelsEn = ['', 'Easy', 'Easy', 'Medium', 'Hard', 'Hardcore'];
-  const diffLabels = lang === 'en' ? diffLabelsEn : diffLabelsUa;
-
-  const eventTexts: Record<string, string> = {
-    rush_surge: t('event.rush_surge'),
-    vip_passenger: t('event.vip'),
-    power_flicker: t('event.power_flicker'),
-    emergency_evac: t('event.emergency_evac'),
-    power_surge: t('event.power_surge'),
-  };
 
   return (
     <div ref={containerRef} className="relative w-full h-full select-none"
@@ -389,7 +373,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
 
       {/* Floating score numbers */}
       {state.gameStarted && !state.gameOver && state.floatingScores.map(fs => {
-        const isCrit = fs.text.includes('КРИТ') || fs.text.includes('CRIT');
+        const isCrit = fs.text.includes('КРИТ');
         return (
           <div key={fs.id} className={`absolute pointer-events-none font-bold ${isCrit ? 'animate-float-score-crit' : 'animate-float-score'}`}
             style={{
@@ -408,7 +392,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
 
       {/* Combo streak bar */}
       {state.gameStarted && !state.gameOver && state.combo > 1.5 && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-none" style={{ width: isMobile ? '150px' : '200px' }}>
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-none" style={{ width: '200px' }}>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.5)' }}>
             <div className="h-full rounded-full transition-all duration-300" style={{
               width: `${Math.min(100, (state.combo / 5) * 100)}%`,
@@ -416,11 +400,11 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               boxShadow: state.combo >= 3 ? '0 0 10px rgba(245,158,11,0.5)' : 'none',
             }} />
           </div>
-          <div className="text-center text-[10px] sm:text-xs font-bold mt-0.5" style={{
+          <div className="text-center text-xs font-bold mt-0.5" style={{
             color: state.combo >= 3 ? '#fbbf24' : '#4ade80',
             textShadow: '0 1px 4px rgba(0,0,0,0.8)',
           }}>
-            x{state.combo.toFixed(1)} {t('banner.combo')}
+            x{state.combo.toFixed(1)} КОМБО
           </div>
         </div>
       )}
@@ -433,10 +417,12 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
         <div className="absolute inset-0 flex items-start justify-center overflow-y-auto" style={{
           background: '#060a14',
         }}>
+          {/* Animated background radials */}
           <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse at 20% 30%, rgba(229,57,53,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(30,136,229,0.06) 0%, transparent 50%), radial-gradient(ellipse at 50% 90%, rgba(67,160,71,0.04) 0%, transparent 40%)',
           }} />
 
+          {/* Drifting dots */}
           {[
             { x: '15%', y: '20%', delay: '0s', color: '#e53935' },
             { x: '80%', y: '30%', delay: '2s', color: '#1e88e5' },
@@ -449,21 +435,17 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               style={{ left: dot.x, top: dot.y, background: dot.color, animationDelay: dot.delay, opacity: 0.3 }} />
           ))}
 
+          {/* Decorative metro SVG lines */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]">
             <line x1="10%" y1="30%" x2="90%" y2="30%" stroke="#e53935" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" />
             <line x1="20%" y1="50%" x2="80%" y2="50%" stroke="#1e88e5" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" style={{ animationDelay: '1s' }} />
             <line x1="30%" y1="70%" x2="70%" y2="70%" stroke="#43a047" strokeWidth="1" strokeDasharray="8 4" className="animate-metro-dash" style={{ animationDelay: '2s' }} />
           </svg>
 
-          <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-2 sm:mx-4 px-3 sm:px-6 pt-4 sm:pt-8 pb-8 sm:pb-12">
-            {/* Language toggle */}
-            <div className="self-end mb-3">
-              <LanguageToggle />
-            </div>
-
+          <div className="relative z-10 flex flex-col items-center max-w-3xl w-full mx-4 px-6 pt-8 pb-12">
             {/* Title */}
-            <div className="text-center mb-4 sm:mb-6">
-              <h1 className="text-3xl sm:text-5xl font-black mb-1 tracking-tighter">
+            <div className="text-center mb-6">
+              <h1 className="text-5xl font-black mb-1 tracking-tighter">
                 {'KYIV BOMBASS'.split('').map((ch, i) => (
                   <span key={i} className="inline-block" style={{
                     animation: `title-letter 0.4s ease-out ${i * 0.04}s both`,
@@ -475,53 +457,79 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
                   </span>
                 ))}
               </h1>
-              <p className="text-base sm:text-xl font-black tracking-[0.3em] sm:tracking-[0.5em] mb-2 sm:mb-3" style={{
+              <p className="text-xl font-black tracking-[0.5em] mb-3" style={{
                 color: 'hsl(var(--game-accent))',
                 animation: 'title-letter 0.5s ease-out 0.5s both',
                 textShadow: '0 0 20px rgba(234,179,8,0.3)',
               }}>TRANSIT</p>
-              <p className="text-[11px] sm:text-[13px] max-w-md mx-auto px-2" style={{
+              <p className="text-[13px] max-w-md mx-auto" style={{
                 color: 'hsl(var(--game-muted))',
                 animation: 'title-letter 0.5s ease-out 0.3s both',
               }}>
-                {t('start.subtitle')}
+                Керуй транспортом українських міст під ворожими атаками. Будуй оборону, перевози пасажирів, захисти країну.
               </p>
             </div>
 
+            {/* City selector */}
+            <div className="w-full mb-4" style={{ animation: 'title-letter 0.4s ease-out 0.25s both' }}>
+              <p className="text-[10px] font-black uppercase tracking-wider mb-2 text-center" style={{ color: 'hsl(var(--game-muted))' }}>ОБЕРІТЬ МІСТО</p>
+              <div className="flex justify-center gap-2 flex-wrap">
+                {CITY_IDS.map(cid => {
+                  const city = getCityConfig(cid);
+                  const isSelected = selectedCity === cid;
+                  return (
+                    <button key={cid} onClick={() => setSelectedCity(cid)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all"
+                      style={{
+                        background: isSelected ? 'hsl(var(--game-accent) / 0.15)' : 'hsl(225 40% 8%)',
+                        border: isSelected ? '2px solid hsl(var(--game-accent))' : '2px solid hsl(220 20% 16%)',
+                        color: isSelected ? 'hsl(var(--game-accent))' : 'hsl(var(--game-muted))',
+                        boxShadow: isSelected ? '0 0 16px rgba(234,179,8,0.2)' : 'none',
+                      }}>
+                      <span className="text-lg">{city.icon}</span>
+                      <span>{city.nameUa}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-md" style={{
+                        background: 'hsl(220 25% 12%)',
+                        color: city.type === 'metro' ? '#3498db' : '#9b59b6',
+                      }}>{city.type === 'metro' ? 'Метро' : 'Трамвай'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Scenario cards */}
-            <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
               {Object.values(SCENARIOS).map((sc, idx) => {
                 const diffColors = ['', 'hsl(var(--game-green))', 'hsl(var(--game-green))', 'hsl(var(--game-accent))', 'hsl(var(--destructive))', 'hsl(var(--destructive))'];
                 const diffColor = diffColors[sc.difficulty] || 'hsl(var(--game-muted))';
+                const diffLabels = ['', 'Легко', 'Легко', 'Середньо', 'Складно', 'Хардкор'];
                 const isClassic = sc.id === 'classic';
                 return (
                   <button key={sc.id} onClick={() => startGame(sc.id)}
-                    className="game-card relative p-3 sm:p-5 rounded-xl text-left group"
+                    className="game-card relative p-5 rounded-xl text-left group"
                     style={{
                       borderLeft: `3px solid ${diffColor}`,
                       animation: `mode-card-in 0.4s ease-out ${0.2 + idx * 0.08}s both`,
                     }}>
                     {isClassic && (
-                      <span className="absolute -top-2 right-3 text-[8px] sm:text-[9px] font-black px-2 sm:px-2.5 py-0.5 rounded-full tracking-wider"
+                      <span className="absolute -top-2 right-3 text-[9px] font-black px-2.5 py-0.5 rounded-full tracking-wider"
                         style={{
                           background: 'hsl(var(--game-accent))',
                           color: 'hsl(var(--game-bg))',
                           boxShadow: '0 2px 8px rgba(234,179,8,0.3)',
                         }}>
-                        {t('start.recommended')}
+                        РЕКОМЕНД.
                       </span>
                     )}
-                    <div className="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
-                      <span className="text-2xl sm:text-3xl">{sc.icon}</span>
+                    <div className="flex items-start gap-3 mb-3">
+                      <span className="text-3xl">{sc.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-black mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>
-                          {lang === 'en' ? sc.nameEn : sc.nameUa}
-                        </p>
-                        <p className="text-[9px] sm:text-[10px] leading-snug" style={{ color: 'hsl(var(--game-muted))' }}>
-                          {lang === 'en' ? sc.descriptionEn : sc.descriptionUa}
-                        </p>
+                        <p className="text-sm font-black mb-0.5" style={{ color: 'hsl(var(--foreground))' }}>{sc.nameUa}</p>
+                        <p className="text-[10px] leading-snug" style={{ color: 'hsl(var(--game-muted))' }}>{sc.descriptionUa}</p>
                       </div>
                     </div>
+                    {/* Difficulty bar */}
                     <div className="flex items-center gap-2 mb-2">
                       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(220 25% 12%)' }}>
                         <div className="h-full rounded-full transition-all" style={{
@@ -530,29 +538,30 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
                           boxShadow: `0 0 6px ${diffColor}`,
                         }} />
                       </div>
-                      <span className="text-[8px] sm:text-[9px] font-black" style={{ color: diffColor }}>
+                      <span className="text-[9px] font-black" style={{ color: diffColor }}>
                         {diffLabels[sc.difficulty]}
                       </span>
                     </div>
+                    {/* Win condition badge */}
                     {sc.winCondition && (
-                      <div className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md" style={{
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md" style={{
                         background: 'hsl(220 25% 10%)',
                         border: '1px solid hsl(220 20% 16%)',
                         color: 'hsl(220 10% 55%)',
                       }}>
-                        🎯 {sc.winCondition.type === 'passengers' ? `${sc.winCondition.target} ${t('start.pax_goal')}` :
-                             sc.winCondition.type === 'survive' ? `${t('start.survive')} ${sc.winCondition.target / 60000} ${t('start.minutes')}` :
-                             `${t('start.defend')} ${sc.winCondition.target / 60000} ${t('start.minutes')}`}
-                        {sc.timeLimit ? ` · ⏱ ${sc.timeLimit / 60000} ${t('start.minutes')}` : ' · ∞'}
+                        🎯 {sc.winCondition.type === 'passengers' ? `${sc.winCondition.target} пас.` :
+                             sc.winCondition.type === 'survive' ? `Вижити ${sc.winCondition.target / 60000} хв` :
+                             `Захист ${sc.winCondition.target / 60000} хв`}
+                        {sc.timeLimit ? ` · ⏱ ${sc.timeLimit / 60000} хв` : ' · ∞'}
                       </div>
                     )}
                     {!sc.winCondition && (
-                      <div className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md" style={{
+                      <div className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-md" style={{
                         background: 'hsl(220 25% 10%)',
                         border: '1px solid hsl(220 20% 16%)',
                         color: 'hsl(220 10% 55%)',
                       }}>
-                        ∞ {t('start.endless')}
+                        ∞ Нескінченний режим
                       </div>
                     )}
                   </button>
@@ -561,21 +570,21 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
             </div>
 
             {/* Controls */}
-            <div className="w-full p-3 sm:p-4 rounded-xl" style={{
+            <div className="w-full p-4 rounded-xl" style={{
               background: 'hsl(225 45% 6% / 1)',
               border: '1px solid hsl(220 20% 14% / 1)',
               animation: 'title-letter 0.4s ease-out 0.6s both',
             }}>
-              <div className={`grid ${isMobile ? 'grid-cols-1 gap-y-1.5' : 'grid-cols-2 gap-x-6 gap-y-2'} text-[10px]`} style={{ color: 'hsl(var(--game-muted))' }}>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[10px]" style={{ color: 'hsl(var(--game-muted))' }}>
                 {[
-                  ['WASD', t('start.controls_move')],
-                  [lang === 'en' ? 'Wheel' : 'Колесо', t('start.controls_zoom')],
-                  [lang === 'en' ? 'RMB' : 'ПКМ', t('start.controls_rotate')],
-                  [lang === 'en' ? 'Click' : 'Клік', t('start.controls_click')],
-                  [lang === 'en' ? 'Space' : 'Пробіл', t('start.controls_pause')],
-                  ['1-4', t('start.controls_speed')],
-                  ['Q/E/R/T', t('start.controls_quick')],
-                  ['F/O/C', t('start.controls_camera')],
+                  ['WASD', 'рух камери'],
+                  ['Колесо', 'зум'],
+                  ['ПКМ', 'обертання'],
+                  ['Клік', 'взаємодія'],
+                  ['Пробіл', 'пауза'],
+                  ['1-4', 'швидкість гри'],
+                  ['Q/E/R/T', 'швидкі дії'],
+                  ['F/O/C', 'режими камери'],
                 ].map(([key, desc], i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="kbd-key">{key}</span>
@@ -605,7 +614,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               ))}
             </div>
           )}
-          <div className="text-center p-5 sm:p-8 rounded-2xl max-w-md mx-4" style={{
+          <div className="text-center p-8 rounded-2xl max-w-md" style={{
             background: 'hsl(225 45% 6% / 1)',
             border: state.winConditionMet
               ? '2px solid hsl(145 63% 49% / 0.5)'
@@ -615,27 +624,27 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               : '0 16px 48px rgba(0,0,0,0.8)',
             animation: state.winConditionMet ? 'victory-glow 2s ease-in-out infinite' : undefined,
           }}>
-            <h2 className="text-3xl sm:text-4xl font-black mb-4 sm:mb-5 tracking-tight" style={{
+            <h2 className="text-4xl font-black mb-5 tracking-tight" style={{
               color: state.winConditionMet ? 'hsl(145, 63%, 55%)' : 'hsl(var(--destructive))',
               animation: 'title-letter 0.4s ease-out both',
               textShadow: state.winConditionMet ? '0 0 20px rgba(34,197,94,0.3)' : '0 0 20px rgba(239,68,68,0.3)',
             }}>
-              {state.winConditionMet ? t('gameover.victory') : t('gameover.title')}
+              {state.winConditionMet ? 'ПЕРЕМОГА' : 'ГАМОВЕР'}
             </h2>
-            <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-xs sm:text-sm mb-4 sm:mb-6">
+            <div className="grid grid-cols-2 gap-2 text-sm mb-6">
               {[
-                { label: t('gameover.score'), value: String(Math.round(state.score)), accent: true },
-                { label: t('gameover.time'), value: `${Math.floor(state.elapsedTime / 60000)}:${String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}` },
-                { label: t('gameover.passengers'), value: String(state.passengersDelivered) },
-                { label: t('gameover.drones_shot'), value: `${state.dronesIntercepted}/${state.totalDrones}` },
-                { label: t('gameover.max_combo'), value: `x${state.maxCombo.toFixed(1)}` },
-                { label: t('gameover.buildings'), value: String(state.buildingsDestroyed) },
+                { label: 'Рахунок', value: String(Math.round(state.score)), accent: true },
+                { label: 'Час', value: `${Math.floor(state.elapsedTime / 60000)}:${String(Math.floor((state.elapsedTime % 60000) / 1000)).padStart(2, '0')}` },
+                { label: 'Пасажирів', value: String(state.passengersDelivered) },
+                { label: 'Дронів збито', value: `${state.dronesIntercepted}/${state.totalDrones}` },
+                { label: 'Макс. комбо', value: `x${state.maxCombo.toFixed(1)}` },
+                { label: 'Будівлі', value: String(state.buildingsDestroyed) },
               ].map((stat, i) => (
-                <div key={i} className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-left" style={{
+                <div key={i} className="px-3 py-2 rounded-lg text-left" style={{
                   background: i % 2 === 0 ? 'hsl(220 25% 10% / 0.5)' : 'transparent',
                   animation: `stat-count-up 0.4s ease-out ${0.3 + i * 0.12}s both`,
                 }}>
-                  <span className="text-[10px] sm:text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>{stat.label}</span>
+                  <span className="text-[11px]" style={{ color: 'hsl(var(--muted-foreground))' }}>{stat.label}</span>
                   <span className="float-right font-black tabular-nums" style={{
                     color: stat.accent ? 'hsl(var(--game-accent))' : 'hsl(var(--foreground))',
                   }}>{stat.value}</span>
@@ -643,11 +652,11 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               ))}
             </div>
             {state.achievements.filter(a => a.unlocked).length > 0 && (
-              <div className="mb-4 sm:mb-6" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
-                <p className="text-[9px] sm:text-[10px] mb-2 font-black uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>{t('gameover.achievements')}</p>
+              <div className="mb-6" style={{ animation: 'stat-reveal 0.3s ease-out 1.2s both' }}>
+                <p className="text-[10px] mb-2 font-black uppercase tracking-wider" style={{ color: 'hsl(var(--game-accent))' }}>Досягнення</p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
                   {state.achievements.filter(a => a.unlocked).map((a, i) => (
-                    <span key={a.id} className="text-base sm:text-lg px-1.5 sm:px-2 py-1 rounded-lg" title={lang === 'en' ? (a as any).nameEn || a.nameUa : a.nameUa} style={{
+                    <span key={a.id} className="text-lg px-2 py-1 rounded-lg" title={a.nameUa} style={{
                       background: 'hsl(220 25% 10% / 1)',
                       border: '1px solid hsl(220 20% 16% / 1)',
                       animation: `mode-card-in 0.3s ease-out ${1.4 + i * 0.1}s both`,
@@ -657,14 +666,14 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
               </div>
             )}
             <button onClick={restartGame}
-              className="game-btn-hover px-8 sm:px-10 py-3 sm:py-3.5 font-black rounded-xl text-sm sm:text-base tracking-wide"
+              className="game-btn-hover px-10 py-3.5 font-black rounded-xl text-base tracking-wide"
               style={{
                 background: 'linear-gradient(135deg, hsl(var(--game-accent)), hsl(45 85% 45%))',
                 color: 'hsl(var(--game-bg))',
                 boxShadow: '0 4px 16px rgba(234,179,8,0.3)',
                 animation: 'stat-reveal 0.3s ease-out 1.8s both',
               }}>
-              {t('gameover.play_again')}
+              ГРАТИ ЗНОВУ
             </button>
           </div>
         </div>
@@ -686,20 +695,15 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
             cameraMode={state.camera.mode} isRaining={state.isRaining}
             passiveIncome={state.activeStationIds.length}
-            currentCityName={getCityConfig(state.currentCity).nameUa}
-            currentCityIcon={getCityConfig(state.currentCity).icon}
-            globalStability={state.globalStability}
-            showWorldMap={state.showWorldMap}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
-            onToggleWorldMap={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
           />
 
           {/* Notification stack below TopBar */}
-          <div className={`absolute ${isMobile ? 'top-20' : 'top-12'} left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20`} style={{ maxWidth: isMobile ? '90vw' : '500px', width: '100%' }}>
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20" style={{ maxWidth: '500px', width: '100%' }}>
             {/* Event Ticker */}
             {state.eventLog.length > 0 && (
               <div className="w-full overflow-hidden rounded-lg" style={{ background: 'hsl(225 45% 5% / 0.95)' }}>
-                <div className="flex gap-4 animate-marquee text-[10px] sm:text-[11px] font-black whitespace-nowrap py-1 px-2" style={{ color: 'hsl(var(--game-accent))' }}>
+                <div className="flex gap-4 animate-marquee text-[11px] font-black whitespace-nowrap py-1 px-2" style={{ color: 'hsl(var(--game-accent))' }}>
                   {state.eventLog.slice(-5).map((e, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-md" style={{ background: 'hsl(220 25% 10% / 1)' }}>
                       {e}
@@ -711,88 +715,88 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
 
             {/* Air Raid Banner */}
             {state.isAirRaid && (
-              <div className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-black ${isMobile ? 'text-xs' : 'text-sm'} tracking-wider animate-pulse flex items-center gap-2`}
+              <div className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider animate-pulse flex items-center gap-2"
                 style={{
                   background: 'hsl(0 72% 45% / 1)',
                   color: '#fff',
                   boxShadow: '0 0 30px rgba(220,38,38,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
                   borderLeft: '4px solid hsl(0 72% 60%)',
                 }}>
-                {t('banner.air_raid')}
+                ⚠️ ПОВІТРЯНА ТРИВОГА ⚠️
               </div>
             )}
 
             {/* Rush Hour */}
             {state.rushHourActive && (
-              <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-black ${isMobile ? 'text-[10px]' : 'text-xs'} tracking-wider animate-pulse flex items-center gap-2`}
+              <div className="px-4 py-2 rounded-xl font-black text-xs tracking-wider animate-pulse flex items-center gap-2"
                 style={{
                   background: 'hsl(45 90% 45% / 1)',
                   color: '#1a1a2e',
                   boxShadow: '0 0 20px rgba(234,179,8,0.3)',
                   borderLeft: '4px solid hsl(45 85% 60%)',
                 }}>
-                {t('banner.rush_hour')}
+                🚇 ГОДИНА ПІК x3
               </div>
             )}
 
             {/* Active Events */}
             {state.activeEvents.length > 0 && state.activeEvents.map(ev => {
-              const configs: Record<string, { bg: string; fg: string; icon: string; accent: string }> = {
-                rush_surge: { bg: 'hsl(38 90% 40% / 1)', fg: '#1a1a2e', icon: '🚇', accent: 'hsl(38 90% 55%)' },
-                vip_passenger: { bg: 'hsl(45 90% 45% / 1)', fg: '#1a1a2e', icon: '⭐', accent: 'hsl(45 90% 60%)' },
-                power_flicker: { bg: 'hsl(239 60% 45% / 1)', fg: '#fff', icon: '⚡', accent: 'hsl(239 60% 60%)' },
-                emergency_evac: { bg: 'hsl(0 72% 45% / 1)', fg: '#fff', icon: '🚨', accent: 'hsl(0 72% 60%)' },
-                power_surge: { bg: 'hsl(145 63% 35% / 1)', fg: '#fff', icon: '⚡', accent: 'hsl(145 63% 50%)' },
+              const configs: Record<string, { bg: string; fg: string; icon: string; text: string; accent: string }> = {
+                rush_surge: { bg: 'hsl(38 90% 40% / 1)', fg: '#1a1a2e', icon: '🚇', text: 'Хвиля пасажирів', accent: 'hsl(38 90% 55%)' },
+                vip_passenger: { bg: 'hsl(45 90% 45% / 1)', fg: '#1a1a2e', icon: '⭐', text: 'VIP пасажир — дрони полюють!', accent: 'hsl(45 90% 60%)' },
+                power_flicker: { bg: 'hsl(239 60% 45% / 1)', fg: '#fff', icon: '⚡', text: 'Коливання живлення', accent: 'hsl(239 60% 60%)' },
+                emergency_evac: { bg: 'hsl(0 72% 45% / 1)', fg: '#fff', icon: '🚨', text: 'Екстрена евакуація', accent: 'hsl(0 72% 60%)' },
+                power_surge: { bg: 'hsl(145 63% 35% / 1)', fg: '#fff', icon: '⚡', text: 'Енергосплеск +10HP!', accent: 'hsl(145 63% 50%)' },
               };
               const c = configs[ev.type] || configs.rush_surge;
               const timerPct = Math.min(100, (ev.timer / 15000) * 100);
               return (
-                <div key={ev.id} className="rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
+                <div key={ev.id} className="rounded-xl px-4 py-2 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200"
                   style={{
                     background: c.bg,
                     color: c.fg,
-                    minWidth: isMobile ? '200px' : '240px',
+                    minWidth: '240px',
                     borderLeft: `4px solid ${c.accent}`,
                     boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                   }}>
-                  <span className="text-sm sm:text-base">{c.icon}</span>
-                  <span className="text-[11px] sm:text-[12px] font-black flex-1">{eventTexts[ev.type] || ev.type}</span>
-                  <div className="w-12 sm:w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                  <span className="text-base">{c.icon}</span>
+                  <span className="text-[12px] font-black flex-1">{c.text}</span>
+                  <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
                     <div className="h-full rounded-full transition-all" style={{ width: `${timerPct}%`, background: 'rgba(255,255,255,0.7)' }} />
                   </div>
-                  <span className="text-[9px] sm:text-[10px] font-mono font-black">{Math.ceil(ev.timer / 1000)}с</span>
+                  <span className="text-[10px] font-mono font-black">{Math.ceil(ev.timer / 1000)}с</span>
                 </div>
               );
             })}
 
             {/* Drawing Mode */}
             {state.isDrawingLine && (
-              <div className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-black ${isMobile ? 'text-xs' : 'text-sm'} tracking-wider animate-pulse`}
+              <div className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider animate-pulse"
                 style={{
                   background: 'hsl(220 25% 12% / 1)',
                   color: '#fff',
                   borderLeft: `4px solid ${state.drawLineColor || 'hsl(220 10% 50%)'}`,
                   boxShadow: `0 0 20px ${state.drawLineColor || 'rgba(156,163,175,0.3)'}40`,
                 }}>
-                {t('banner.draw_line')}
+                🔗 Тягни до сірої станції щоб підключити
               </div>
             )}
 
             {/* Pending stations */}
             {state.pendingStations.length > 0 && !state.isDrawingLine && (
-              <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-black ${isMobile ? 'text-[10px]' : 'text-xs'} tracking-wider animate-pulse`}
+              <div className="px-4 py-2 rounded-xl font-black text-xs tracking-wider animate-pulse"
                 style={{
                   background: 'hsl(220 15% 25% / 1)',
                   color: '#e0e0e0',
                   borderLeft: '4px solid hsl(220 10% 50%)',
                 }}>
-                🔗 {state.pendingStations.length} {t('banner.pending_stations')}
+                🔗 {state.pendingStations.length} станц. чекають · клікни кінцеву станцію
               </div>
             )}
           </div>
 
-          {/* Cursor-following tooltip (desktop only) */}
-          {!isMobile && state.hoveredElement && (
+          {/* Cursor-following tooltip */}
+          {state.hoveredElement && (
             <div className="fixed pointer-events-none z-[100] animate-in fade-in-0 duration-75"
               style={{
                 left: mousePos.x + 16,
@@ -818,13 +822,13 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
                   </div>
                 )}
                 {state.hoveredElement.type === 'station' && state.isAirRaid && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>{t('tooltip.shield_click')}</div>
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Щит / Оборона</div>
                 )}
                 {state.hoveredElement.type === 'building' && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>{t('tooltip.repair_click')}</div>
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Ремонт $10</div>
                 )}
                 {state.hoveredElement.type === 'drone' && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>{t('tooltip.drone_click')}</div>
+                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>Клік → Збити</div>
                 )}
               </div>
             </div>
@@ -832,7 +836,7 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
 
           {state.isPaused && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(6,10,20,0.6)' }}>
-              <span className="text-3xl sm:text-5xl font-bold text-white">{t('banner.pause')}</span>
+              <span className="text-5xl font-bold text-white">⏸ ПАУЗА</span>
             </div>
           )}
 
@@ -879,7 +883,6 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
 
           <ActionBar
             money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
-            lines={Object.entries(getCityConfig(state.currentCity).lines).map(([id, l], i) => ({ id, color: l.color, label: l.name.split(' ')[0] || `L${i+1}` }))}
             radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
             doubleFareTimer={state.doubleFareTimer} expressTimer={state.expressTimer}
             blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
@@ -913,35 +916,10 @@ function GameCanvasInner({ onStateChange }: GameCanvasProps) {
           <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
 
           <Minimap stateRef={stateRef} state={state} />
-
-          <WorldMap
-            currentCity={state.currentCity}
-            cityStates={state.cityStates}
-            intercityTrains={state.intercityTrains}
-            globalStability={state.globalStability}
-            onSwitchCity={handleSwitchCity}
-            isVisible={state.showWorldMap}
-            onToggle={() => act(s => ({ ...s, showWorldMap: !s.showWorldMap }))}
-          />
-
-          <CrossCityAlert
-            notifications={state.crossCityNotifications}
-            onGoToCity={handleSwitchCity}
-            onDismiss={(id) => act(s => ({
-              ...s,
-              crossCityNotifications: s.crossCityNotifications.filter(n => n.id !== id),
-            }))}
-          />
         </>
       )}
     </div>
   );
-}
-
-const GameCanvas: React.FC<GameCanvasProps> = (props) => (
-  <LanguageProvider>
-    <GameCanvasInner {...props} />
-  </LanguageProvider>
-);
+};
 
 export default GameCanvas;
