@@ -16,6 +16,8 @@ import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
 import { TrainPanel } from './ui/TrainPanel';
+import { WorldMap } from './ui/WorldMap';
+import { CrossCityAlert } from './ui/CrossCityAlert';
 import { Achievement } from './types';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
@@ -39,7 +41,7 @@ interface GameCanvasProps {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
-  const [selectedCity, setSelectedCity] = useState('kyiv');
+  const [selectedCity, setSelectedCity] = useState('kyiv'); // only used for start screen display
   const stateRef = useRef<GameState>(createInitialState('classic', 'kyiv'));
   const audioRef = useRef<AudioEngine>(new AudioEngine());
   const isPanningRef = useRef(false);
