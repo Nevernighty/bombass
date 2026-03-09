@@ -6,7 +6,7 @@ export interface GameStation {
   nameUa: string;
   x: number;
   y: number;
-  line: 'red' | 'blue' | 'green';
+  line: string;
   isTransfer: boolean;
   depth: 'shallow' | 'deep';
   shape: PassengerShape;
@@ -55,7 +55,7 @@ export type DroneType = 'shahed' | 'molniya' | 'gerbera';
 
 export interface Train {
   id: string;
-  line: 'red' | 'blue' | 'green';
+  line: string;
   routeIndex: number;
   progress: number;
   direction: 1 | -1;
