@@ -672,10 +672,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
           <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20" style={{ maxWidth: '500px', width: '100%' }}>
             {/* Event Ticker */}
             {state.eventLog.length > 0 && (
-              <div className="w-full overflow-hidden">
-                <div className="flex gap-4 animate-marquee text-[11px] font-bold whitespace-nowrap" style={{ color: 'hsl(var(--game-accent))' }}>
+              <div className="w-full overflow-hidden rounded-lg" style={{ background: 'hsl(225 45% 5% / 0.95)' }}>
+                <div className="flex gap-4 animate-marquee text-[11px] font-black whitespace-nowrap py-1 px-2" style={{ color: 'hsl(var(--game-accent))' }}>
                   {state.eventLog.slice(-5).map((e, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded" style={{ background: 'rgba(8,12,24,0.8)' }}>
+                    <span key={i} className="px-2 py-0.5 rounded-md" style={{ background: 'hsl(220 25% 10% / 1)' }}>
                       {e}
                     </span>
                   ))}
