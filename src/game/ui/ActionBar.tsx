@@ -205,7 +205,7 @@ export const ActionBar = React.memo(function ActionBar({
   onEmergencyBrake, onDoubleFare, onExpressLine,
   onBlackout, onSignalFlare, onPassengerAirdrop,
   onDroneJammer, onEmergencyFund,
-  onCloseSegment, onReopenLine,
+  onCloseSegment, onReopenLine, onHover,
 }: ActionBarProps) {
 
   const lines: ('red' | 'blue' | 'green')[] = ['red', 'blue', 'green'];

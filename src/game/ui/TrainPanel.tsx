@@ -120,14 +120,14 @@ export const TrainPanel = React.memo(function TrainPanel({
 
         {/* Actions grid */}
         <div className="grid grid-cols-2 gap-1.5">
-          <PanelBtn icon={<RotateCcw size={12} />} label="Розворот" onClick={onReverse} color="#94a3b8" />
+          <PanelBtn icon={<RotateCcw size={12} />} label="Розворот" onClick={onReverse} color="#94a3b8" onHoverSound={onHover} />
           <PanelBtn icon={<ArrowUp size={12} />} label={`Апгрейд $${upgradeCost}`} onClick={onUpgrade}
-            disabled={money < upgradeCost || train.level >= 3} color="#c084fc" />
+            disabled={money < upgradeCost || train.level >= 3} color="#c084fc" onHoverSound={onHover} />
           <PanelBtn icon={<Shield size={12} />} label={`Щит${train.shieldTimer > 0 ? ` ${Math.ceil(train.shieldTimer / 1000)}с` : ' $30'}`}
             onClick={onShield}
             disabled={money < 30 || train.shieldTimer > 0}
-            active={train.shieldTimer > 0} color="#38bdf8" />
-          <PanelBtn icon={<DollarSign size={12} />} label="Продати +$25" onClick={onSell} color="#ef4444" />
+            active={train.shieldTimer > 0} color="#38bdf8" onHoverSound={onHover} />
+          <PanelBtn icon={<DollarSign size={12} />} label="Продати +$25" onClick={onSell} color="#ef4444" onHoverSound={onHover} />
         </div>
 
         {/* Merge */}
