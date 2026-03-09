@@ -39,7 +39,8 @@ interface GameCanvasProps {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
-  const stateRef = useRef<GameState>(createInitialState());
+  const [selectedCity, setSelectedCity] = useState('kyiv');
+  const stateRef = useRef<GameState>(createInitialState('classic', 'kyiv'));
   const audioRef = useRef<AudioEngine>(new AudioEngine());
   const isPanningRef = useRef(false);
   const isRotatingRef = useRef(false);
@@ -53,7 +54,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
-    stateRef.current = createInitialState(mode);
+    stateRef.current = createInitialState(mode, selectedCity);
     stateRef.current.gameStarted = true;
     audioRef.current.init();
     audioRef.current.resume();
@@ -68,7 +69,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const restartGame = useCallback(() => {
     audioRef.current.stopMusic();
     audioRef.current.stopSiren();
-    stateRef.current = createInitialState(stateRef.current.gameMode);
+    stateRef.current = createInitialState(stateRef.current.gameMode, stateRef.current.currentCity);
     stateRef.current.gameStarted = true;
     audioRef.current.startAmbientMusic();
     prevAchCountRef.current = 0;
