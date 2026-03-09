@@ -15,17 +15,26 @@ const MODES: { mode: CameraMode; label: string; key: string }[] = [
 
 export const CameraControls = React.memo(function CameraControls({ currentMode, onSetMode }: CameraControlsProps) {
   return (
-    <div className="absolute right-2 bottom-16 flex gap-1 pointer-events-auto">
+    <div className="absolute right-2 bottom-16 flex flex-col gap-1 pointer-events-auto">
       {MODES.map(cm => (
         <button key={cm.mode} onClick={() => onSetMode(cm.mode)}
-          title={`${cm.key}`}
-          className="w-8 h-8 rounded-md flex items-center justify-center text-[11px] font-bold transition-all"
+          title={cm.key}
+          className="w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black transition-all"
           style={{
-            background: currentMode === cm.mode ? 'hsla(var(--game-accent), 0.15)' : 'hsla(var(--game-glass), 0.85)',
-            border: `1px solid ${currentMode === cm.mode ? 'hsla(var(--game-accent), 0.4)' : 'hsl(var(--border))'}`,
-            color: currentMode === cm.mode ? 'hsl(var(--game-accent))' : 'hsl(var(--muted-foreground))',
-            backdropFilter: 'blur(8px)',
-          }}>
+            background: currentMode === cm.mode ? 'hsl(var(--game-accent))' : 'hsl(225 45% 7% / 1)',
+            border: `1px solid ${currentMode === cm.mode ? 'hsl(var(--game-accent))' : 'hsl(220 20% 16% / 1)'}`,
+            color: currentMode === cm.mode ? 'hsl(var(--game-bg))' : 'hsl(220 10% 50%)',
+            boxShadow: currentMode === cm.mode
+              ? '0 0 12px rgba(234,179,8,0.3), inset 0 1px 0 rgba(255,255,255,0.2)'
+              : '0 2px 8px rgba(0,0,0,0.4)',
+          }}
+          onMouseEnter={(e) => {
+            if (currentMode !== cm.mode) (e.currentTarget as HTMLElement).style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+          }}
+        >
           {cm.label}
         </button>
       ))}
