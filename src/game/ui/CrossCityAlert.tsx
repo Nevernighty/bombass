@@ -1,5 +1,7 @@
 import React from 'react';
 import { CrossCityNotification } from '../types';
+import { useLanguage } from '../i18n';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface CrossCityAlertProps {
   notifications: CrossCityNotification[];
@@ -19,13 +21,20 @@ const TYPE_STYLES: Record<string, { bg: string; border: string; icon: string }> 
 export const CrossCityAlert = React.memo(function CrossCityAlert({
   notifications, onGoToCity, onDismiss,
 }: CrossCityAlertProps) {
+  const { t } = useLanguage();
+  const isMobile = useIsMobile();
+
   if (notifications.length === 0) return null;
 
-  // Show max 3 at once
   const visible = notifications.slice(0, 3);
 
+  // Mobile: bottom-center above ActionBar. Desktop: top-right.
+  const wrapClass = isMobile
+    ? 'fixed bottom-20 left-1/2 -translate-x-1/2 flex flex-col gap-1.5 pointer-events-auto z-30'
+    : 'absolute top-16 right-3 flex flex-col gap-1.5 pointer-events-auto z-30';
+
   return (
-    <div className="absolute top-16 right-3 flex flex-col gap-1.5 pointer-events-auto z-30" style={{ maxWidth: 280 }}>
+    <div className={wrapClass} style={{ maxWidth: isMobile ? '90vw' : 280 }}>
       {visible.map((notif, i) => {
         const style = TYPE_STYLES[notif.type] || TYPE_STYLES.air_raid;
         return (
@@ -53,7 +62,7 @@ export const CrossCityAlert = React.memo(function CrossCityAlert({
                 color: '#fff',
                 border: '1px solid rgba(255,255,255,0.2)',
               }}>
-              Перейти
+              {t('crosscity.go')}
             </button>
           </div>
         );
