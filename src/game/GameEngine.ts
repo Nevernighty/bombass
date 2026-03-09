@@ -1262,6 +1262,271 @@ function updatePhysics(s: GameState, realDt: number): void {
   }
 }
 
+// ==================== SYSTEM: Background City Simulation ====================
+function updateBackgroundCities(s: GameState, realDt: number): void {
+  for (const cid of Object.keys(s.allCityStates)) {
+    if (cid === s.currentCity) continue;
+    const cs = s.allCityStates[cid];
+    if (!cs) continue;
+
+    // Slower drone spawning in background (50% rate)
+    const activeSet = new Set(cs.activeStationIds);
+    const activeStations = cs.stations.filter(st => !st.isDestroyed && activeSet.has(st.id));
+
+    // Background air raid logic
+    if (!cs.isAirRaid) {
+      if (s.elapsedTime > cs.nextRaidTime) {
+        cs.isAirRaid = true;
+        cs.airRaidTimer = 0;
+        cs.raidDronesSpawned = 0;
+      }
+    } else {
+      cs.airRaidTimer += realDt;
+      // Spawn drones at 50% rate
+      if (cs.raidDronesSpawned < 5 && Math.random() < realDt / 8000) {
+        if (activeStations.length > 0) {
+          const target = activeStations[Math.floor(Math.random() * activeStations.length)];
+          // 30% auto-defense
+          if (Math.random() < 0.3 && target.hasAntiAir) {
+            cs.dronesIntercepted++;
+            cs.totalDrones++;
+          } else {
+            // Drone hits station
+            target.hp -= 20;
+            if (target.hp <= 0) {
+              target.isDestroyed = true;
+              target.isOpen = false;
+              cs.stationsDestroyed++;
+              cs.lives--;
+            }
+            cs.totalDrones++;
+          }
+          cs.raidDronesSpawned++;
+        }
+      }
+      if (cs.airRaidTimer > 20000) {
+        cs.isAirRaid = false;
+        cs.nextRaidTime = s.elapsedTime + 50000 + Math.random() * 30000;
+      }
+    }
+
+    // Background passenger accumulation
+    if (Math.random() < realDt / 5000 && activeStations.length > 0) {
+      const st = activeStations[Math.floor(Math.random() * activeStations.length)];
+      if (st.passengers.length < st.maxPassengers) {
+        const shapes: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond'];
+        st.passengers.push({
+          id: uid(), shape: shapes[Math.floor(Math.random() * shapes.length)],
+          spawnTime: s.elapsedTime, stationId: st.id, patience: 30000,
+        });
+      }
+    }
+
+    // Background auto-deliver (slow)
+    if (Math.random() < realDt / 10000) {
+      let totalP = 0;
+      for (const st of cs.stations) {
+        if (activeSet.has(st.id) && st.passengers.length > 0) {
+          const delivered = Math.min(2, st.passengers.length);
+          st.passengers.splice(0, delivered);
+          totalP += delivered;
+        }
+      }
+      cs.passengersDelivered += totalP;
+      cs.score += totalP * 3;
+      cs.money += totalP;
+    }
+
+    // Update stability for this background city
+    const healthPct = activeStations.length > 0 ? activeStations.reduce((sum, st) => sum + (st.hp / st.maxHp), 0) / activeStations.length : 0;
+    const satPct = cs.satisfactionRate / 100;
+    const stability = Math.round(healthPct * 50 + satPct * 50);
+    if (s.cityStates[cid]) {
+      s.cityStates[cid].stability = stability;
+      s.cityStates[cid].avgSatisfaction = cs.satisfactionRate;
+    }
+
+    // Auto-repair in background
+    if (Math.random() < realDt / 15000) {
+      for (const st of cs.stations) {
+        if (activeSet.has(st.id) && !st.isDestroyed && st.hp < st.maxHp) {
+          st.hp = Math.min(st.maxHp, st.hp + 5);
+        }
+      }
+    }
+  }
+}
+
+// ==================== SYSTEM: Cross-City Notifications ====================
+function updateCrossCityNotifications(s: GameState, realDt: number): void {
+  // Decay existing notifications
+  s.crossCityNotifications = s.crossCityNotifications.filter(n => {
+    n.timer -= realDt;
+    return n.timer > 0;
+  });
+
+  // Check interval
+  s.crossCityCheckTimer -= realDt;
+  if (s.crossCityCheckTimer > 0) return;
+  s.crossCityCheckTimer = 15000 + Math.random() * 15000; // 15-30s
+
+  // Don't spam
+  if (s.crossCityNotifications.length >= 3) return;
+
+  for (const cid of Object.keys(s.allCityStates)) {
+    if (cid === s.currentCity) continue;
+    const cs = s.allCityStates[cid];
+    if (!cs) continue;
+    const city = getCityConfig(cid);
+    const stability = s.cityStates[cid]?.stability ?? 50;
+
+    // Air raid notification
+    if (cs.isAirRaid && !s.crossCityNotifications.some(n => n.cityId === cid && n.type === 'air_raid')) {
+      s.crossCityNotifications.push({
+        id: uid(), cityId: cid, cityName: city.nameUa, cityIcon: city.icon,
+        text: 'Повітряна тривога! Зенітки потрібні',
+        type: 'air_raid', timer: 8000, urgency: 'urgent',
+      });
+      continue;
+    }
+
+    // Station destroyed
+    if (cs.stationsDestroyed > 0 && Math.random() < 0.3 &&
+      !s.crossCityNotifications.some(n => n.cityId === cid && n.type === 'station_destroyed')) {
+      const destroyed = cs.stations.find(st => st.isDestroyed);
+      if (destroyed) {
+        s.crossCityNotifications.push({
+          id: uid(), cityId: cid, cityName: city.nameUa, cityIcon: city.icon,
+          text: `Станція ${destroyed.nameUa} зруйнована`,
+          type: 'station_destroyed', timer: 8000, urgency: 'urgent',
+        });
+        continue;
+      }
+    }
+
+    // Low stability
+    if (stability < 40 && !s.crossCityNotifications.some(n => n.cityId === cid && n.type === 'low_stability')) {
+      s.crossCityNotifications.push({
+        id: uid(), cityId: cid, cityName: city.nameUa, cityIcon: city.icon,
+        text: `Стабільність ${stability}% — потребує допомоги`,
+        type: 'low_stability', timer: 8000, urgency: 'urgent',
+      });
+      continue;
+    }
+
+    // Overcrowded
+    const activeSet = new Set(cs.activeStationIds);
+    const crowded = cs.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed && st.passengers.length >= st.maxPassengers - 1);
+    if (crowded.length > 0 && Math.random() < 0.2 &&
+      !s.crossCityNotifications.some(n => n.cityId === cid && n.type === 'overcrowded')) {
+      s.crossCityNotifications.push({
+        id: uid(), cityId: cid, cityName: city.nameUa, cityIcon: city.icon,
+        text: `Пасажири переповнені на ${crowded[0].nameUa}`,
+        type: 'overcrowded', timer: 8000, urgency: 'normal',
+      });
+    }
+  }
+}
+
+// ==================== SYSTEM: Switch City ====================
+export function switchToCity(state: GameState, targetCityId: string): GameState {
+  if (targetCityId === state.currentCity) return state;
+  if (!state.allCityStates[targetCityId] && targetCityId !== state.currentCity) return state;
+
+  // Save current city state
+  state.allCityStates[state.currentCity] = {
+    cityId: state.currentCity,
+    stations: state.stations,
+    trains: state.trains,
+    drones: state.drones,
+    buildings: state.buildings,
+    explosions: state.explosions,
+    repairUnits: state.repairUnits,
+    interceptorDrones: state.interceptorDrones,
+    tracerLines: state.tracerLines,
+    decoys: state.decoys,
+    surfaceVehicles: state.surfaceVehicles,
+    activeStationIds: state.activeStationIds,
+    pendingStations: state.pendingStations,
+    score: state.score,
+    money: state.money,
+    lives: state.lives,
+    passengersDelivered: state.passengersDelivered,
+    passengersAbandoned: state.passengersAbandoned,
+    dronesIntercepted: state.dronesIntercepted,
+    totalDrones: state.totalDrones,
+    stationsDestroyed: state.stationsDestroyed,
+    stationsRepaired: state.stationsRepaired,
+    buildingsDestroyed: state.buildingsDestroyed,
+    satisfactionRate: state.satisfactionRate,
+    powerGrid: state.powerGrid,
+    maxPower: state.maxPower,
+    generators: state.generators,
+    isAirRaid: state.isAirRaid,
+    airRaidTimer: state.airRaidTimer,
+    nextRaidTime: state.nextRaidTime,
+    raidDronesSpawned: state.raidDronesSpawned,
+    waveIndex: state.waveIndex,
+    notifications: state.notifications,
+    _cachedLineStations: state._cachedLineStations,
+    buildingUpgrades: state.buildingUpgrades,
+  };
+
+  // Load target city state
+  const target = state.allCityStates[targetCityId];
+  if (!target) return state;
+
+  state.currentCity = targetCityId;
+  state.stations = target.stations;
+  state.trains = target.trains;
+  state.drones = target.drones;
+  state.buildings = target.buildings;
+  state.explosions = target.explosions;
+  state.repairUnits = target.repairUnits;
+  state.interceptorDrones = target.interceptorDrones;
+  state.tracerLines = target.tracerLines;
+  state.decoys = target.decoys;
+  state.surfaceVehicles = target.surfaceVehicles;
+  state.activeStationIds = target.activeStationIds;
+  state.pendingStations = target.pendingStations;
+  state.score = target.score;
+  state.money = target.money;
+  state.lives = target.lives;
+  state.passengersDelivered = target.passengersDelivered;
+  state.passengersAbandoned = target.passengersAbandoned;
+  state.dronesIntercepted = target.dronesIntercepted;
+  state.totalDrones = target.totalDrones;
+  state.stationsDestroyed = target.stationsDestroyed;
+  state.stationsRepaired = target.stationsRepaired;
+  state.buildingsDestroyed = target.buildingsDestroyed;
+  state.satisfactionRate = target.satisfactionRate;
+  state.powerGrid = target.powerGrid;
+  state.maxPower = target.maxPower;
+  state.generators = target.generators;
+  state.isAirRaid = target.isAirRaid;
+  state.airRaidTimer = target.airRaidTimer;
+  state.nextRaidTime = target.nextRaidTime;
+  state.raidDronesSpawned = target.raidDronesSpawned;
+  state.waveIndex = target.waveIndex;
+  state.notifications = target.notifications;
+  state._cachedLineStations = target._cachedLineStations;
+  state.buildingUpgrades = target.buildingUpgrades;
+
+  // Reset selection
+  state.selectedTrain = null;
+  state.hoveredStation = null;
+  state.selectedDroneId = null;
+  state.isDrawingLine = false;
+  state.drawLineFrom = null;
+  state.drawLineTo = null;
+  state.drawLineColor = null;
+
+  // Remove from allCityStates since it's now active
+  delete state.allCityStates[targetCityId];
+
+  return state;
+}
+
 // ==================== MAIN UPDATE ====================
 export const globalEventBus = new EventBus();
 
@@ -1302,6 +1567,8 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateStability(s);
   updateIntercity(s, realDt);
   updateTutorial(s);
+  updateBackgroundCities(s, realDt);
+  updateCrossCityNotifications(s, realDt);
   updatePhysics(s, realDt);
 
   globalEventBus.flush();
