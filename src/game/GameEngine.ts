@@ -135,7 +135,7 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     screenShake: 0, gameOver: false, gameStarted: false, isPaused: false,
     elapsedTime: 0, speedMultiplier: 1, unlockedRoutes: [],
     selectedTrain: null, hoveredStation: null,
-    activeStationIds: [...STARTING_STATIONS],
+    activeStationIds: [...cityStarting],
     nextStationUnlockTime: STATION_UNLOCK_INTERVAL,
     notifications: [], waveIndex: 0,
     // Phase 4
