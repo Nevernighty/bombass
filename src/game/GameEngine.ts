@@ -1273,7 +1273,7 @@ export function reverseTrain(state: GameState, trainId: string): GameState {
   return state;
 }
 
-export function purchaseTrain(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function purchaseTrain(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.TRAIN_COST) return state;
   const route = getActiveLineStations(state, line);
   if (route.length < 2) return state;
@@ -1330,7 +1330,7 @@ export function setSpeedMultiplier(state: GameState, multiplier: number): GameSt
   return state;
 }
 
-export function rerouteTrain(state: GameState, trainId: string, newLine: 'red' | 'blue' | 'green'): GameState {
+export function rerouteTrain(state: GameState, trainId: string, newLine: string): GameState {
   const train = state.trains.find(t => t.id === trainId);
   if (!train || train.line === newLine) return state;
   const route = getActiveLineStations(state, newLine);
@@ -1423,7 +1423,7 @@ export function placeDecoy(state: GameState): GameState {
   return state;
 }
 
-export function emergencySpeedBoost(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function emergencySpeedBoost(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.SPEED_BOOST_COST || state.speedBoostCooldown > 0) return state;
   state.money -= GAME_CONFIG.SPEED_BOOST_COST;
   state.speedBoostLine = line;
@@ -1466,7 +1466,7 @@ export function activateDoubleFare(state: GameState): GameState {
   return state;
 }
 
-export function activateExpressLine(state: GameState, line: 'red' | 'blue' | 'green'): GameState {
+export function activateExpressLine(state: GameState, line: string): GameState {
   if (state.money < GAME_CONFIG.EXPRESS_LINE_COST || state.expressTimer > 0) return state;
   state.money -= GAME_CONFIG.EXPRESS_LINE_COST;
   state.expressLineId = line;
