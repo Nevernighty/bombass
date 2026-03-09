@@ -869,6 +869,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
           <ActionBar
             money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
+            lines={Object.entries(getCityConfig(state.currentCity).lines).map(([id, l], i) => ({ id, color: l.color, label: l.name.split(' ')[0] || `L${i+1}` }))}
             radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
             doubleFareTimer={state.doubleFareTimer} expressTimer={state.expressTimer}
             blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
