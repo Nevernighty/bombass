@@ -1,10 +1,11 @@
-import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine } from './types';
+import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS, getStationsForCity, getStationMapForCity, getLineStationsForCity, getBridgeStationsForCity, getSurfaceRoutesForCity, getCityLines } from './constants';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
 import { generateBuildingData } from './components/CityBuildings';
 import { SCENARIOS, ACHIEVEMENT_DEFS } from './config/scenarios';
+import { CITIES, getCityConfig } from './config/cities';
 
 let nextId = 0;
 const uid = () => `${++nextId}`;
