@@ -1725,7 +1725,8 @@ export function getLineEndStations(state: GameState, line: string): string[] {
 
 // Check if a station is an end station on any line
 export function isEndStation(state: GameState, stationId: string): { isEnd: boolean; line: string | null } {
-  for (const line of ['red', 'blue', 'green']) {
+  const cityLineStations = getLineStationsForCity(state.currentCity);
+  for (const line of Object.keys(cityLineStations)) {
     const ends = getLineEndStations(state, line);
     if (ends.includes(stationId)) return { isEnd: true, line };
   }
