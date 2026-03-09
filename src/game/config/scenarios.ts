@@ -13,10 +13,11 @@ export interface ScenarioConfig {
   continuousRaids: boolean;
   passengerMultiplier: number;
   powerDrainMultiplier: number;
-  activeLines: ('red' | 'blue' | 'green')[];
+  activeLines: string[];
   startTrains: number;
   winCondition: null | { type: 'passengers' | 'survive' | 'protect'; target: number };
   timeLimit: number | null; // ms, null = endless
+  city?: string; // specific city, null = any
 }
 
 export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
@@ -109,6 +110,7 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
     startTrains: 2,
     winCondition: { type: 'protect', target: 480000 },
     timeLimit: 480000,
+    city: 'kyiv',
   },
 };
 
@@ -120,7 +122,9 @@ export const ACHIEVEMENT_DEFS = [
   { id: 'indestructible', nameUa: 'Неруйнівний', icon: '🛡️', condition: '5 хвилин без втрати станції' },
   { id: 'combo_master', nameUa: 'Комбо Майстер', icon: '⚡', condition: 'Досягніть комбо x5' },
   { id: 'full_line', nameUa: 'Повна лінія', icon: '🗺️', condition: 'Відкрийте всі станції лінії' },
-  { id: 'three_lines', nameUa: 'Три лінії', icon: '🚉', condition: 'Потяги на всіх 3 лініях' },
+  { id: 'three_lines', nameUa: 'Три лінії', icon: '🚉', condition: 'Потяги на всіх лініях' },
   { id: 'economist', nameUa: 'Економіст', icon: '💰', condition: 'Накопичте 500💰' },
   { id: 'rescuer', nameUa: 'Рятівник', icon: '🔧', condition: 'Відремонтуйте 5 станцій' },
+  { id: 'multi_city', nameUa: 'Подорожник', icon: '🗺️', condition: 'Відправте міжміський потяг' },
+  { id: 'stability_master', nameUa: 'Стабільність', icon: '📊', condition: 'Стабільність 80%+ протягом 2 хв' },
 ];
