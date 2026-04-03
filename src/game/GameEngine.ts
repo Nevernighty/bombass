@@ -1244,6 +1244,157 @@ function updatePhysics(s: GameState, realDt: number): void {
 // ==================== MAIN UPDATE ====================
 export const globalEventBus = new EventBus();
 
+// ==================== SYSTEM: Streak & Fever ====================
+function updateStreak(s: GameState, realDt: number, events: EventBus): void {
+  const streak = s.streak;
+  
+  if (streak.timer > 0) {
+    streak.timer -= realDt;
+    if (streak.timer <= 0) {
+      // Streak broken
+      if (streak.multiplier > 1) {
+        events.emit({ type: 'STREAK_BREAK' });
+        addNotification(s, `💔 Стрік x${streak.multiplier} втрачено!`, 0.5, 0.4, '#ef4444');
+        s.screenFlashTimer = 200;
+        s.screenFlashColor = '#ef4444';
+      }
+      streak.multiplier = 1;
+      streak.deliveriesSinceReset = 0;
+    }
+  }
+  
+  // Fever mode decay
+  if (streak.isFever) {
+    streak.feverTimer -= realDt;
+    if (streak.feverTimer <= 0) {
+      streak.isFever = false;
+      streak.multiplier = 5; // drop back from 10
+      events.emit({ type: 'FEVER_END' });
+      addNotification(s, '🔥 FEVER закінчився!', 0.5, 0.4, '#f59e0b');
+    }
+  }
+  
+  // Apply fever speed boost
+  if (streak.isFever) {
+    s.doubleFareTimer = Math.max(s.doubleFareTimer, 100); // keep double fare during fever
+  }
+}
+
+// Called when passengers are delivered (from updateTrains)
+function onDeliveryStreak(s: GameState, count: number, events: EventBus): void {
+  const streak = s.streak;
+  streak.timer = 5000; // 5s to maintain
+  streak.deliveriesSinceReset += count;
+  
+  // Escalate multiplier: 5→x2, 10→x3, 20→x5, 40→x10 (fever)
+  const thresholds = [5, 10, 20, 40];
+  const mults = [2, 3, 5, 10];
+  let newMult = 1;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (streak.deliveriesSinceReset >= thresholds[i]) newMult = mults[i];
+  }
+  
+  if (newMult > streak.multiplier) {
+    streak.multiplier = newMult;
+    if (newMult === 10 && !streak.isFever) {
+      // FEVER MODE!
+      streak.isFever = true;
+      streak.feverTimer = 10000;
+      events.emit({ type: 'FEVER_START' });
+      addNotification(s, '🔥🔥🔥 FEVER MODE! 🔥🔥🔥', 0.5, 0.35, '#fbbf24');
+      s.screenFlashTimer = 500;
+      s.screenFlashColor = '#fbbf24';
+      s.screenPulseTimer = 10000;
+      s.screenPulseColor = '#fbbf24';
+    } else {
+      addNotification(s, `⚡ Стрік x${newMult}!`, 0.5, 0.4, '#f59e0b');
+    }
+  }
+}
+
+// ==================== SYSTEM: Milestones ====================
+function updateMilestones(s: GameState, events: EventBus): void {
+  const ms = s.milestone;
+  if (s.passengersDelivered >= ms.nextThreshold) {
+    const tier = ms.nextThreshold;
+    
+    if (tier % 100 === 0) {
+      // LEGENDARY tier
+      s.money += 100;
+      s.lives = Math.min(s.lives + 1, 5);
+      addNotification(s, `🏆 LEGENDARY! ${tier} пасажирів! +100💰 +1❤️`, 0.5, 0.3, '#fbbf24');
+      s.screenFlashTimer = 600;
+      s.screenFlashColor = '#fbbf24';
+      s.floatingScores.push({ id: uid(), text: `🏆 ${tier} LEGENDARY`, x: 50, y: 25, color: '#fbbf24', timer: 3000, scale: 2 });
+    } else if (tier % 50 === 0) {
+      // Random power-up
+      const roll = Math.random();
+      if (roll < 0.33) {
+        // Free shield on all stations
+        const activeSet = new Set(s.activeStationIds);
+        s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed).forEach(st => {
+          st.shieldTimer = Math.max(st.shieldTimer, 8000);
+        });
+        addNotification(s, `🎁 ${tier} пас.! Щити всім станціям!`, 0.5, 0.3, '#38bdf8');
+      } else if (roll < 0.66) {
+        s.speedBoostLine = Object.keys(s._cachedLineStations)[0] || 'red';
+        s.speedBoostTimer = 15000;
+        addNotification(s, `🎁 ${tier} пас.! Прискорення!`, 0.5, 0.3, '#a855f7');
+      } else {
+        s.money += 50;
+        addNotification(s, `🎁 ${tier} пас.! +50💰 бонус!`, 0.5, 0.3, '#4ade80');
+      }
+      s.screenFlashTimer = 400;
+      s.screenFlashColor = '#4ade80';
+    } else {
+      // Every 25
+      const bonus = 25 + Math.floor(tier / 25) * 10;
+      s.money += bonus;
+      addNotification(s, `🎉 ${tier} пасажирів! +${bonus}💰`, 0.5, 0.3, '#22c55e');
+      events.emit({ type: 'MILESTONE_REACHED', data: { count: tier } });
+    }
+    
+    ms.lastRewardedAt = tier;
+    ms.nextThreshold = tier + 25;
+  }
+}
+
+// ==================== SYSTEM: Danger Escalation ====================
+function updateDanger(s: GameState): void {
+  const stability = s.cityStates[s.currentCity]?.stability || 50;
+  s.dangerLevel = Math.max(0, Math.min(1, (50 - stability) / 50)); // 0 at 50%+, 1 at 0%
+}
+
+// ==================== SYSTEM: Challenge ====================
+function updateChallenge(s: GameState): void {
+  if (!s.dailyChallenge || s.dailyChallenge.completed) return;
+  const ch = s.dailyChallenge;
+  switch (ch.type) {
+    case 'deliver': ch.progress = s.passengersDelivered; break;
+    case 'intercept': ch.progress = s.dronesIntercepted; break;
+    case 'combo': ch.progress = Math.max(ch.progress, s.combo); break;
+  }
+  if (ch.progress >= ch.target) {
+    ch.completed = true;
+    s.money += ch.reward;
+    addNotification(s, `🏅 Виклик виконано! +${ch.reward}💰`, 0.5, 0.3, '#fbbf24');
+    s.screenFlashTimer = 400;
+    s.screenFlashColor = '#fbbf24';
+  }
+}
+
+// ==================== SYSTEM: Last Stand ====================
+function updateLastStand(s: GameState): void {
+  if (s.lives <= 1 && !s.lastStandActive) {
+    s.lastStandActive = true;
+    addNotification(s, '💀 LAST STAND! Оборона +50%!', 0.5, 0.35, '#ef4444');
+    s.screenPulseTimer = 3000;
+    s.screenPulseColor = '#ef4444';
+  } else if (s.lives > 1 && s.lastStandActive) {
+    s.lastStandActive = false;
+  }
+}
+
 export function updateGame(state: GameState, dt: number, audio: AudioEngine): GameState {
   if (!state.gameStarted || state.gameOver || state.isPaused) return state;
 
