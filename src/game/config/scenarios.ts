@@ -112,6 +112,24 @@ export const SCENARIOS: Record<GameMode, ScenarioConfig> = {
     timeLimit: 480000,
     city: 'kyiv',
   },
+  sandbox: {
+    id: 'sandbox',
+    nameUa: 'Пісочниця',
+    descriptionUa: 'Без атак, нескінченні гроші. Вчіться без стресу!',
+    icon: '🏖️',
+    difficulty: 1,
+    startMoney: 9999,
+    startLives: 99,
+    permanentNight: false,
+    noRaids: true,
+    continuousRaids: false,
+    passengerMultiplier: 0.5,
+    powerDrainMultiplier: 0,
+    activeLines: ['red', 'blue', 'green'],
+    startTrains: 3,
+    winCondition: null,
+    timeLimit: null,
+  },
 };
 
 export const ACHIEVEMENT_DEFS = [

@@ -1,5 +1,5 @@
 import { STATIONS, STATION_MAP, LINE_STATIONS, GAME_CONFIG, SURFACE_ROUTES, PassengerShape, DRONE_TYPES, BRIDGE_STATION_IDS, getStationsForCity, getStationMapForCity, getLineStationsForCity, getBridgeStationsForCity, getSurfaceRoutesForCity, getCityLines } from './constants';
-import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain } from './types';
+import { GameState, GameStation, Train, Drone, Passenger, RepairUnit, DroneType, GameNotification, BuildingState, Decoy, GameMode, Achievement, InterceptorDrone, TracerLine, CityState, IntercityTrain, StreakState, MilestoneState, DailyChallenge } from './types';
 import { AudioEngine } from './AudioEngine';
 import { EventBus } from './core/EventBus';
 import { getCurrentWave, getCurrentWaveIndex, PATIENCE_BASE, PATIENCE_MIN, PATIENCE_DECAY_PER_WAVE } from './config/difficulty';
@@ -53,6 +53,18 @@ function initAchievements(): Achievement[] {
   return ACHIEVEMENT_DEFS.map(d => ({
     ...d, unlocked: false,
   }));
+}
+
+function generateDailyChallenge(): DailyChallenge {
+  const challenges: Omit<DailyChallenge, 'id' | 'progress' | 'completed'>[] = [
+    { textUa: 'Доставити 50 пасажирів', type: 'deliver', target: 50, reward: 100 },
+    { textUa: 'Збити 10 дронів', type: 'intercept', target: 10, reward: 80 },
+    { textUa: 'Досягнути комбо x5', type: 'combo', target: 5, reward: 60 },
+    { textUa: 'Доставити 100 пасажирів', type: 'deliver', target: 100, reward: 150 },
+    { textUa: 'Збити 20 дронів', type: 'intercept', target: 20, reward: 120 },
+  ];
+  const ch = challenges[Math.floor(Math.random() * challenges.length)];
+  return { ...ch, id: `ch_${Date.now()}`, progress: 0, completed: false };
 }
 
 export function createInitialState(mode: GameMode = 'classic', cityId: string = 'kyiv'): GameState {
@@ -204,6 +216,27 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     tutorialComplete: false,
     // Building upgrades
     buildingUpgrades: {},
+    // Streak & Fever
+    streak: { timer: 0, multiplier: 1, isFever: false, feverTimer: 0, deliveriesSinceReset: 0 },
+    // Milestones
+    milestone: { lastRewardedAt: 0, nextThreshold: 25 },
+    // Challenge
+    dailyChallenge: generateDailyChallenge(),
+    // Last Stand
+    lastStandActive: false,
+    // Screen flash
+    screenFlashTimer: 0,
+    screenFlashColor: '#ffffff',
+    // Danger
+    dangerLevel: 0,
+    // Settings
+    sfxEnabled: true,
+    musicEnabled: true,
+    vibrationEnabled: true,
+    // Auto-pause
+    tabVisible: true,
+    // Undo
+    undoAction: null,
   };
 }
 
@@ -397,18 +430,22 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
           const matching = t.passengers.filter(p => p.shape === arrStation.shape);
           if (matching.length > 0) {
             const fareMult = s.doubleFareTimer > 0 ? 2 : 1;
-            // VIP delivery bonus: 5x score for VIP passengers
+            const streakMult = s.streak.isFever ? 2 : 1;
+            const lastStandMult = s.lastStandActive ? 1.25 : 1;
             const vipCount = matching.filter(p => p.isVIP).length;
-            const vipBonus = vipCount * 4; // extra 4x on top of normal 1x
-            const earned = Math.round((matching.length + vipBonus) * s.combo * fareMult);
+            const vipBonus = vipCount * 4;
+            const earned = Math.round((matching.length + vipBonus) * s.combo * fareMult * streakMult * lastStandMult);
             s.score += earned;
             s.money += Math.round(earned * 0.5);
             s.passengersDelivered += matching.length;
             s.combo = Math.min(Math.round((s.combo + 0.2) * 10) / 10, 5);
             s.maxCombo = Math.max(s.maxCombo, s.combo);
             t.passengers = t.passengers.filter(p => p.shape !== arrStation.shape);
+            // Streak system
+            onDeliveryStreak(s, matching.length, events);
+            const streakLabel = s.streak.multiplier > 1 ? ` 🔥x${s.streak.multiplier}` : '';
             const vipText = vipCount > 0 ? ` ⭐VIP!` : '';
-            addNotification(s, `+${earned}${vipText}`, arrStation.x, arrStation.y, vipCount > 0 ? '#fbbf24' : '#2ecc71');
+            addNotification(s, `+${earned}${vipText}${streakLabel}`, arrStation.x, arrStation.y, vipCount > 0 ? '#fbbf24' : '#2ecc71');
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
             if (vipCount > 0) {
               s.floatingScores.push({ id: uid(), text: `VIP +${earned}`, x: 50, y: 35, color: '#fbbf24', timer: 2000, scale: 1.5 });
@@ -1211,6 +1248,157 @@ function updatePhysics(s: GameState, realDt: number): void {
 // ==================== MAIN UPDATE ====================
 export const globalEventBus = new EventBus();
 
+// ==================== SYSTEM: Streak & Fever ====================
+function updateStreak(s: GameState, realDt: number, events: EventBus): void {
+  const streak = s.streak;
+  
+  if (streak.timer > 0) {
+    streak.timer -= realDt;
+    if (streak.timer <= 0) {
+      // Streak broken
+      if (streak.multiplier > 1) {
+        events.emit({ type: 'STREAK_BREAK' });
+        addNotification(s, `💔 Стрік x${streak.multiplier} втрачено!`, 0.5, 0.4, '#ef4444');
+        s.screenFlashTimer = 200;
+        s.screenFlashColor = '#ef4444';
+      }
+      streak.multiplier = 1;
+      streak.deliveriesSinceReset = 0;
+    }
+  }
+  
+  // Fever mode decay
+  if (streak.isFever) {
+    streak.feverTimer -= realDt;
+    if (streak.feverTimer <= 0) {
+      streak.isFever = false;
+      streak.multiplier = 5; // drop back from 10
+      events.emit({ type: 'FEVER_END' });
+      addNotification(s, '🔥 FEVER закінчився!', 0.5, 0.4, '#f59e0b');
+    }
+  }
+  
+  // Apply fever speed boost
+  if (streak.isFever) {
+    s.doubleFareTimer = Math.max(s.doubleFareTimer, 100); // keep double fare during fever
+  }
+}
+
+// Called when passengers are delivered (from updateTrains)
+function onDeliveryStreak(s: GameState, count: number, events: EventBus): void {
+  const streak = s.streak;
+  streak.timer = 5000; // 5s to maintain
+  streak.deliveriesSinceReset += count;
+  
+  // Escalate multiplier: 5→x2, 10→x3, 20→x5, 40→x10 (fever)
+  const thresholds = [5, 10, 20, 40];
+  const mults = [2, 3, 5, 10];
+  let newMult = 1;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (streak.deliveriesSinceReset >= thresholds[i]) newMult = mults[i];
+  }
+  
+  if (newMult > streak.multiplier) {
+    streak.multiplier = newMult;
+    if (newMult === 10 && !streak.isFever) {
+      // FEVER MODE!
+      streak.isFever = true;
+      streak.feverTimer = 10000;
+      events.emit({ type: 'FEVER_START' });
+      addNotification(s, '🔥🔥🔥 FEVER MODE! 🔥🔥🔥', 0.5, 0.35, '#fbbf24');
+      s.screenFlashTimer = 500;
+      s.screenFlashColor = '#fbbf24';
+      s.screenPulseTimer = 10000;
+      s.screenPulseColor = '#fbbf24';
+    } else {
+      addNotification(s, `⚡ Стрік x${newMult}!`, 0.5, 0.4, '#f59e0b');
+    }
+  }
+}
+
+// ==================== SYSTEM: Milestones ====================
+function updateMilestones(s: GameState, events: EventBus): void {
+  const ms = s.milestone;
+  if (s.passengersDelivered >= ms.nextThreshold) {
+    const tier = ms.nextThreshold;
+    
+    if (tier % 100 === 0) {
+      // LEGENDARY tier
+      s.money += 100;
+      s.lives = Math.min(s.lives + 1, 5);
+      addNotification(s, `🏆 LEGENDARY! ${tier} пасажирів! +100💰 +1❤️`, 0.5, 0.3, '#fbbf24');
+      s.screenFlashTimer = 600;
+      s.screenFlashColor = '#fbbf24';
+      s.floatingScores.push({ id: uid(), text: `🏆 ${tier} LEGENDARY`, x: 50, y: 25, color: '#fbbf24', timer: 3000, scale: 2 });
+    } else if (tier % 50 === 0) {
+      // Random power-up
+      const roll = Math.random();
+      if (roll < 0.33) {
+        // Free shield on all stations
+        const activeSet = new Set(s.activeStationIds);
+        s.stations.filter(st => activeSet.has(st.id) && !st.isDestroyed).forEach(st => {
+          st.shieldTimer = Math.max(st.shieldTimer, 8000);
+        });
+        addNotification(s, `🎁 ${tier} пас.! Щити всім станціям!`, 0.5, 0.3, '#38bdf8');
+      } else if (roll < 0.66) {
+        s.speedBoostLine = Object.keys(s._cachedLineStations)[0] || 'red';
+        s.speedBoostTimer = 15000;
+        addNotification(s, `🎁 ${tier} пас.! Прискорення!`, 0.5, 0.3, '#a855f7');
+      } else {
+        s.money += 50;
+        addNotification(s, `🎁 ${tier} пас.! +50💰 бонус!`, 0.5, 0.3, '#4ade80');
+      }
+      s.screenFlashTimer = 400;
+      s.screenFlashColor = '#4ade80';
+    } else {
+      // Every 25
+      const bonus = 25 + Math.floor(tier / 25) * 10;
+      s.money += bonus;
+      addNotification(s, `🎉 ${tier} пасажирів! +${bonus}💰`, 0.5, 0.3, '#22c55e');
+      events.emit({ type: 'MILESTONE_REACHED', data: { count: tier } });
+    }
+    
+    ms.lastRewardedAt = tier;
+    ms.nextThreshold = tier + 25;
+  }
+}
+
+// ==================== SYSTEM: Danger Escalation ====================
+function updateDanger(s: GameState): void {
+  const stability = s.cityStates[s.currentCity]?.stability || 50;
+  s.dangerLevel = Math.max(0, Math.min(1, (50 - stability) / 50)); // 0 at 50%+, 1 at 0%
+}
+
+// ==================== SYSTEM: Challenge ====================
+function updateChallenge(s: GameState): void {
+  if (!s.dailyChallenge || s.dailyChallenge.completed) return;
+  const ch = s.dailyChallenge;
+  switch (ch.type) {
+    case 'deliver': ch.progress = s.passengersDelivered; break;
+    case 'intercept': ch.progress = s.dronesIntercepted; break;
+    case 'combo': ch.progress = Math.max(ch.progress, s.combo); break;
+  }
+  if (ch.progress >= ch.target) {
+    ch.completed = true;
+    s.money += ch.reward;
+    addNotification(s, `🏅 Виклик виконано! +${ch.reward}💰`, 0.5, 0.3, '#fbbf24');
+    s.screenFlashTimer = 400;
+    s.screenFlashColor = '#fbbf24';
+  }
+}
+
+// ==================== SYSTEM: Last Stand ====================
+function updateLastStand(s: GameState): void {
+  if (s.lives <= 1 && !s.lastStandActive) {
+    s.lastStandActive = true;
+    addNotification(s, '💀 LAST STAND! Оборона +50%!', 0.5, 0.35, '#ef4444');
+    s.screenPulseTimer = 3000;
+    s.screenPulseColor = '#ef4444';
+  } else if (s.lives > 1 && s.lastStandActive) {
+    s.lastStandActive = false;
+  }
+}
+
 export function updateGame(state: GameState, dt: number, audio: AudioEngine): GameState {
   if (!state.gameStarted || state.gameOver || state.isPaused) return state;
 
@@ -1250,6 +1438,21 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateTutorial(s);
   updatePhysics(s, realDt);
 
+  updateStreak(s, realDt, globalEventBus);
+  updateMilestones(s, globalEventBus);
+  updateDanger(s);
+  updateChallenge(s);
+  updateLastStand(s);
+  updatePhysics(s, realDt);
+
+  // Screen flash decay
+  if (s.screenFlashTimer > 0) s.screenFlashTimer -= realDt;
+  // Undo decay
+  if (s.undoAction) {
+    s.undoAction.timer -= realDt;
+    if (s.undoAction.timer <= 0) s.undoAction = null;
+  }
+
   globalEventBus.flush();
 
   return s;
@@ -1273,7 +1476,6 @@ export function attackDrone(state: GameState, droneId: string): GameState {
     addNotification(state, `🎯 +${earned}`, drone.x, drone.y, '#f1c40f');
     state.killFlashTimer = 300;
     state.floatingScores.push({ id: uid(), text: `+${earned}`, x: 50, y: 40, color: '#fbbf24', timer: 1500, scale: 1.2 });
-    // Critical hit chance
     if (Math.random() < 0.1) {
       state.score += earned;
       state.floatingScores.push({ id: uid(), text: 'КРИТ!', x: 52, y: 35, color: '#ef4444', timer: 1200, scale: 1.5 });
