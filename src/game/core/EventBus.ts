@@ -14,7 +14,12 @@ export type GameEventType =
   | 'QTE_FAIL'
   | 'STATION_UNLOCKED'
   | 'WAVE_ADVANCE'
-  | 'SHIELD_BLOCK';
+  | 'SHIELD_BLOCK'
+  | 'MILESTONE_REACHED'
+  | 'FEVER_START'
+  | 'FEVER_END'
+  | 'STREAK_BREAK'
+  | 'MONEY_EARNED';
 
 export interface GameEvent {
   type: GameEventType;
