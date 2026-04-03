@@ -55,6 +55,18 @@ function initAchievements(): Achievement[] {
   }));
 }
 
+function generateDailyChallenge(): DailyChallenge {
+  const challenges: Omit<DailyChallenge, 'id' | 'progress' | 'completed'>[] = [
+    { textUa: 'Доставити 50 пасажирів', type: 'deliver', target: 50, reward: 100 },
+    { textUa: 'Збити 10 дронів', type: 'intercept', target: 10, reward: 80 },
+    { textUa: 'Досягнути комбо x5', type: 'combo', target: 5, reward: 60 },
+    { textUa: 'Доставити 100 пасажирів', type: 'deliver', target: 100, reward: 150 },
+    { textUa: 'Збити 20 дронів', type: 'intercept', target: 20, reward: 120 },
+  ];
+  const ch = challenges[Math.floor(Math.random() * challenges.length)];
+  return { ...ch, id: `ch_${Date.now()}`, progress: 0, completed: false };
+}
+
 export function createInitialState(mode: GameMode = 'classic', cityId: string = 'kyiv'): GameState {
   const scenario = SCENARIOS[mode];
   const city = getCityConfig(cityId);
