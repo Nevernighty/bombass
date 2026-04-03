@@ -1283,6 +1283,21 @@ export function updateGame(state: GameState, dt: number, audio: AudioEngine): Ga
   updateTutorial(s);
   updatePhysics(s, realDt);
 
+  updateStreak(s, realDt, globalEventBus);
+  updateMilestones(s, globalEventBus);
+  updateDanger(s);
+  updateChallenge(s);
+  updateLastStand(s);
+  updatePhysics(s, realDt);
+
+  // Screen flash decay
+  if (s.screenFlashTimer > 0) s.screenFlashTimer -= realDt;
+  // Undo decay
+  if (s.undoAction) {
+    s.undoAction.timer -= realDt;
+    if (s.undoAction.timer <= 0) s.undoAction = null;
+  }
+
   globalEventBus.flush();
 
   return s;
@@ -1306,7 +1321,6 @@ export function attackDrone(state: GameState, droneId: string): GameState {
     addNotification(state, `🎯 +${earned}`, drone.x, drone.y, '#f1c40f');
     state.killFlashTimer = 300;
     state.floatingScores.push({ id: uid(), text: `+${earned}`, x: 50, y: 40, color: '#fbbf24', timer: 1500, scale: 1.2 });
-    // Critical hit chance
     if (Math.random() < 0.1) {
       state.score += earned;
       state.floatingScores.push({ id: uid(), text: 'КРИТ!', x: 52, y: 35, color: '#ef4444', timer: 1200, scale: 1.5 });
