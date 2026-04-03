@@ -29,13 +29,11 @@ export interface GameStation {
   isSheltering: boolean;
   tunnelSealTimer: number;
   magnetTimer: number;
-  // Phase 6
   hasSAM: boolean;
   samCooldown: number;
   hasAATurret: boolean;
   turretCooldown: number;
   stationIncome: number;
-  // Phase 7
   isFortified: boolean;
   empCooldown: number;
   panicTimer: number;
@@ -173,7 +171,7 @@ export interface TracerLine {
   color: string;
 }
 
-export type GameMode = 'classic' | 'rush_hour' | 'siege' | 'blackout' | 'bridge_defense';
+export type GameMode = 'classic' | 'rush_hour' | 'siege' | 'blackout' | 'bridge_defense' | 'sandbox';
 
 export interface Achievement {
   id: string;
@@ -206,6 +204,32 @@ export interface HoveredElement {
   id: string;
   name?: string;
   details?: string;
+}
+
+// Streak & Fever system
+export interface StreakState {
+  timer: number; // ms countdown, resets on delivery
+  multiplier: number; // 1, 2, 3, 5, 10
+  isFever: boolean;
+  feverTimer: number; // ms remaining in fever
+  deliveriesSinceReset: number;
+}
+
+// Challenge system
+export interface DailyChallenge {
+  id: string;
+  textUa: string;
+  type: 'deliver' | 'intercept' | 'survive_no_loss' | 'combo';
+  target: number;
+  progress: number;
+  completed: boolean;
+  reward: number;
+}
+
+// Milestone tracking
+export interface MilestoneState {
+  lastRewardedAt: number; // passengers delivered at last milestone
+  nextThreshold: number;
 }
 
 export interface GameState {
@@ -248,7 +272,6 @@ export interface GameState {
   nextStationUnlockTime: number;
   notifications: GameNotification[];
   waveIndex: number;
-  // Phase 4
   buildings: BuildingState[];
   selectedDroneId: string | null;
   powerGrid: number;
@@ -265,7 +288,6 @@ export interface GameState {
   speedBoostCooldown: number;
   comboMilestones: number[];
   buildingsDestroyed: number;
-  // Phase 5
   gameMode: GameMode;
   achievements: Achievement[];
   satisfactionRate: number;
@@ -280,13 +302,11 @@ export interface GameState {
   stationMagnetTimer: number;
   winConditionMet: boolean;
   modeTimer: number;
-  // Phase 6
   interceptorDrones: InterceptorDrone[];
   tracerLines: TracerLine[];
   isRaining: boolean;
   weatherTimer: number;
   autoRepairTimer: number;
-  // Phase 7
   floatingScores: FloatingScore[];
   killFlashTimer: number;
   screenPulseTimer: number;
@@ -294,13 +314,10 @@ export interface GameState {
   passiveIncomeTimer: number;
   victoryLapActive: boolean;
   swarmWarningTimer: number;
-  // Phase 17
   closedSegments: { line: string; from: string; to: string; timer: number }[];
-  // Phase 18
   activeEvents: GameEvent[];
   hoveredElement: HoveredElement | null;
   eventLog: string[];
-  // Phase 20
   pendingStations: string[];
   isDrawingLine: boolean;
   drawLineFrom: string | null;
@@ -308,7 +325,6 @@ export interface GameState {
   drawLineColor: string | null;
   drawMouseWorldPos: { x: number; z: number } | null;
   trainSpawnEffects: { id: string; x: number; y: number; timer: number; line: string }[];
-  // cached per-tick
   _cachedLineStations: Record<string, string[]>;
   // Multi-city
   currentCity: string;
@@ -320,6 +336,27 @@ export interface GameState {
   tutorialComplete: boolean;
   // Building upgrades
   buildingUpgrades: Record<number, BuildingUpgrade>;
+  // Streak & Fever
+  streak: StreakState;
+  // Milestones
+  milestone: MilestoneState;
+  // Challenge
+  dailyChallenge: DailyChallenge | null;
+  // Last Stand
+  lastStandActive: boolean;
+  // Screen flash for big hits
+  screenFlashTimer: number;
+  screenFlashColor: string;
+  // Danger heartbeat
+  dangerLevel: number; // 0-1
+  // Settings
+  sfxEnabled: boolean;
+  musicEnabled: boolean;
+  vibrationEnabled: boolean;
+  // Auto-pause
+  tabVisible: boolean;
+  // Undo
+  undoAction: { type: string; cost: number; timer: number } | null;
 }
 
 export interface CityState {
