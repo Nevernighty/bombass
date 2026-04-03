@@ -204,6 +204,27 @@ export function createInitialState(mode: GameMode = 'classic', cityId: string = 
     tutorialComplete: false,
     // Building upgrades
     buildingUpgrades: {},
+    // Streak & Fever
+    streak: { timer: 0, multiplier: 1, isFever: false, feverTimer: 0, deliveriesSinceReset: 0 },
+    // Milestones
+    milestone: { lastRewardedAt: 0, nextThreshold: 25 },
+    // Challenge
+    dailyChallenge: generateDailyChallenge(),
+    // Last Stand
+    lastStandActive: false,
+    // Screen flash
+    screenFlashTimer: 0,
+    screenFlashColor: '#ffffff',
+    // Danger
+    dangerLevel: 0,
+    // Settings
+    sfxEnabled: true,
+    musicEnabled: true,
+    vibrationEnabled: true,
+    // Auto-pause
+    tabVisible: true,
+    // Undo
+    undoAction: null,
   };
 }
 
