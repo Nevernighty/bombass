@@ -430,18 +430,22 @@ function updateTrains(s: GameState, realDt: number, events: EventBus): void {
           const matching = t.passengers.filter(p => p.shape === arrStation.shape);
           if (matching.length > 0) {
             const fareMult = s.doubleFareTimer > 0 ? 2 : 1;
-            // VIP delivery bonus: 5x score for VIP passengers
+            const streakMult = s.streak.isFever ? 2 : 1;
+            const lastStandMult = s.lastStandActive ? 1.25 : 1;
             const vipCount = matching.filter(p => p.isVIP).length;
-            const vipBonus = vipCount * 4; // extra 4x on top of normal 1x
-            const earned = Math.round((matching.length + vipBonus) * s.combo * fareMult);
+            const vipBonus = vipCount * 4;
+            const earned = Math.round((matching.length + vipBonus) * s.combo * fareMult * streakMult * lastStandMult);
             s.score += earned;
             s.money += Math.round(earned * 0.5);
             s.passengersDelivered += matching.length;
             s.combo = Math.min(Math.round((s.combo + 0.2) * 10) / 10, 5);
             s.maxCombo = Math.max(s.maxCombo, s.combo);
             t.passengers = t.passengers.filter(p => p.shape !== arrStation.shape);
+            // Streak system
+            onDeliveryStreak(s, matching.length, events);
+            const streakLabel = s.streak.multiplier > 1 ? ` 🔥x${s.streak.multiplier}` : '';
             const vipText = vipCount > 0 ? ` ⭐VIP!` : '';
-            addNotification(s, `+${earned}${vipText}`, arrStation.x, arrStation.y, vipCount > 0 ? '#fbbf24' : '#2ecc71');
+            addNotification(s, `+${earned}${vipText}${streakLabel}`, arrStation.x, arrStation.y, vipCount > 0 ? '#fbbf24' : '#2ecc71');
             events.emit({ type: 'PASSENGER_DELIVERED', x: arrStation.x, y: arrStation.y, data: { count: matching.length } });
             if (vipCount > 0) {
               s.floatingScores.push({ id: uid(), text: `VIP +${earned}`, x: 50, y: 35, color: '#fbbf24', timer: 2000, scale: 1.5 });
