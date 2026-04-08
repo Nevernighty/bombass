@@ -16,7 +16,12 @@ import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
 import { TrainPanel } from './ui/TrainPanel';
+import { TutorialOverlay } from './ui/TutorialOverlay';
+import { SettingsPanel } from './ui/SettingsPanel';
+import { MobileFAB } from './ui/MobileFAB';
+import { useIsMobile } from '../hooks/use-mobile';
 import { Achievement } from './types';
+import { Settings, RotateCcw } from 'lucide-react';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
