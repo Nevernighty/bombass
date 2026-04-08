@@ -89,12 +89,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
     }
     setHudState({ ...stateRef.current });
   }, [selectedCity]);
-    if (!audioFeedbackRef.current) {
-      audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
-    }
-    prevAchCountRef.current = 0;
-    setHudState({ ...stateRef.current });
-  }, []);
+
+
 
   const restartGame = useCallback(() => {
     audioRef.current.stopMusic();
