@@ -10,6 +10,30 @@ import { CITIES, getCityConfig } from './config/cities';
 let nextId = 0;
 const uid = () => `${++nextId}`;
 
+import { PassengerType } from './types';
+
+function createPassenger(shape: PassengerShape, stationId: string, elapsedTime: number, patience: number, type: PassengerType = 'normal'): Passenger {
+  const fareMultipliers: Record<PassengerType, number> = { normal: 1, vip: 3, elderly: 1.2, student: 0.8, worker: 1 };
+  return {
+    id: uid(), shape, spawnTime: elapsedTime, stationId, patience,
+    isVIP: type === 'vip',
+    passengerType: type,
+    fareMultiplier: fareMultipliers[type],
+  };
+}
+
+function rollPassengerType(rushHour: boolean): PassengerType {
+  const r = Math.random();
+  if (rushHour) {
+    if (r < 0.3) return 'worker';
+    if (r < 0.45) return 'student';
+  }
+  if (r < 0.05) return 'vip';
+  if (r < 0.12) return 'elderly';
+  if (r < 0.2) return 'student';
+  return 'normal';
+}
+
 const STATION_IDX = new Map<string, number>(STATIONS.map((s, i) => [s.id, i]));
 export function getStation(state: GameState, id: string) {
   const idx = STATION_IDX.get(id);
