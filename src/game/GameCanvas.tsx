@@ -55,8 +55,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const [lastAchievement, setLastAchievement] = useState<Achievement | null>(null);
   const prevAchCountRef = useRef(0);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const isMobile = useIsMobile();
 
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
+
+  // Auto-pause on tab switch
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden && stateRef.current.gameStarted && !stateRef.current.gameOver) {
+        stateRef.current = { ...stateRef.current, isPaused: true };
+        setHudState({ ...stateRef.current });
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
     stateRef.current = createInitialState(mode, selectedCity);
