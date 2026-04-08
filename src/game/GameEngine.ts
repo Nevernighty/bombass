@@ -46,6 +46,7 @@ function initBuildings(): BuildingState[] {
     id: i, x: b.x, y: b.y,
     hp: 50, maxHp: 50, isDestroyed: false,
     height: b.h, width: b.w, depth: b.d,
+    constructionProgress: 1, constructionActive: false,
   }));
 }
 
