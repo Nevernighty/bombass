@@ -10,6 +10,30 @@ import { CITIES, getCityConfig } from './config/cities';
 let nextId = 0;
 const uid = () => `${++nextId}`;
 
+import { PassengerType } from './types';
+
+function createPassenger(shape: PassengerShape, stationId: string, elapsedTime: number, patience: number, type: PassengerType = 'normal'): Passenger {
+  const fareMultipliers: Record<PassengerType, number> = { normal: 1, vip: 3, elderly: 1.2, student: 0.8, worker: 1 };
+  return {
+    id: uid(), shape, spawnTime: elapsedTime, stationId, patience,
+    isVIP: type === 'vip',
+    passengerType: type,
+    fareMultiplier: fareMultipliers[type],
+  };
+}
+
+function rollPassengerType(rushHour: boolean): PassengerType {
+  const r = Math.random();
+  if (rushHour) {
+    if (r < 0.3) return 'worker';
+    if (r < 0.45) return 'student';
+  }
+  if (r < 0.05) return 'vip';
+  if (r < 0.12) return 'elderly';
+  if (r < 0.2) return 'student';
+  return 'normal';
+}
+
 const STATION_IDX = new Map<string, number>(STATIONS.map((s, i) => [s.id, i]));
 export function getStation(state: GameState, id: string) {
   const idx = STATION_IDX.get(id);
@@ -46,6 +70,7 @@ function initBuildings(): BuildingState[] {
     id: i, x: b.x, y: b.y,
     hp: 50, maxHp: 50, isDestroyed: false,
     height: b.h, width: b.w, depth: b.d,
+    constructionProgress: 1, constructionActive: false,
   }));
 }
 
@@ -292,7 +317,8 @@ function updatePassengers(s: GameState, realDt: number, events: EventBus): void 
       if (possibleShapes.length > 0) {
         const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
         const patienceMs = Math.max(PATIENCE_MIN, PATIENCE_BASE - s.waveIndex * PATIENCE_DECAY_PER_WAVE);
-        station.passengers.push({ id: uid(), shape, spawnTime: s.elapsedTime, stationId: station.id, patience: patienceMs });
+        const pType = rollPassengerType(s.rushHourActive);
+        station.passengers.push(createPassenger(shape, station.id, s.elapsedTime, patienceMs, pType));
         station.jellyVel.y = -2;
       }
     }
@@ -835,7 +861,7 @@ function updateProgression(s: GameState, realDt: number, events: EventBus): void
       const st = pendingStations[Math.floor(Math.random() * pendingStations.length)];
       const shapes: PassengerShape[] = ['circle', 'square', 'triangle', 'diamond'];
       const shape = shapes[Math.floor(Math.random() * shapes.length)];
-      st.passengers.push({ id: uid(), shape, spawnTime: s.elapsedTime, stationId: st.id, patience: 25000 });
+      st.passengers.push(createPassenger(shape, st.id, s.elapsedTime, 25000));
     }
   }
 
@@ -1738,7 +1764,7 @@ export function passengerAirdrop(state: GameState): GameState {
       const possibleShapes = availShapes.filter(sh => sh !== st.shape);
       if (possibleShapes.length > 0) {
         const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
-        st.passengers.push({ id: uid(), shape, spawnTime: state.elapsedTime, stationId: st.id, patience: 20000 });
+        st.passengers.push(createPassenger(shape, st.id, state.elapsedTime, 20000));
       }
     }
   }
@@ -2034,10 +2060,8 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
         const shapes: ('circle' | 'square' | 'triangle' | 'diamond' | 'star')[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
         const possibleShapes = shapes.filter(sh => sh !== station.shape);
         const shape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
-        station.passengers.push({
-          id: nextId, shape, spawnTime: s.elapsedTime, stationId: station.id, patience: 30000, isVIP: true,
-        });
-        s.activeEvents.push({ id: nextId, type: 'vip_passenger', timer: 30000, data: { stationId: station.id } });
+        station.passengers.push(createPassenger(shape, station.id, s.elapsedTime, 30000, 'vip'));
+        s.activeEvents.push({ id: uid(), type: 'vip_passenger', timer: 30000, data: { stationId: station.id } });
         addNotification(s, '⭐ VIP пасажир!', station.x, station.y, '#fbbf24');
         s.eventLog.push('VIP пасажир з\'явився!');
       }
@@ -2080,11 +2104,8 @@ function updateGameEvents(s: GameState, realDt: number, events: EventBus): void 
         const shapes: ('circle' | 'square' | 'triangle' | 'diamond' | 'star')[] = ['circle', 'square', 'triangle', 'diamond', 'star'];
         for (let i = 0; i < 3 && station.passengers.length < station.maxPassengers; i++) {
           const possibleShapes = shapes.filter(sh => sh !== station.shape);
-          station.passengers.push({
-            id: `evac_${i}_${Date.now()}`,
-            shape: possibleShapes[Math.floor(Math.random() * possibleShapes.length)],
-            spawnTime: s.elapsedTime, stationId: station.id, patience: 12000,
-          });
+          const evShape = possibleShapes[Math.floor(Math.random() * possibleShapes.length)];
+          station.passengers.push(createPassenger(evShape, station.id, s.elapsedTime, 12000));
         }
         s.activeEvents.push({ id: nextId, type: 'emergency_evac', timer: 15000, data: { stationId: station.id } });
         addNotification(s, '🚨 Евакуація!', station.x, station.y, '#ef4444');

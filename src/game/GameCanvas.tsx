@@ -16,7 +16,12 @@ import { AchievementToast } from './ui/AchievementToast';
 import { AudioFeedback } from './core/AudioFeedback';
 import { Minimap } from './ui/Minimap';
 import { TrainPanel } from './ui/TrainPanel';
+import { TutorialOverlay } from './ui/TutorialOverlay';
+import { SettingsPanel } from './ui/SettingsPanel';
+import { MobileFAB } from './ui/MobileFAB';
+import { useIsMobile } from '../hooks/use-mobile';
 import { Achievement } from './types';
+import { Settings, RotateCcw } from 'lucide-react';
 
 const useWheelHandler = (stateRef: React.MutableRefObject<GameState>) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,8 +55,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
   const [lastAchievement, setLastAchievement] = useState<Achievement | null>(null);
   const prevAchCountRef = useRef(0);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const isMobile = useIsMobile();
 
   const audioFeedbackRef = useRef<AudioFeedback | null>(null);
+
+  // Auto-pause on tab switch
+  useEffect(() => {
+    const handler = () => {
+      if (document.hidden && stateRef.current.gameStarted && !stateRef.current.gameOver) {
+        stateRef.current = { ...stateRef.current, isPaused: true };
+        setHudState({ ...stateRef.current });
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
 
   const startGame = useCallback((mode: GameMode = 'classic') => {
     stateRef.current = createInitialState(mode, selectedCity);
@@ -63,8 +83,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
     prevAchCountRef.current = 0;
+    // Show tutorial for first-time players
+    if (!localStorage.getItem('kbt_tutorial_done')) {
+      setShowTutorial(true);
+    }
     setHudState({ ...stateRef.current });
-  }, []);
+  }, [selectedCity]);
+
+
 
   const restartGame = useCallback(() => {
     audioRef.current.stopMusic();
@@ -695,11 +721,64 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             gameMode={state.gameMode} winConditionMet={state.winConditionMet}
             cameraMode={state.camera.mode} isRaining={state.isRaining}
             passiveIncome={state.activeStationIds.length}
+            isMobile={isMobile}
             onSpeedChange={(m) => act(s => setSpeedMultiplier(s, m))}
           />
 
+          {/* Settings & Restart buttons */}
+          <div className="absolute top-2 right-2 z-30 pointer-events-auto flex gap-1.5">
+            <button onClick={restartGame} className="p-2 rounded-lg game-btn-hover cursor-pointer"
+              style={{ background: 'hsl(225 45% 8%)', border: '1px solid hsl(220 20% 16%)' }}
+              title="Перезапуск">
+              <RotateCcw size={14} style={{ color: 'hsl(var(--game-muted))' }} />
+            </button>
+            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg game-btn-hover cursor-pointer"
+              style={{ background: 'hsl(225 45% 8%)', border: '1px solid hsl(220 20% 16%)' }}
+              title="Налаштування">
+              <Settings size={14} style={{ color: 'hsl(var(--game-muted))' }} />
+            </button>
+          </div>
+
+          {/* Settings panel */}
+          {showSettings && (
+            <SettingsPanel
+              sfxEnabled={state.sfxEnabled} musicEnabled={state.musicEnabled}
+              vibrationEnabled={state.vibrationEnabled} isMobile={isMobile}
+              onToggleSfx={() => act(s => ({ ...s, sfxEnabled: !s.sfxEnabled }))}
+              onToggleMusic={() => { act(s => ({ ...s, musicEnabled: !s.musicEnabled })); }}
+              onToggleVibration={() => act(s => ({ ...s, vibrationEnabled: !s.vibrationEnabled }))}
+              onRestart={() => { restartGame(); setShowSettings(false); }}
+              onClose={() => setShowSettings(false)}
+            />
+          )}
+
+          {/* Fever mode glow */}
+          {state.streak?.isFever && (
+            <div className="absolute inset-0 pointer-events-none z-10" style={{
+              boxShadow: 'inset 0 0 80px rgba(251,191,36,0.25)',
+              border: '3px solid rgba(251,191,36,0.4)',
+              borderRadius: '4px',
+              animation: 'breath-glow 1s ease-in-out infinite',
+            }} />
+          )}
+
+          {/* Screen flash */}
+          {state.screenFlashTimer > 0 && (
+            <div className="absolute inset-0 pointer-events-none z-20" style={{
+              background: state.screenFlashColor,
+              opacity: Math.min(0.4, state.screenFlashTimer / 500),
+            }} />
+          )}
+
+          {/* Danger vignette */}
+          {state.dangerLevel > 0.3 && (
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `radial-gradient(ellipse at center, transparent 40%, rgba(239,68,68,${state.dangerLevel * 0.3}) 100%)`,
+            }} />
+          )}
+
           {/* Notification stack below TopBar */}
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20" style={{ maxWidth: '500px', width: '100%' }}>
+          <div className={`absolute ${isMobile ? 'top-10' : 'top-12'} left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-none z-20`} style={{ maxWidth: isMobile ? '95%' : '500px', width: '100%' }}>
             {/* Event Ticker */}
             {state.eventLog.length > 0 && (
               <div className="w-full overflow-hidden rounded-lg" style={{ background: 'hsl(225 45% 5% / 0.95)' }}>
@@ -715,7 +794,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
 
             {/* Air Raid Banner */}
             {state.isAirRaid && (
-              <div className="px-6 py-2.5 rounded-xl font-black text-sm tracking-wider animate-pulse flex items-center gap-2"
+              <div className={`px-${isMobile ? '4' : '6'} py-2 rounded-xl font-black text-${isMobile ? 'xs' : 'sm'} tracking-wider animate-pulse flex items-center gap-2`}
                 style={{
                   background: 'hsl(0 72% 45% / 1)',
                   color: '#fff',
@@ -755,7 +834,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                   style={{
                     background: c.bg,
                     color: c.fg,
-                    minWidth: '240px',
+                    minWidth: isMobile ? '200px' : '240px',
                     borderLeft: `4px solid ${c.accent}`,
                     boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                   }}>
@@ -795,8 +874,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             )}
           </div>
 
-          {/* Cursor-following tooltip */}
-          {state.hoveredElement && (
+          {/* Cursor-following tooltip (desktop only) */}
+          {!isMobile && state.hoveredElement && (
             <div className="fixed pointer-events-none z-[100] animate-in fade-in-0 duration-75"
               style={{
                 left: mousePos.x + 16,
@@ -821,22 +900,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
                     {state.hoveredElement.details}
                   </div>
                 )}
-                {state.hoveredElement.type === 'station' && state.isAirRaid && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Щит / Оборона</div>
-                )}
-                {state.hoveredElement.type === 'building' && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#4ade80' }}>Клік → Ремонт $10</div>
-                )}
-                {state.hoveredElement.type === 'drone' && (
-                  <div className="text-[9px] mt-1 font-bold" style={{ color: '#ef4444' }}>Клік → Збити</div>
-                )}
               </div>
             </div>
           )}
 
           {state.isPaused && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(6,10,20,0.6)' }}>
-              <span className="text-5xl font-bold text-white">⏸ ПАУЗА</span>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto z-[150]" style={{ background: 'rgba(6,10,20,0.6)' }}
+              onClick={() => { stateRef.current = { ...stateRef.current, isPaused: false }; setHudState({ ...stateRef.current }); }}>
+              <div className="text-center">
+                <span className="text-5xl font-bold text-white block">⏸ ПАУЗА</span>
+                <span className="text-sm mt-2 block" style={{ color: 'hsl(var(--game-muted))' }}>Натисніть щоб продовжити</span>
+              </div>
             </div>
           )}
 
@@ -881,41 +955,93 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
             />
           )}
 
-          <ActionBar
-            money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
-            radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
-            doubleFareTimer={state.doubleFareTimer} expressTimer={state.expressTimer}
-            blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
-            droneJammerTimer={state.droneJammerTimer} emergencyBrakeTimer={state.emergencyBrakeTimer}
-            stationMagnetTimer={state.stationMagnetTimer} lives={state.lives}
-            closedSegments={state.closedSegments}
-            onBuyTrain={(l) => act(s => purchaseTrain(s, l))}
-            onReinforcements={() => act(s => callReinforcements(s))}
-            onBuyGenerator={() => act(s => buyGenerator(s))}
-            onBuyRadar={() => act(s => buyRadar(s))}
-            onPlaceDecoy={() => act(s => placeDecoy(s))}
-            onSpeedBoost={(l) => act(s => emergencySpeedBoost(s, l))}
-            onEmergencyBrake={() => act(s => emergencyBrake(s))}
-            onDoubleFare={() => act(s => activateDoubleFare(s))}
-            onExpressLine={(l) => act(s => activateExpressLine(s, l))}
-            onBlackout={() => act(s => toggleBlackout(s))}
-            onSignalFlare={() => act(s => activateSignalFlare(s))}
-            onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
-            onDroneJammer={() => act(s => activateDroneJammer(s))}
-            onEmergencyFund={() => act(s => emergencyFund(s))}
-            onCloseSegment={(line) => {
-              const lineStations = state._cachedLineStations[line];
-              if (lineStations && lineStations.length >= 2) {
-                const mid = Math.floor(lineStations.length / 2);
-                act(s => closeLineSegment(s, line, lineStations[mid - 1], lineStations[mid]));
-              }
-            }}
-            onReopenLine={(line) => act(s => reopenLineSegment(s, line))}
-          />
+          {/* Desktop ActionBar vs Mobile FAB */}
+          {isMobile ? (
+            <MobileFAB
+              money={state.money}
+              radarActive={state.radarActive}
+              doubleFareTimer={state.doubleFareTimer}
+              expressTimer={state.expressTimer}
+              blackoutMode={state.blackoutMode}
+              signalFlareTimer={state.signalFlareTimer}
+              droneJammerTimer={state.droneJammerTimer}
+              emergencyBrakeTimer={state.emergencyBrakeTimer}
+              lives={state.lives}
+              closedSegments={state.closedSegments}
+              onBuyTrain={(l) => act(s => purchaseTrain(s, l))}
+              onReinforcements={() => act(s => callReinforcements(s))}
+              onBuyGenerator={() => act(s => buyGenerator(s))}
+              onBuyRadar={() => act(s => buyRadar(s))}
+              onPlaceDecoy={() => act(s => placeDecoy(s))}
+              onEmergencyBrake={() => act(s => emergencyBrake(s))}
+              onDoubleFare={() => act(s => activateDoubleFare(s))}
+              onBlackout={() => act(s => toggleBlackout(s))}
+              onSignalFlare={() => act(s => activateSignalFlare(s))}
+              onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
+              onDroneJammer={() => act(s => activateDroneJammer(s))}
+              onEmergencyFund={() => act(s => emergencyFund(s))}
+              onCloseSegment={(line) => {
+                const lineStations = state._cachedLineStations[line];
+                if (lineStations && lineStations.length >= 2) {
+                  const mid = Math.floor(lineStations.length / 2);
+                  act(s => closeLineSegment(s, line, lineStations[mid - 1], lineStations[mid]));
+                }
+              }}
+              onReopenLine={(line) => act(s => reopenLineSegment(s, line))}
+            />
+          ) : (
+            <ActionBar
+              money={state.money} selectedTrain={state.selectedTrain} selectedTrainLevel={selectedTrainLevel}
+              radarActive={state.radarActive} speedBoostCooldown={state.speedBoostCooldown}
+              doubleFareTimer={state.doubleFareTimer} expressTimer={state.expressTimer}
+              blackoutMode={state.blackoutMode} signalFlareTimer={state.signalFlareTimer}
+              droneJammerTimer={state.droneJammerTimer} emergencyBrakeTimer={state.emergencyBrakeTimer}
+              stationMagnetTimer={state.stationMagnetTimer} lives={state.lives}
+              closedSegments={state.closedSegments}
+              onBuyTrain={(l) => act(s => purchaseTrain(s, l))}
+              onReinforcements={() => act(s => callReinforcements(s))}
+              onBuyGenerator={() => act(s => buyGenerator(s))}
+              onBuyRadar={() => act(s => buyRadar(s))}
+              onPlaceDecoy={() => act(s => placeDecoy(s))}
+              onSpeedBoost={(l) => act(s => emergencySpeedBoost(s, l))}
+              onEmergencyBrake={() => act(s => emergencyBrake(s))}
+              onDoubleFare={() => act(s => activateDoubleFare(s))}
+              onExpressLine={(l) => act(s => activateExpressLine(s, l))}
+              onBlackout={() => act(s => toggleBlackout(s))}
+              onSignalFlare={() => act(s => activateSignalFlare(s))}
+              onPassengerAirdrop={() => act(s => passengerAirdrop(s))}
+              onDroneJammer={() => act(s => activateDroneJammer(s))}
+              onEmergencyFund={() => act(s => emergencyFund(s))}
+              onCloseSegment={(line) => {
+                const lineStations = state._cachedLineStations[line];
+                if (lineStations && lineStations.length >= 2) {
+                  const mid = Math.floor(lineStations.length / 2);
+                  act(s => closeLineSegment(s, line, lineStations[mid - 1], lineStations[mid]));
+                }
+              }}
+              onReopenLine={(line) => act(s => reopenLineSegment(s, line))}
+            />
+          )}
 
-          <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />
+          {!isMobile && <CameraControls currentMode={state.camera.mode} onSetMode={setCameraMode} />}
 
           <Minimap stateRef={stateRef} state={state} />
+
+          {/* Tutorial overlay */}
+          {showTutorial && (
+            <TutorialOverlay
+              step={stateRef.current.tutorialStep}
+              onNext={() => {
+                stateRef.current.tutorialStep++;
+                setHudState({ ...stateRef.current });
+              }}
+              onSkip={() => {
+                setShowTutorial(false);
+                stateRef.current.tutorialComplete = true;
+                localStorage.setItem('kbt_tutorial_done', '1');
+              }}
+            />
+          )}
         </>
       )}
     </div>

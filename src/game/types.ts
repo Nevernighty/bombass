@@ -40,6 +40,8 @@ export interface GameStation {
   passiveIncomeAccum: number;
 }
 
+export type PassengerType = 'normal' | 'vip' | 'elderly' | 'student' | 'worker';
+
 export interface Passenger {
   id: string;
   shape: PassengerShape;
@@ -47,6 +49,8 @@ export interface Passenger {
   stationId: string;
   patience: number;
   isVIP?: boolean;
+  passengerType: PassengerType;
+  fareMultiplier: number;
 }
 
 export type DroneType = 'shahed' | 'molniya' | 'gerbera';
@@ -142,6 +146,17 @@ export interface BuildingState {
   height: number;
   width: number;
   depth: number;
+  constructionProgress: number; // 0-1
+  constructionActive: boolean;
+}
+
+// Passenger delivery stats by type
+export interface PassengerTypeStats {
+  normal: number;
+  vip: number;
+  elderly: number;
+  student: number;
+  worker: number;
 }
 
 export interface Decoy {
