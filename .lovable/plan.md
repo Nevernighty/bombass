@@ -1,133 +1,102 @@
 
 
-# KYIV BOMBASS TRANSIT — Grand Overhaul: Mobile UX, Gameplay Depth, VFX & Dopamine
+# Grand Overhaul: Mobile UX, Advanced Gameplay, VFX & Animations
 
-This plan addresses the game being too primitive and poorly playable on mobile by overhauling touch controls, UI layout, visual effects, audio, and gameplay loops to create an addictive, polished mobile-first experience.
-
-## Current Problems Identified
-
-- **Mobile UX**: Touch panning works but UI panels (StationPanel, ActionBar, TopBar) are desktop-sized; action buttons are tiny at 40x40px; no haptic feedback; no mobile-friendly bottom sheet panels
-- **Gameplay pacing**: Stations unlock too randomly; limited dopamine feedback loops; combo system is shallow; no streak rewards beyond x5; no daily challenge or progression persistence
-- **VFX/Graphics**: Explosions and effects are decent but lack screen-wide impact events, particle bursts, or satisfying destruction cascades
-- **Audio**: Only basic procedural tones — no layered music that responds to gameplay intensity, no satisfying "ka-ching" for money, no heartbeat at low HP
+## Overview
+Transform the game from a desktop-oriented experience into a polished, mobile-first game with advanced building mechanics, animated 3D models, enhanced VFX, richer passenger systems, and guided onboarding with animated tooltips.
 
 ---
 
 ## 1. Mobile-First UI Overhaul
 
-**Files**: `GameCanvas.tsx`, `ActionBar.tsx`, `StationPanel.tsx`, `TrainPanel.tsx`, `TopBar.tsx`, `index.css`
+**Files**: `GameCanvas.tsx`, `ActionBar.tsx`, `TopBar.tsx`, `StationPanel.tsx`, `TrainPanel.tsx`, `index.css`
 
-- Detect mobile via `useIsMobile()` hook (already exists)
-- **TopBar**: Compact single-row on mobile — show only score, money, lives, combo. Tap to expand full stats
-- **ActionBar**: Replace horizontal dock with a **FAB (floating action button)** that opens a radial/grid menu on tap. 4 category buttons in a bottom-fixed row, each opens a slide-up panel with large 56x56px touch targets
-- **StationPanel / TrainPanel**: Convert to bottom sheet drawers (slide up from bottom, swipe down to dismiss) instead of fixed side panels. Use `touch-action: none` on game canvas to prevent scroll interference
-- **Start Screen**: Stack layout on mobile — city selector as horizontal scroll cards, scenario cards in single column, larger touch targets
-- **Pinch-to-zoom**: Already works via touch handlers, but add visual zoom indicator
-- **Double-tap**: Quick-select nearest station
+- **TopBar**: On mobile (viewport < 768px), collapse to single compact row showing only score, money, lives, combo. Add a chevron to expand full stats as a dropdown overlay.
+- **ActionBar → FAB Menu**: Replace the wide horizontal dock (unusable on mobile) with a floating action button (bottom-right corner) that opens a grid menu of 4 categories (Trains, Defense, Economy, Emergency). Each category opens a slide-up bottom sheet with 56x56px touch targets.
+- **StationPanel / TrainPanel**: Render as bottom sheet drawers on mobile (slide up from bottom, swipe-down-to-dismiss via CSS transform). Keep current side-panel layout on desktop.
+- **Start Screen**: Single-column layout on mobile — city selector as horizontal scroll strip, scenario cards stacked vertically, larger tap targets (min 48px).
+- **Touch improvements**: Add `touch-action: none` to the game canvas container to prevent browser scroll interference.
 
-## 2. Dopamine-Boosting Gameplay Mechanics
+## 2. Animated Building Construction & Damage
 
-**Files**: `GameEngine.ts`, `types.ts`, `config/difficulty.ts`
+**Files**: `CityBuildings.tsx`, `GameEngine.ts`, `types.ts`
 
-### 2a. Streak & Multiplier System
-- Replace flat combo with a **streak timer**: each delivery resets a 5s countdown; maintaining streak builds multiplier faster (x1 → x2 → x3 → x5 → x10)
-- At x10, trigger **FEVER MODE**: screen border glows gold, all trains move 50% faster, double fare for 10s, screen-shake celebration
-- Streak break plays a "glass shatter" SFX and shows a dramatic counter reset animation
+- **BuildingState**: Add `constructionProgress: number` (0-1), `constructionActive: boolean` fields. New buildings start at progress 0 and "grow" over 3 seconds.
+- **Construction animation**: In `useFrame`, buildings with `constructionProgress < 1` render at reduced Y-scale (lerp from 0 to full height), with a scaffold wireframe overlay (transparent edges mesh) and rising dust particles.
+- **Damage visualization**: Buildings between 50-100% HP show cracks (darkened color patches). Below 50% HP: flickering orange glow + active smoke particles. Below 25%: partial collapse (scale Y reduced to 60%, debris particles spawn).
+- **Collision debris**: On drone impact near a building, spawn 10-15 instanced box debris particles with physics (gravity + random velocity), fading over 2 seconds. Use existing `debrisRef` pattern but increase count and add rotation.
 
-### 2b. Milestone Rewards
-- Every 25 passengers: money bonus + screen celebration
-- Every 50 passengers: unlock a random power-up (free shield, free SAM, speed boost)
-- Every 100 passengers: "LEGENDARY" tier notification with screen-wide gold particle burst
+## 3. Advanced 3D Model Animations
 
-### 2c. Challenge System
-- Add `dailyChallenge` to GameState: randomized objectives like "Deliver 50 passengers without losing a station" or "Intercept 10 drones in one raid"
-- Progress bar in TopBar; completion awards bonus money and an achievement badge
-- 3-star rating system per scenario (based on score thresholds)
+**Files**: `DroneModel.tsx`, `TrainModel.tsx`, `StationNode3D.tsx`, `Scene3D.tsx`
 
-### 2d. Danger Escalation
-- When stability drops below 30%: screen turns progressively red, heartbeat SFX plays, camera slightly zooms in (tension)
-- When a station is about to overflow (7/8 passengers): pulsing red glow on that station, urgent beeping
-- "Last Stand" mechanic: at 1 life, all defenses get +50% fire rate, trains get +25% speed (comeback mechanic)
+- **Spawn animations**: All 3D entities (drones, trains, repair units) get a spawn-in animation: scale from 0 → 1 with elastic easing over 0.5s + a "materialization" effect (opacity 0 → 1 with additive white flash).
+- **Drone propeller animation**: Add `useFrame` rotation on propeller child nodes of GLB models (identify by name containing "prop" or "rotor"). Shahed: slow rotation. Molniya: fast. Gerbera: dual counter-rotating.
+- **Drone projectile trails**: When drones approach within strike range, render a falling bomb mesh (small cylinder) that drops from drone to target with gravity arc + smoke trail particles.
+- **Train boarding animation**: When passengers board/alight, animate small colored dots moving between the station platform and the train body (already partially exists — enhance with arc trajectory and more visible particle count).
+- **Station pulse on interaction**: Clicking a station triggers a brief radial pulse ring (torus geometry, scale up + fade out over 0.3s).
 
-## 3. Enhanced VFX & Graphics
+## 4. Enhanced VIP & Special Passenger Mechanics
+
+**Files**: `GameEngine.ts`, `types.ts`, `StationNode3D.tsx`
+
+- **Passenger types**: Extend `Passenger` with `type: 'normal' | 'vip' | 'elderly' | 'student' | 'worker'`. Each has different patience, fare multiplier, and visual indicator.
+- **VIP mechanics**: VIP passengers (gold star icon) pay 3x fare, but drones specifically target stations with VIPs. VIP delivery triggers a special celebration SFX + floating "+$30 VIP" score.
+- **Elderly passengers**: Move slower (longer dwell time) but provide satisfaction bonus on delivery.
+- **Student rush**: During rush hour, spawn clusters of student passengers (blue icons) that travel in groups and provide combo bonuses.
+- **Passenger tracking**: Add `passengerTypes` counter to GameState tracking deliveries by type. Show breakdown in game-over stats.
+- **Visual differentiation**: In `PassengerShape3D`, VIPs render with gold material + small crown mesh. Elderly render with silver. Students render with blue tint.
+
+## 5. Animated Tutorial Tooltips & Onboarding
+
+**Files**: `GameCanvas.tsx` (new `TutorialOverlay` component), `GameEngine.ts`
+
+- **Visual overlay system**: Semi-transparent dark backdrop with a CSS `clip-path` spotlight circle highlighting the target UI element.
+- **Animated arrow**: CSS arrow that bounces (up-down animation) pointing at the highlighted element. Arrow follows the element's position using refs.
+- **Tutorial steps** (Ukrainian text):
+  1. "Ласкаво просимо! Керуй транспортом міста" — highlight map center
+  2. "Тягни камеру для огляду" — highlight map, wait for pan gesture
+  3. "Натисни на станцію" — arrow points to nearest station, wait for click
+  4. "Купи потяг" — arrow bounces on train button in ActionBar
+  5. "Підключи нову станцію" — arrow points to pending station, wait for connection
+  6. "Побудуй оборону" — arrow on defense button, wait for purchase
+  7. "Виживи під атакою!" — remove overlay, first raid begins
+- **Skip button**: "Пропустити" button always visible in corner.
+- **Contextual tooltips**: First time each ActionBar category is opened, show a brief explainer tooltip (auto-dismiss after 4s). Track seen categories in state.
+
+## 6. Enhanced VFX & Screen Effects
 
 **Files**: `Scene3D.tsx`, `ExplosionEffect.tsx`, `StationNode3D.tsx`, `index.css`
 
-### 3a. Screen-Wide Impact Effects
-- **Critical hit explosions**: When a Gerbera drone hits, add a brief white screen flash + radial shockwave ring that expands across the entire viewport
-- **Combo celebration particles**: At milestone combos, emit a burst of colored particles (gold/green) from the score counter
-- **Rain particles**: Replace the current flat rain overlay with actual falling particle instances in the 3D scene (lightweight instanced points)
+- **Station health glow**: Healthy stations emit soft green point light (intensity 0.3). Damaged (<50% HP) switch to flickering orange. Destroyed: dark red ember glow.
+- **Shield dome**: When shield is active, render a translucent icosahedron mesh over the station with animated opacity (sine wave shimmer).
+- **Screen-wide impact flash**: On Gerbera drone hits, brief white fullscreen overlay (0.1s) + CSS radial shockwave ring expanding from hit point.
+- **Fever mode visuals**: When fever is active, render a gold animated border (CSS box-shadow with animated inset glow) + subtle gold particle overlay.
+- **Rain upgrade**: Replace flat CSS rain overlay with a 3D instanced points system (500 falling point particles) for more immersive weather.
 
-### 3b. Station Glow & Pulse
-- Healthy stations: soft green underglow
-- Damaged stations: flickering orange/red glow with smoke particles
-- Destroyed stations: persistent dark rubble + occasional ember particles
-- Shield active: visible dome mesh with animated fresnel shader
-
-### 3c. Train Arrival Celebration
-- When passengers are delivered: brief sparkle burst at station + the score floats up with a spring animation
-- Screen edge flash in the line's color
-
-### 3d. UI Juice
-- **Number counters**: Animate score/money changes with rolling digit effect (already partially exists, enhance with spring physics)
-- **Button press**: Add scale-down + bounce-back on all game buttons
-- **Panel transitions**: Slide + fade for all panels instead of instant show/hide
-
-## 4. Audio Overhaul
-
-**File**: `AudioEngine.ts`, `core/AudioFeedback.ts`
-
-### 4a. Adaptive Music System
-- Replace static 4-note ambient drone with a **layered adaptive soundtrack**:
-  - **Layer 1 (always)**: Low pad chord (changes with day/night)
-  - **Layer 2 (active stations > 8)**: Rhythmic bass pulse
-  - **Layer 3 (air raid)**: Tense high strings + staccato percussion
-  - **Layer 4 (combo > 3)**: Upbeat arpeggios
-- Each layer fades in/out based on game state, creating dynamic tension
-
-### 4b. New SFX
-- `playCashRegister()`: Satisfying "ka-ching" for money earned (short metallic ring + coin drop)
-- `playHeartbeat()`: Low 60bpm pulse when lives ≤ 1
-- `playComboBreak()`: Glass shatter + descending tone
-- `playFeverMode()`: Rising synth sweep + sustained shimmer
-- `playMilestone()`: Triumphant brass stab (3-note fanfare, different from playSuccess)
-- `playStationOverflow()`: Urgent staccato alarm beeps
-- Haptic feedback via `navigator.vibrate()` on mobile for explosions and critical events
-
-## 5. Improved Tutorial & Onboarding
-
-**Files**: `GameCanvas.tsx`, `GameEngine.ts`
-
-- Replace the current invisible tutorial state machine with a **visual overlay system**:
-  - Semi-transparent dark overlay with a "spotlight" cutout highlighting the target element
-  - Instruction text in Ukrainian with arrow pointing to the element
-  - "Далі" (Next) / "Пропустити" (Skip) buttons
-  - Steps: Welcome → Pan camera → Click station → Buy train → Connect station → Build defense → Survive raid → Complete
-- Add a **"Sandbox" mode**: No drones, infinite money — for learning mechanics stress-free
-- First-time auto-zoom to starting stations
-
-## 6. Quality-of-Life Improvements
+## 7. Gameplay Interaction Improvements
 
 **Files**: `GameEngine.ts`, `GameCanvas.tsx`, `ActionBar.tsx`
 
-- **Auto-pause on tab switch** (visibility API)
-- **Quick-restart button** always visible during gameplay (not just game over)
-- **Undo last purchase** (within 3s window) — prevents accidental buys on mobile
-- **Settings panel**: Volume slider, music toggle, SFX toggle, vibration toggle, language (future)
-- **Mini-tutorial tooltips**: First time opening each action category, show a brief explanation overlay
+- **Auto-pause**: Use `document.visibilitychange` API to pause when tab is backgrounded. Add `tabVisible` state field.
+- **Undo last purchase**: After any purchase, store action in `undoAction: { type, cost, timer }`. Show a 3-second "Скасувати" toast. If tapped, refund money and reverse action.
+- **Quick-restart**: Always-visible restart button in TopBar during gameplay (not just game-over).
+- **Double-tap station**: On mobile, detect double-tap on empty canvas area → select nearest station.
+- **Settings**: Add a gear icon in TopBar that opens a slide-up panel with: SFX toggle, Music toggle, Vibration toggle (mobile only), volume slider. Persist in localStorage.
 
 ---
 
 ## Technical Summary
 
-| Area | Files Modified | Scope |
-|------|---------------|-------|
-| Mobile UI | GameCanvas, ActionBar, StationPanel, TrainPanel, TopBar, index.css | Layout, touch targets, bottom sheets |
-| Gameplay | GameEngine, types, difficulty | Streak, milestones, challenges, danger escalation |
-| VFX | Scene3D, ExplosionEffect, StationNode3D, index.css | Particles, glows, screen effects |
-| Audio | AudioEngine, AudioFeedback | Adaptive music, 6+ new SFX, haptics |
-| Tutorial | GameCanvas, GameEngine | Visual overlay system, sandbox mode |
-| QoL | GameCanvas, ActionBar | Auto-pause, undo, settings |
+| Area | Files | Key Changes |
+|------|-------|-------------|
+| Mobile UI | ActionBar, TopBar, StationPanel, TrainPanel, GameCanvas, index.css | FAB menu, bottom sheets, compact TopBar, touch targets |
+| Buildings | CityBuildings, GameEngine, types | Construction animation, damage stages, debris physics |
+| 3D Animations | DroneModel, TrainModel, StationNode3D | Spawn-in effects, propeller rotation, projectile trails |
+| Passengers | GameEngine, types, StationNode3D | 5 passenger types, VIP targeting, visual differentiation |
+| Tutorial | GameCanvas (new component) | Spotlight overlay, animated arrows, 7-step guide |
+| VFX | Scene3D, ExplosionEffect, index.css | Station glow, shield dome, impact flash, rain particles |
+| QoL | GameEngine, GameCanvas, ActionBar | Auto-pause, undo, settings, double-tap |
 
-All changes maintain the existing architecture pattern (pure systems in GameEngine, R3F rendering in Scene3D, memoized HUD components).
+All changes maintain existing architecture: pure state updates in GameEngine, R3F rendering in Scene3D components, memoized HUD layers. Performance budget: max 5 active point lights, instanced meshes for particles, throttled HUD updates.
 
