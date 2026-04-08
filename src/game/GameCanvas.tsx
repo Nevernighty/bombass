@@ -83,6 +83,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ onStateChange }) => {
       audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
     }
     prevAchCountRef.current = 0;
+    // Show tutorial for first-time players
+    if (!localStorage.getItem('kbt_tutorial_done')) {
+      setShowTutorial(true);
+    }
+    setHudState({ ...stateRef.current });
+  }, [selectedCity]);
+    if (!audioFeedbackRef.current) {
+      audioFeedbackRef.current = new AudioFeedback(audioRef.current, globalEventBus);
+    }
+    prevAchCountRef.current = 0;
     setHudState({ ...stateRef.current });
   }, []);
 
